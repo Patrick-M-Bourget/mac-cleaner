@@ -5,9 +5,9 @@ import Testing
 @Test func firstObservationOfAnotherLocationDoesNotCompareUnrelatedScopes() async throws {
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropWhatGrew-" + UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: directory) }
-    let store = GrowthHistoryStore(directory: directory, minimumBaselineAge: 0)
-    func observation(_ scope: String, _ time: Double, _ bytes: Int64) -> GrowthSnapshot {
-        GrowthSnapshot(fingerprint: .init(scopeID: scope, rootID: scope, volumeID: "volume", access: "complete", rules: "one", exclusions: "none", classification: "one"), scopeLabel: "Same name", observedAt: Date(timeIntervalSince1970: time), groups: [.init(id: "root", label: "Root files", logicalBytes: bytes)])
+    let store = StorageTrendsHistoryStore(directory: directory, minimumBaselineAge: 0)
+    func observation(_ scope: String, _ time: Double, _ bytes: Int64) -> StorageTrendsSnapshot {
+        StorageTrendsSnapshot(fingerprint: .init(scopeID: scope, rootID: scope, volumeID: "volume", access: "complete", rules: "one", exclusions: "none", classification: "one"), scopeLabel: "Same name", observedAt: Date(timeIntervalSince1970: time), groups: [.init(id: "root", label: "Root files", logicalBytes: bytes)])
     }
     let first = observation("A", 100, 10)
     _ = try await store.record(first, now: first.observedAt, expectedEpoch: try await store.recordingEpoch())
@@ -26,9 +26,9 @@ import Testing
 @Test func expiredUnrelatedHistoryDoesNotClaimANewLocationLostItsBaseline() async throws {
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropWhatGrew-" + UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: directory) }
-    let store = GrowthHistoryStore(directory: directory)
-    func observation(_ scope: String, _ date: Date) -> GrowthSnapshot {
-        GrowthSnapshot(fingerprint: .init(scopeID: scope, rootID: scope, volumeID: "volume", access: "complete", rules: "one", exclusions: "none", classification: "one"), scopeLabel: scope, observedAt: date, groups: [.init(id: "root", label: "Files", logicalBytes: 1)])
+    let store = StorageTrendsHistoryStore(directory: directory)
+    func observation(_ scope: String, _ date: Date) -> StorageTrendsSnapshot {
+        StorageTrendsSnapshot(fingerprint: .init(scopeID: scope, rootID: scope, volumeID: "volume", access: "complete", rules: "one", exclusions: "none", classification: "one"), scopeLabel: scope, observedAt: date, groups: [.init(id: "root", label: "Files", logicalBytes: 1)])
     }
     let old = Date(timeIntervalSince1970: 1000)
     _ = try await store.record(observation("A", old), now: old, expectedEpoch: try await store.recordingEpoch())

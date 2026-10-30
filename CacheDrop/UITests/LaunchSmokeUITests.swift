@@ -296,7 +296,7 @@ final class LaunchSmokeUITests: XCTestCase {
 
 /// #119: the first catalog scan records a baseline; a later one shows growth per category and location.
 /// #126: a scan minutes after the baseline waits for a day-old one ("Check back tomorrow").
-final class WhatGrewUITests: XCTestCase {
+final class StorageTrendsUITests: XCTestCase {
     @MainActor func testFirstScanRecordsABaselineAndTheNextShowsWhatGrew() throws {
         continueAfterFailure = false
         let app = XCUIApplication()

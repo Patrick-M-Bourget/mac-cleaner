@@ -5,37 +5,37 @@ import CacheDropCore
 @Test func completedCompatibleAggregatesCompareAdditionsAndRemovalsWithoutFileRecords() async throws {
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropGrowth-" + UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: directory) }
-    let store = GrowthHistoryStore(directory: directory, minimumBaselineAge: 0)
-    let fingerprint = GrowthFingerprint(scopeID: "scope", rootID: "root", volumeID: "volume", access: "complete", rules: "rules1", exclusions: "none", classification: "folders-v1")
-    let first = GrowthSnapshot(fingerprint: fingerprint, scopeLabel: "Selected folder", observedAt: Date(timeIntervalSince1970: 100), groups: [.init(id: "folder:one", label: "One", logicalBytes: 10), .init(id: "folder:two", label: "Two", logicalBytes: 5)])
+    let store = StorageTrendsHistoryStore(directory: directory, minimumBaselineAge: 0)
+    let fingerprint = StorageTrendsFingerprint(scopeID: "scope", rootID: "root", volumeID: "volume", access: "complete", rules: "rules1", exclusions: "none", classification: "folders-v1")
+    let first = StorageTrendsSnapshot(fingerprint: fingerprint, scopeLabel: "Selected folder", observedAt: Date(timeIntervalSince1970: 100), groups: [.init(id: "folder:one", label: "One", logicalBytes: 10), .init(id: "folder:two", label: "Two", logicalBytes: 5)])
     #expect(try await store.record(first, now: first.observedAt, expectedEpoch: try await store.recordingEpoch()).state == .firstBaseline)
-    let second = GrowthSnapshot(fingerprint: fingerprint, scopeLabel: "Selected folder", observedAt: Date(timeIntervalSince1970: 200), groups: [.init(id: "folder:one", label: "One", logicalBytes: 20)])
+    let second = StorageTrendsSnapshot(fingerprint: fingerprint, scopeLabel: "Selected folder", observedAt: Date(timeIntervalSince1970: 200), groups: [.init(id: "folder:one", label: "One", logicalBytes: 20)])
     let result = try await store.record(second, now: second.observedAt, expectedEpoch: try await store.recordingEpoch())
     #expect(result.state == .compared)
     #expect(result.logicalDelta == 5)
     #expect(result.groups.first { $0.id == "folder:one" }?.logicalDelta == 10)
     #expect(result.groups.first { $0.id == "folder:two" }?.logicalDelta == -5)
     #expect(result.from == first.observedAt && result.to == second.observedAt)
-    let reopened = GrowthHistoryStore(directory: directory, minimumBaselineAge: 0)
+    let reopened = StorageTrendsHistoryStore(directory: directory, minimumBaselineAge: 0)
     #expect(try await reopened.latest(now: second.observedAt).state == .compared)
 }
 
 @Test func incompleteUnknownObservationsNeverReplaceCompletedBaselineAndCoverageChangesAreNotGrowth() async throws {
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropGrowth-" + UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: directory) }
-    let store = GrowthHistoryStore(directory: directory)
-    let original = GrowthFingerprint(scopeID: "scope", rootID: "root", volumeID: "volume", access: "complete", rules: "one", exclusions: "none", classification: "one")
-    func snapshot(_ fingerprint: GrowthFingerprint, _ time: Double, _ coverage: GrowthCoverage = .complete) -> GrowthSnapshot {
-        GrowthSnapshot(fingerprint: fingerprint, scopeLabel: "Folder", observedAt: Date(timeIntervalSince1970: time), groups: [.init(id: "category:files", label: "Files", logicalBytes: 10)], coverage: coverage)
+    let store = StorageTrendsHistoryStore(directory: directory)
+    let original = StorageTrendsFingerprint(scopeID: "scope", rootID: "root", volumeID: "volume", access: "complete", rules: "one", exclusions: "none", classification: "one")
+    func snapshot(_ fingerprint: StorageTrendsFingerprint, _ time: Double, _ coverage: StorageTrendsCoverage = .complete) -> StorageTrendsSnapshot {
+        StorageTrendsSnapshot(fingerprint: fingerprint, scopeLabel: "Folder", observedAt: Date(timeIntervalSince1970: time), groups: [.init(id: "category:files", label: "Files", logicalBytes: 10)], coverage: coverage)
     }
     _ = try await store.record(snapshot(original, 100), now: Date(timeIntervalSince1970: 100), expectedEpoch: try await store.recordingEpoch())
-    for coverage in [GrowthCoverage.partial, .cancelled, .unmeasured] {
+    for coverage in [StorageTrendsCoverage.partial, .cancelled, .unmeasured] {
         #expect(try await store.record(snapshot(original, 110, coverage), now: Date(timeIntervalSince1970: 110), expectedEpoch: try await store.recordingEpoch()).state == .unknown)
     }
     #expect(try await store.snapshots(now: Date(timeIntervalSince1970: 1000)).count == 1)
     for changed in [
-        GrowthFingerprint(scopeID: "scope", rootID: "new-root", volumeID: "volume", access: "complete", rules: "one", exclusions: "none", classification: "one"),
-        GrowthFingerprint(scopeID: "scope", rootID: "root", volumeID: "other", access: "complete", rules: "two", exclusions: "custom", classification: "two")
+        StorageTrendsFingerprint(scopeID: "scope", rootID: "new-root", volumeID: "volume", access: "complete", rules: "one", exclusions: "none", classification: "one"),
+        StorageTrendsFingerprint(scopeID: "scope", rootID: "root", volumeID: "other", access: "complete", rules: "two", exclusions: "custom", classification: "two")
     ] {
         let latest = try await store.record(snapshot(changed, Double(200 + (try await store.snapshots(now: Date(timeIntervalSince1970: 1000)).count))), now: Date(timeIntervalSince1970: 1000), expectedEpoch: try await store.recordingEpoch())
         #expect(latest.state == .coverageChanged)
@@ -49,10 +49,10 @@ import CacheDropCore
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     let journal = directory.appendingPathComponent("unresolved-recovery.sqlite")
     try Data("unresolved".utf8).write(to: journal)
-    let fingerprint = GrowthFingerprint(scopeID: "scope", rootID: "root", volumeID: "volume", access: "complete", rules: "one", exclusions: "none", classification: "one")
-    let store = GrowthHistoryStore(directory: directory, policy: GrowthRetention(days: 1, baselines: 2))
+    let fingerprint = StorageTrendsFingerprint(scopeID: "scope", rootID: "root", volumeID: "volume", access: "complete", rules: "one", exclusions: "none", classification: "one")
+    let store = StorageTrendsHistoryStore(directory: directory, policy: StorageTrendsRetention(days: 1, baselines: 2))
     for time in [100.0, 200, 300] {
-        _ = try await store.record(GrowthSnapshot(fingerprint: fingerprint, scopeLabel: "Folder", observedAt: Date(timeIntervalSince1970: time), groups: [.init(id: "files", label: "Files", logicalBytes: 1)]), now: Date(timeIntervalSince1970: time), expectedEpoch: try await store.recordingEpoch())
+        _ = try await store.record(StorageTrendsSnapshot(fingerprint: fingerprint, scopeLabel: "Folder", observedAt: Date(timeIntervalSince1970: time), groups: [.init(id: "files", label: "Files", logicalBytes: 1)]), now: Date(timeIntervalSince1970: time), expectedEpoch: try await store.recordingEpoch())
     }
     #expect(try await store.snapshots(now: Date(timeIntervalSince1970: 300)).count == 2)
     #expect(try await store.latest(now: Date(timeIntervalSince1970: 90000)).state == .missingBaseline)
@@ -68,11 +68,11 @@ import CacheDropCore
 @Test func aggregateArchiveRejectsCorruptionAndNeverExceedsBytePolicy() async throws {
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropGrowth-" + UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: directory) }
-    let store = GrowthHistoryStore(directory: directory, policy: GrowthRetention(bytes: 1600))
-    let fingerprint = GrowthFingerprint(scopeID: "scope", rootID: "root", volumeID: "volume", access: "complete", rules: "one", exclusions: "none", classification: "one")
+    let store = StorageTrendsHistoryStore(directory: directory, policy: StorageTrendsRetention(bytes: 1600))
+    let fingerprint = StorageTrendsFingerprint(scopeID: "scope", rootID: "root", volumeID: "volume", access: "complete", rules: "one", exclusions: "none", classification: "one")
     for i in 0..<10 {
         let date = Date(timeIntervalSince1970: Double(100 + i))
-        _ = try await store.record(GrowthSnapshot(fingerprint: fingerprint, scopeLabel: "Folder", observedAt: date, groups: [.init(id: "files", label: "Files", logicalBytes: Int64(i))]), now: date, expectedEpoch: try await store.recordingEpoch())
+        _ = try await store.record(StorageTrendsSnapshot(fingerprint: fingerprint, scopeLabel: "Folder", observedAt: date, groups: [.init(id: "files", label: "Files", logicalBytes: Int64(i))]), now: date, expectedEpoch: try await store.recordingEpoch())
     }
     let file = directory.appendingPathComponent("aggregates-v1.json")
     #expect(try Data(contentsOf: file).count <= 1600)
@@ -83,7 +83,7 @@ import CacheDropCore
     let groups = try #require(snapshot["groups"] as? [[String: Any]])
     snapshot["groups"] = groups + groups; entries[0]["snapshot"] = snapshot; json["entries"] = entries
     try JSONSerialization.data(withJSONObject: json).write(to: file)
-    do { _ = try await GrowthHistoryStore(directory: directory).latest(); Issue.record("Corrupt aggregate archive accepted") }
+    do { _ = try await StorageTrendsHistoryStore(directory: directory).latest(); Issue.record("Corrupt aggregate archive accepted") }
     catch { }
 }
 
@@ -93,7 +93,7 @@ import CacheDropCore
     try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: directory) }
     try FileManager.default.createSymbolicLink(at: link, withDestinationURL: destination)
-    do { try await GrowthHistoryStore(directory: link).clearCompletedHistory(); Issue.record("Symlinked store accepted") }
+    do { try await StorageTrendsHistoryStore(directory: link).clearCompletedHistory(); Issue.record("Symlinked store accepted") }
     catch { }
     #expect(try FileManager.default.contentsOfDirectory(atPath: destination.path).isEmpty)
 }
@@ -101,8 +101,8 @@ import CacheDropCore
 @Test func interleavedScopesCompareTheirOwnLatestCompletedObservation() async throws {
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropGrowth-" + UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: directory) }
-    let store = GrowthHistoryStore(directory: directory, minimumBaselineAge: 0)
-    func snapshot(_ scope: String, _ time: Double, _ bytes: Int64) -> GrowthSnapshot {
+    let store = StorageTrendsHistoryStore(directory: directory, minimumBaselineAge: 0)
+    func snapshot(_ scope: String, _ time: Double, _ bytes: Int64) -> StorageTrendsSnapshot {
         .init(fingerprint: .init(scopeID: scope, rootID: scope, volumeID: "volume", access: "complete", rules: "one", exclusions: "none", classification: "one"), scopeLabel: scope, observedAt: Date(timeIntervalSince1970: time), groups: [.init(id: "files", label: "Files", logicalBytes: bytes)])
     }
     _ = try await store.record(snapshot("A", 100, 3), now: Date(timeIntervalSince1970: 100), expectedEpoch: try await store.recordingEpoch())

@@ -11,7 +11,7 @@ The names CacheDrop shows, what they mean, and where they live in code. Copy fol
 | Smart clean | The recommended items, ready to clean in one go | `SmartCleanView`, `RecommendedPlan` |
 | Cleanup plan | Every category and item, to tick what to clean | `SessionPlan`, `CatalogCleanupModel` |
 | Applications | Apps, plug-ins and files from deleted apps | `ApplicationsView`, `ApplicationsInventory` |
-| Storage trends | What grew or shrank between two scans | `Growth*` (`GrowthHistoryView`, `GrowthHistory`) |
+| Storage trends | What grew or shrank between two scans | `StorageTrends*` (`StorageTrendsHistoryView`, `StorageTrendsHistoryStore`) |
 | History | Past cleanups and scans | `CleanupHistoryView`, `ScanActivityHistory` |
 | Locations & access | Scanned locations, Full Disk Access, Protected items, Saved data | `CacheDropApp.swift`, `RememberedLocations` |
 | Explore storage | Browse a scanned folder by size | `StorageExplorer`, `FolderInspection` |

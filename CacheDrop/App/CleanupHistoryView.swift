@@ -67,7 +67,7 @@ private enum HistoryActivityItem: Identifiable {
             snapshot = result.2
             if snapshot == nil { blocked = true; loadError = "CacheDrop couldn’t read its cleanup history. Clear and Reset are off until it can." }
             else { blocked = false; loadError = nil }
-            try await GrowthHistoryModel.shared.clearCompletedHistory()
+            try await StorageTrendsHistoryModel.shared.clearCompletedHistory()
             await ScanActivityHistory.shared.load(maintain: false)
             let noun = result.0.removedRuns == 1 ? "cleanup" : "cleanups"
             message = "History cleared: \(result.0.removedRuns) \(noun) and every scan." + compactionMessage(compactionCompleted)
@@ -105,7 +105,7 @@ private enum HistoryActivityItem: Identifiable {
             resetStage = .remainingPreferences
             try lifecycle.resetPreferences()
             try lifecycle.locations.reset()
-            try await GrowthHistoryModel.shared.resetHistory()
+            try await StorageTrendsHistoryModel.shared.resetHistory()
             try await ExclusionsModel.shared.reset()
             lifecycle.selection.endSession()
             await lifecycle.inspection.resetSession()

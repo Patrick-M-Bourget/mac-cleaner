@@ -389,8 +389,8 @@ private func dockerRunning(_ home: URL, docker: URL, choose ruleIDs: Set<String>
     defer { try? FileManager.default.removeItem(at: home); try? FileManager.default.removeItem(at: store) }
     let down = home.appendingPathComponent("tools/down")
     let docker = try fakeDocker(home, df: "if test -f \"$(dirname \"$0\")/down\"; then echo 'Cannot connect to the Docker daemon' >&2; exit 1; fi; cat \"$(dirname \"$0\")/df.json\"")
-    let catalog = Catalog(rules: fixtureRules), recorder = GrowthScanRecorder(store: GrowthHistoryStore(directory: store, minimumBaselineAge: 0))
-    func scan() async throws -> GrowthComparison {
+    let catalog = Catalog(rules: fixtureRules), recorder = StorageTrendsScanRecorder(store: StorageTrendsHistoryStore(directory: store, minimumBaselineAge: 0))
+    func scan() async throws -> StorageTrendsComparison {
         let token = try await recorder.beginCatalog(home: home, exclusionFingerprint: ExclusionPolicy().fingerprint)
         let discovery = catalog.discovery(fixture: home, locateTool: { $0.executables.contains("/usr/local/bin/docker") ? docker : nil })
         return try await recorder.completeCatalog(discovery, catalog: catalog, fullDiskAccess: .granted, token: token)

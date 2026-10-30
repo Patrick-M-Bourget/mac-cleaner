@@ -5,8 +5,8 @@ import Darwin
 /// its size and whether it could be read. Every scanned location is recorded, found or not, so a location that
 /// appears later is growth, while one the scan starts or stops covering is a coverage change. A location CacheDrop
 /// couldn't read, or whose tool didn't answer, is recorded as not measured, never as 0.
-public enum CatalogGrowth {
-    public static func groups(_ discovery: CatalogDiscovery, catalog: Catalog, fullDiskAccess: FullDiskAccessStatus) -> [GrowthAggregate] {
+public enum StorageTrendsCatalog {
+    public static func groups(_ discovery: CatalogDiscovery, catalog: Catalog, fullDiskAccess: FullDiskAccessStatus) -> [StorageTrendsAggregate] {
         struct Group { let rule: CleanupRule; let location: String; var bytes: Int64 = 0; var measured: Bool }
         var groups: [String: Group] = [:], order: [String] = []
         for id in discovery.scannedRuleIDs {
@@ -25,7 +25,7 @@ public enum CatalogGrowth {
         }
         return order.map { id in
             let group = groups[id]!
-            return GrowthAggregate(id: id, label: label(group.location, base: group.rule.base), logicalBytes: group.bytes, dimension: .location,
+            return StorageTrendsAggregate(id: id, label: label(group.location, base: group.rule.base), logicalBytes: group.bytes, dimension: .location,
                                    category: group.rule.category, ruleID: group.rule.id, measured: group.measured)
         }
     }
