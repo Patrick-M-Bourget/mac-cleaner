@@ -114,6 +114,7 @@
         ],
         "id" : "494B9606-49E6-4BF6-81A0-F654A417BAA9",
         "observedAt" : 800090000,
+        "onDisk" : true,
         "scopeLabel" : "Known locations"
       }
     }

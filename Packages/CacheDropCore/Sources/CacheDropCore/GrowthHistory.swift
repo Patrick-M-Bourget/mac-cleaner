@@ -19,6 +19,7 @@ public struct GrowthFingerprint: Codable, Sendable, Equatable {
 public enum GrowthDimension: String, Codable, Sendable { case folder = "folder", category = "category", location = "location" }
 public struct GrowthAggregate: Codable, Sendable, Identifiable {
     public let id, label: String
+    /// Its size on disk, each item's as Overview shows it (`Candidate.estimatedBytes`, Decision 94); the name and stored key predate that.
     public let logicalBytes: Int64
     public let dimension: GrowthDimension
     /// A location group's catalog category and rule.
@@ -49,14 +50,19 @@ public struct GrowthSnapshot: Codable, Sendable, Identifiable {
     /// A rescan right after a cleanup (#126). It can be the latest scan, but never the baseline a later scan compares with.
     /// Nil in records made before this was tracked.
     private let cleanup: Bool?
+    /// True for every snapshot saved since sizes on disk (#447, Decision 94). Nil in older ones, which are never compared.
+    private let onDisk: Bool?
     /// Stored in Storage trends' history (#448): a renamed property keeps its key here; a new field needs its key here and in the StoredKeys fixture.
     private enum CodingKeys: String, CodingKey {
         case id = "id", fingerprint = "fingerprint", scopeLabel = "scopeLabel", observedAt = "observedAt", groups = "groups", coverage = "coverage", cleanup = "cleanup"
+        case onDisk = "onDisk"
     }
     public var afterCleanup: Bool { cleanup == true }
+    /// Whether its sizes are sizes on disk, as Overview and Explore storage show them (Decision 94). Only such snapshots are compared.
+    public var sizesOnDisk: Bool { onDisk == true }
     public init(fingerprint: GrowthFingerprint, scopeLabel: String, observedAt: Date, groups: [GrowthAggregate], coverage: GrowthCoverage = .complete, afterCleanup: Bool = false) {
         id = UUID(); self.fingerprint = fingerprint; self.scopeLabel = scopeLabel
-        self.observedAt = observedAt; self.groups = groups; self.coverage = coverage; cleanup = afterCleanup
+        self.observedAt = observedAt; self.groups = groups; self.coverage = coverage; cleanup = afterCleanup; onDisk = true
     }
     public var logicalBytes: Int64 { groups.filter { $0.dimension != .category && $0.isMeasured }.reduce(0) { $0 + $1.logicalBytes } }
 }
@@ -214,12 +220,12 @@ public actor GrowthHistoryStore {
     }
     /// The scan the one at `index` compares with: the newest earlier scan of the same location at least about a day
     /// older that isn't a rescan right after a cleanup, unless the settings changed since: then that scan starts a new
-    /// baseline.
+    /// baseline. A scan saved before sizes on disk is never one (Decision 94).
     private func baselineIndex(in entries: [Entry], for index: Int) -> Int? {
         let current = entries[index].snapshot
         return entries[..<index].lastIndex { entry in
             let earlier = entry.snapshot
-            return earlier.fingerprint.scopeID == current.fingerprint.scopeID && (earlier.fingerprint != current.fingerprint
+            return earlier.sizesOnDisk && earlier.fingerprint.scopeID == current.fingerprint.scopeID && (earlier.fingerprint != current.fingerprint
                 || (!earlier.afterCleanup && current.observedAt.timeIntervalSince(earlier.observedAt) >= baselineAge))
         }
     }

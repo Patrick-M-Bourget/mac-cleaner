@@ -126,6 +126,7 @@ private struct TrendsEnumsFixture: Codable {
     #expect(snapshots.map(\.id) == [UUID(uuidString: "2755AF01-DD05-4F6F-9FA0-63144649ECB3"), UUID(uuidString: "494B9606-49E6-4BF6-81A0-F654A417BAA9")])
     #expect(snapshots.map(\.observedAt) == [at(800_000_000), at(800_090_000)])
     #expect(snapshots.map(\.afterCleanup) == [false, true])
+    #expect(snapshots.map(\.sizesOnDisk) == [false, true], "A snapshot saved before sizes on disk (#447) reads as not on disk")
     #expect(snapshots.allSatisfy { $0.scopeLabel == "Known locations" && $0.coverage == .complete })
     #expect(snapshots[0].fingerprint == GrowthFingerprint(scopeID: "catalog:known", rootID: "root-1", volumeID: "vol-a", access: "fullDiskAccess",
                                                           rules: "rules-v7", exclusions: "excl-1", classification: "class-2"))
@@ -149,7 +150,7 @@ private struct TrendsEnumsFixture: Codable {
     #expect(location.logicalBytes == 4_000); #expect(location.allocatedBytes == 4_096); #expect(location.knownLogicalBytes == 3_900)
     #expect(location.reasons == ["accessDenied": 2, "timeLimit": 1])
     #expect(location.baselineID == UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE"))
-    StoredKeysFixture.expectEveryPropertyStored(snapshots[0], in: try StoredKeysFixture.keys(fixture, at: ["entries", "0", "snapshot"]), "GrowthSnapshot")
+    StoredKeysFixture.expectEveryPropertyStored(snapshots[1], in: try StoredKeysFixture.keys(fixture, at: ["entries", "1", "snapshot"]), "GrowthSnapshot")
     StoredKeysFixture.expectEveryPropertyStored(snapshots[0].fingerprint, in: try StoredKeysFixture.keys(fixture, at: ["entries", "0", "snapshot", "fingerprint"]), "GrowthFingerprint")
     StoredKeysFixture.expectEveryPropertyStored(groups[2], in: try StoredKeysFixture.keys(fixture, at: ["entries", "0", "snapshot", "groups", "2"]), "GrowthAggregate")
     StoredKeysFixture.expectEveryPropertyStored(activity, in: try StoredKeysFixture.keys(fixture, at: ["activities", "0"]), "ScanActivity")
