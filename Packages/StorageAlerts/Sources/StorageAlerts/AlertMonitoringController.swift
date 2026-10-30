@@ -38,7 +38,7 @@ public enum AlertShellState: Equatable, Sendable {
     case attention(AlertShellAttention)
 }
 
-@MainActor public class AlertMonitoringController: NSObject, ObservableObject {
+@MainActor open class AlertMonitoringController: NSObject, ObservableObject {
     @Published public private(set) var shellState: AlertShellState = .off
     @Published public private(set) var effectiveMonitoring = false
     @Published public private(set) var requested = false

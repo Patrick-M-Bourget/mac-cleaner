@@ -11,7 +11,7 @@ GitHub account: `Patrick-M-Bourget`. Run `gh auth status` before any `git push`.
 
 `scripts/check.sh` runs what CI runs, one line per step: the source checks (test seams, Decision numbering, copy terms, stored keys), the Core suite normal and on the strict pool (#200, with its guard run alone, #242), StorageAlerts' suite, the Debug app build and the Release exclusion check. `--fast` stops after the Core suite. Full Xcode is installed, but `xcode-select` points at the Command Line Tools, so commands of your own set `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`; the scripts do. The app it builds is `.build/xcode/Build/Products/Debug/CacheDrop.app`.
 
-Run StorageAlerts alone with `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test --package-path CacheDrop/Packages/StorageAlerts`.
+Run StorageAlerts alone with `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test --package-path Packages/StorageAlerts`.
 
 Verify on this Mac, not by pushing to CI. Tests touch only temp fixture folders, never real user paths.
 

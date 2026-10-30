@@ -42,7 +42,7 @@ jobs:
         env:
           LIBDISPATCH_COOPERATIVE_POOL_STRICT: '1'
       - name: StorageAlerts tests
-        run: xcrun swift test --package-path CacheDrop/Packages/StorageAlerts
+        run: xcrun swift test --package-path Packages/StorageAlerts
       - name: Build app
         run: xcodebuild build -project CacheDrop/CacheDrop.xcodeproj -scheme CacheDrop -configuration Debug -destination 'platform=macOS' -derivedDataPath .build/xcode
 

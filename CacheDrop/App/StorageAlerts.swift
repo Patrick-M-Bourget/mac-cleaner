@@ -3,6 +3,7 @@ import AppKit
 import UserNotifications
 import Darwin
 import CacheDropCore
+import StorageAlerts
 
 extension Notification.Name {
     static let cacheDropAlertOpened = Notification.Name("CacheDrop.alertOpened")
