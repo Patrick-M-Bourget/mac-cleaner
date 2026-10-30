@@ -47,7 +47,11 @@ import SwiftUI
     /// Deletes `items` from the Trash, each checked again first, or with the Settings dry run on only checks them. Then
     /// measures the Trash again for Results and Overview.
     func empty(_ items: [CleanupRecord]) async {
-        guard !isEmptying, !items.isEmpty else { return }
+        let lifecycle = AppLifecycleController.shared
+        guard !lifecycle.updateInstallation.blocksNewWork, !lifecycle.maintenanceInProgress, !lifecycle.operationInProgress,
+              !isEmptying, !items.isEmpty else { return }
+        lifecycle.maintenanceInProgress = true
+        defer { lifecycle.maintenanceInProgress = false }
         isEmptying = true
         defer { isEmptying = false }
         let dryRun = AppLifecycleController.shared.selection.catalog.dryRun
@@ -69,7 +73,11 @@ import SwiftUI
     /// Puts an item a run moved to the Trash back where it was, then measures the Trash again for Overview's line. A restored
     /// item starts a catalog rescan, so an app or installer it returned is offered again without Scan again (#306).
     func putBack(_ record: CleanupRecord) async {
-        guard !puttingBack.contains(record.id), putBackOutcomes[record.id] != .restored(record.originalURL) else { return }
+        let lifecycle = AppLifecycleController.shared
+        guard !lifecycle.updateInstallation.blocksNewWork, !lifecycle.maintenanceInProgress, !lifecycle.operationInProgress,
+              !puttingBack.contains(record.id), putBackOutcomes[record.id] != .restored(record.originalURL) else { return }
+        lifecycle.maintenanceInProgress = true
+        defer { lifecycle.maintenanceInProgress = false }
         puttingBack.insert(record.id)
         defer { puttingBack.remove(record.id) }
         let outcome = await Task.detached(priority: .userInitiated) { () -> PutBackOutcome in

@@ -30,7 +30,7 @@ import CacheDropCore
         catch { self.error = "CacheDrop couldn’t read your Protected items, so it can’t scan until it can. What’s always protected stays protected." }
     }
     var editingBlocked: Bool {
-        busy || AppLifecycleController.shared.maintenanceInProgress || AppLifecycleController.shared.selection.workspaceRunning
+        busy || AppLifecycleController.shared.updateInstallation.blocksNewWork || AppLifecycleController.shared.maintenanceInProgress || AppLifecycleController.shared.selection.workspaceRunning
     }
     func choose() async {
         guard !editingBlocked else { return }

@@ -31,12 +31,25 @@ import CacheDropCore
     let smartCleanPresentation = SmartCleanPresentation()
     let locationsExplorer = StorageExplorerContext()
     lazy var inspection = ExploreStorage(selection: selection)
+    lazy var manualUpdater = ManualUpdater(lifecycle: self)
+    lazy var updateInstallation = UpdateInstallation(finishWork: { [unowned self] in
+        // Request every stop before the first await. Cancel can then resume timers without a late handoff pausing them again.
+        selection.catalog.requestScanStop()
+        inspection.requestScanStop()
+        await laterMeasurements.finishForLifecycle()
+        await selection.catalog.waitForScanCompletion()
+        await inspection.waitForScanCompletion()
+    }, resumeWork: { [unowned self] in
+        laterMeasurements.resume()
+        if !maintenanceInProgress { afterMaintenance.released() }
+    })
     var openWorkspace: (() -> Void)?
     /// The workspace's Scan again, for the ⌘R menu command (#127).
     var scanAgain: (() -> Void)?
     /// Why Scan again (⌘R, the menu bar, Overview, Storage trends) is disabled, for its tooltip; nil when it can run (#310).
     /// A scan asked for while History holds the maintenance lease waits for it instead (`afterMaintenance`).
     var scanAgainBlockedReason: String? {
+        if updateInstallation.blocksNewWork { return "Wait for the update to finish" }
         if selection.catalog.isScanning || inspection.isScanning { return "A scan is already running" }
         if selection.workspaceRunning || selection.catalog.isRunning { return "A cleanup is running" }
         return nil
@@ -57,14 +70,18 @@ import CacheDropCore
     @Published private(set) var loginStatus: LoginStatus
     @Published private(set) var loginError: String?
     @Published var operationInProgress = false {
-        didSet { if !operationInProgress, quitPending { NSApp.terminate(nil) } }
+        didSet {
+            updateInstallation.workChanged(cleanupRunning: operationInProgress, maintenanceRunning: maintenanceInProgress)
+            if !operationInProgress, quitPending { NSApp.terminate(nil) }
+        }
     }
     @Published var hasPendingPlan = false
     @Published var maintenanceInProgress = false {
         didSet {
             if !maintenanceInProgress, quitPending, !operationInProgress { NSApp.terminate(nil); return }
-            // Scans asked for while the lease was held run now (#310).
-            if oldValue, !maintenanceInProgress { afterMaintenance.released() }
+            updateInstallation.workChanged(cleanupRunning: operationInProgress, maintenanceRunning: maintenanceInProgress)
+            // Pending installation keeps queued scans held until cancellation or failure restores availability.
+            if oldValue, !maintenanceInProgress { afterMaintenance.released(allowingWork: !updateInstallation.blocksNewWork) }
         }
     }
     /// Scans asked for while the maintenance lease is held, run once it is released (#310).
@@ -126,7 +143,7 @@ import CacheDropCore
         // Finish the current preference/journal update before an off transition terminates.
         DispatchQueue.main.async { [weak self] in
             guard let self, !self.quitPending, !self.isTerminating,
-                  !self.alerts.effectiveMonitoring, !self.operationInProgress, !self.maintenanceInProgress, !self.hasPendingPlan, !self.menuBarItemShown,
+                  !self.alerts.effectiveMonitoring, !self.operationInProgress, !self.maintenanceInProgress, !self.updateInstallation.blocksNewWork, !self.hasPendingPlan, !self.menuBarItemShown,
                   !NSApp.windows.contains(where: { $0.isVisible && $0.canBecomeMain }) else { return }
             NSApp.terminate(nil)
         }
@@ -147,10 +164,11 @@ import CacheDropCore
 @MainActor final class CacheDropApplicationDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         let lifecycle = AppLifecycleController.shared
-        return !AppLifecyclePolicy.shouldKeepRunning(effectiveAlerts: lifecycle.alerts.effectiveMonitoring, operationInProgress: lifecycle.operationInProgress || lifecycle.maintenanceInProgress, hasPendingPlan: lifecycle.hasPendingPlan, menuBarItemShown: lifecycle.menuBarItemShown)
+        return !AppLifecyclePolicy.shouldKeepRunning(effectiveAlerts: lifecycle.alerts.effectiveMonitoring, operationInProgress: lifecycle.operationInProgress || lifecycle.maintenanceInProgress || lifecycle.updateInstallation.blocksNewWork, hasPendingPlan: lifecycle.hasPendingPlan, menuBarItemShown: lifecycle.menuBarItemShown)
     }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         let lifecycle = AppLifecycleController.shared
+        lifecycle.updateInstallation.cancel()
         switch AppLifecyclePolicy.quitDecision(cleanupRunning: lifecycle.operationInProgress, maintenanceInProgress: lifecycle.maintenanceInProgress, stopConfirmed: lifecycle.quitPending) {
         case .quitNow: break
         case .waitForCurrentItem:

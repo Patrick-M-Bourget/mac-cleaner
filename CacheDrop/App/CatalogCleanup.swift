@@ -125,7 +125,7 @@ import SwiftUI
     static var home: URL? {
         #if DEBUG
         if LocalStateLocation.isDisposableTest {
-            guard let path = ProcessInfo.processInfo.environment["CACHEDROP_TEST_CATALOG_HOME"] else { return nil }
+            guard let path = LocalStateLocation.fixtureEnvironment["CACHEDROP_TEST_CATALOG_HOME"] else { return nil }
             let url = URL(fileURLWithPath: path).resolvingSymlinksInPath()
             let prefix = "CacheDropTestHome-"
             guard url.lastPathComponent.hasPrefix(prefix), UUID(uuidString: String(url.lastPathComponent.dropFirst(prefix.count))) != nil,
@@ -297,10 +297,11 @@ import SwiftUI
     var selectedCount: Int { selectedCandidates.count }
     /// The space the plan's chosen items would release: Trash-bound items free nothing until the Trash is emptied (#350, SPEC section 6).
     var estimatedBytes: Int64 { selectedCandidates.filter(\.releasesSpace).reduce(0) { $0 + $1.estimatedBytes } }
-    var canEdit: Bool { !isScanning && !isRunning && !AppLifecycleController.shared.operationInProgress && !AppLifecycleController.shared.maintenanceInProgress }
+    var canEdit: Bool { !AppLifecycleController.shared.updateInstallation.blocksNewWork && !isScanning && !isRunning && !AppLifecycleController.shared.operationInProgress && !AppLifecycleController.shared.maintenanceInProgress }
     var canReview: Bool { canEdit && selectedCount > 0 }
     /// Why choices and the dry run can't be changed now, for a disabled control's tooltip; nil when they can (#310).
     var editBlockedReason: String? {
+        if AppLifecycleController.shared.updateInstallation.blocksNewWork { return "Wait for the update to finish" }
         if isScanning { return "Wait for the scan to finish" }
         if isRunning || AppLifecycleController.shared.operationInProgress { return "Wait for the cleanup to finish" }
         if AppLifecycleController.shared.maintenanceInProgress { return "Wait while CacheDrop tidies its history" }
@@ -357,6 +358,7 @@ import SwiftUI
     /// CacheDrop scans again by itself (#306): at launch, when a run ends and after a Put back, whichever page is open.
     /// Asked while a scan runs, it scans again once that one ends. Each scan it starts rechecks the remembered folders once.
     func rescan() async {
+        guard !AppLifecycleController.shared.updateInstallation.blocksNewWork else { return }
         if isScanning { rescanPending = true; return }
         if await scan(rescan: true) { scanRememberedFolders?() }
     }
@@ -364,6 +366,7 @@ import SwiftUI
     @discardableResult func scan() async -> Bool { await scan(rescan: false) }
     private func scan(rescan: Bool) async -> Bool {
         let lifecycle = AppLifecycleController.shared
+        guard !lifecycle.updateInstallation.blocksNewWork else { return false }
         // History holds the maintenance lease for a moment: scan once it lets go, never not at all (#310). A rescan
         // waits as a rescan, so it still rechecks the remembered folders once when it runs (#332).
         if lifecycle.maintenanceInProgress, !isScanning, !isRunning, !lifecycle.operationInProgress {
@@ -610,7 +613,7 @@ import SwiftUI
         return await Task.detached { check.refusals(of: items) }.value
     }
     func execute(_ approval: CatalogApproval, cancellation: CleanupCancellation) async {
-        guard !isRunning else { return }
+        guard !AppLifecycleController.shared.updateInstallation.blocksNewWork, !isRunning else { return }
         isRunning = true
         let reading = AppLifecycleController.shared.capacity.reading
         runCapacity = reading.flatMap { reading in

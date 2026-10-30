@@ -4,7 +4,7 @@ import CacheDropCore
 import SwiftUI
 
 extension AppLifecycleController: HistoryMaintenanceLifecycle {
-    var operationActive: Bool { operationInProgress || selection.workspaceRunning }
+    var operationActive: Bool { operationInProgress || selection.workspaceRunning || updateInstallation.blocksNewWork }
     var maintenanceActive: Bool { get { maintenanceInProgress } set { maintenanceInProgress = newValue } }
 }
 
@@ -50,7 +50,7 @@ private enum HistoryActivityItem: Identifiable {
 
     func clear() async {
         let lifecycle = AppLifecycleController.shared
-        guard !busy, !lifecycle.maintenanceInProgress, !lifecycle.operationInProgress, !lifecycle.selection.workspaceRunning else { message = "Wait for the current cleanup to finish."; return }
+        guard !busy, !lifecycle.updateInstallation.blocksNewWork, !lifecycle.maintenanceInProgress, !lifecycle.operationInProgress, !lifecycle.selection.workspaceRunning else { message = "Wait for the current cleanup to finish."; return }
         busy = true; defer { busy = false }
         lifecycle.maintenanceInProgress = true; defer { lifecycle.maintenanceInProgress = false }
         var clearedRuns: Int?
@@ -85,7 +85,7 @@ private enum HistoryActivityItem: Identifiable {
     }
     func reset() async -> Bool {
         let lifecycle = AppLifecycleController.shared
-        guard !busy, !lifecycle.maintenanceInProgress, !lifecycle.operationInProgress, !lifecycle.selection.workspaceRunning else { message = "Wait for the current scan or cleanup to finish, then reset."; return false }
+        guard !busy, !lifecycle.updateInstallation.blocksNewWork, !lifecycle.maintenanceInProgress, !lifecycle.operationInProgress, !lifecycle.selection.workspaceRunning else { message = "Wait for the current scan or cleanup to finish, then reset."; return false }
         busy = true; lifecycle.maintenanceInProgress = true
         defer { busy = false; lifecycle.maintenanceInProgress = false }
         enum ResetStage { case journal, appearance, remainingPreferences }

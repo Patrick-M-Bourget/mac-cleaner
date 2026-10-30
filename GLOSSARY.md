@@ -50,6 +50,8 @@ The names CacheDrop shows, what they mean, and where they live in code. Copy fol
 | Move to Trash → Put back | Goes to the Trash and can come back | action `trash`, `TrashPutBack` |
 | Empty from Trash → Deleted from the Trash | Deletes only what CacheDrop moved to the Trash | `TrashEmptying` |
 | Remove local copies | Frees iCloud files' space on this Mac | action `evict` |
+| Check for Updates… | A requested update check through standard Sparkle dialogs | `ManualUpdater` |
+| Cancel update | Stop waiting for installation while current cleanup and maintenance keep running | `UpdateInstallation.cancel` |
 | Scan again | Any action that scans | `CatalogCleanupModel`, `ExploreStorage` |
 | Dry run | Runs the whole flow; nothing changes | `dryRun` |
 | Measured freed space | Free space measured around each item, not the estimate | `MeasuredFreedSpace` |

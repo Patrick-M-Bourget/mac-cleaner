@@ -70,7 +70,7 @@ struct EmptyFromTrashSheet: View {
         } else {
             Button("Cancel", action: close).keyboardShortcut(.cancelAction).disabled(trash.isEmptying)
             BusyAction(busy: trash.isEmptying) {
-                Button("Empty") { Task { await trash.empty(items) } }.buttonStyle(.borderedProminent).accessibilityIdentifier("emptyFromTrashConfirm")
+                Button("Empty") { Task { await trash.empty(items) } }.buttonStyle(.borderedProminent).disabled(AppLifecycleController.shared.updateInstallation.blocksNewWork).accessibilityIdentifier("emptyFromTrashConfirm")
             }
         }
     }

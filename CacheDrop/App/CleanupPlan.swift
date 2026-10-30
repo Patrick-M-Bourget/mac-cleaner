@@ -36,7 +36,7 @@ struct RefreshRequest: Sendable {
     private(set) var scans: [URL: ScanResult] = [:]
     private(set) var unavailableScopes: Set<URL> = []
     var canReview: Bool {
-        !AppLifecycleController.shared.maintenanceInProgress && !workspaceRunning
+        !AppLifecycleController.shared.updateInstallation.blocksNewWork && !AppLifecycleController.shared.maintenanceInProgress && !workspaceRunning
         && (catalog.selectedCount == 0 || catalog.canReview) && hasPendingChoices
     }
     /// Categories with live, reviewable choices, for the sidebar badge.

@@ -375,3 +375,16 @@ private let spotify = InstalledApp(name: "Spotify", bundleID: "com.spotify.clien
     try write(home, "Library/Caches/com.spotify.client/WasmTtsEngine/sub/offline.bnk")
     #expect(check.check(engine) == .protected("Spotify’s offline downloads"))
 }
+
+@Test func cachedropsActiveSparkleDownloadIsNeverOffered() throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let active = "Library/Caches/com.patrickbourget.CacheDrop/org.sparkle-project.Sparkle/Installation/active/CacheDrop.app/Contents/MacOS/CacheDrop"
+    try write(home, active, bytes: 4096)
+    try write(home, "Library/Caches/com.example.Editor/org.sparkle-project.Sparkle/Installation/active/Editor.zip")
+    let own = InstalledApp(name: "CacheDrop", bundleID: "com.patrickbourget.CacheDrop", path: home.appendingPathComponent("Applications/CacheDrop.app").path)
+    let catalog = catalogWith(Apps(installed: [own, editor]))
+    let found = catalog.discover(fixture: home)
+    #expect(found.map(\.url.path) == [home.appendingPathComponent("Library/Caches/com.example.Editor/org.sparkle-project.Sparkle").path])
+    #expect(try Data(contentsOf: home.appendingPathComponent(active)).count == 4096)
+}

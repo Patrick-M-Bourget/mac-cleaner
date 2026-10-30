@@ -31,7 +31,7 @@ struct PutBackLink: View {
                         await trash.putBack(record)
                         if trash.putBackOutcomes[record.id] != nil { didPutBack() }
                     }
-                }.buttonStyle(.link).disabled(trash.puttingBack.contains(record.id))
+                }.buttonStyle(.link).disabled(trash.puttingBack.contains(record.id) || AppLifecycleController.shared.updateInstallation.blocksNewWork)
                     .help("Return it from the Trash to " + PathDisplay.shortLocation(of: record.originalURL.path))
                     .accessibilityLabel("Put back \(name)").accessibilityIdentifier("putBack-" + name)
             }

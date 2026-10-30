@@ -4,9 +4,16 @@ import Darwin
 /// Shared app-owned local state. Debug tests bind an existing disposable root by identity.
 /// Only the root is here, so the Smart clean report reads the folder the app writes (#334); the rest is in the app.
 public enum LocalStateLocation {
+    #if DEBUG
+    /// Signed acceptance builds embed disposable fixture bindings so relaunch never falls back to personal state.
+    public static var fixtureEnvironment: [String: String] {
+        let embedded = Bundle.main.object(forInfoDictionaryKey: "CacheDropAcceptanceFixtureEnvironment") as? [String: String] ?? [:]
+        return embedded.merging(ProcessInfo.processInfo.environment) { _, launched in launched }
+    }
+    #endif
     public static func root(create: Bool) throws -> URL {
         #if DEBUG
-        let environment = ProcessInfo.processInfo.environment
+        let environment = fixtureEnvironment
         if environment["CACHEDROP_TEST_STATE_ROOT"] != nil || environment["CACHEDROP_TEST_STATE_ID"] != nil {
             guard let path = environment["CACHEDROP_TEST_STATE_ROOT"], let expected = environment["CACHEDROP_TEST_STATE_ID"] else { throw CocoaError(.fileReadNoPermission) }
             let url = URL(fileURLWithPath: path, isDirectory: true).standardizedFileURL

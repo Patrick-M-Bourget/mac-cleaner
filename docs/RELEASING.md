@@ -67,3 +67,7 @@ python3 scripts/sparkle-release.py verify \
 Use `--keychain-account` on release.sh, or `--account` on sparkle-release.py, if the owner uses a nondefault Sparkle account. Never modify the DMG after signing; a rebuild is a new artifact requiring all checks again. `scripts/release.sh --adhoc` supports local build checks, produces `-adhoc.dmg`, and does not produce a distribution appcast. Automated fixtures and ad-hoc builds do not establish Developer ID/notarization correctness or a real signed A → B update.
 
 Signing order and entitlement handling follow [Sparkle's custom-signing guidance](https://sparkle-project.org/documentation/sandboxing/#code-signing). Feed generation follows [Sparkle's publishing guidance](https://sparkle-project.org/documentation/publishing/).
+
+## Stage and promote separately
+
+After building, keep the signed DMG, `release-identity.json`, generated `appcast.xml` and reviewed HTML notes together. In the sibling `cachedrop-website` repository, run `scripts/stage-release.sh <dev|prod> DMG release-identity.json` to verify and stage identical bytes in both download destinations. Staging does not advertise a release. Then run `scripts/promote-release.sh <dev|prod> ARTIFACT_DIRECTORY HTTPS_FEED_URL` to verify both destinations, advance website latest, and publish the appcast last. See that repository's `docs/RELEASING.md` for explicit target configuration and retry instructions. Production publication remains a separate owner action.

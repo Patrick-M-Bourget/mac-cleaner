@@ -15,7 +15,7 @@ struct TrashLine: View {
             Image(systemName: "trash").foregroundStyle(.secondary).accessibilityHidden(true)
             Text(text + " ·").foregroundStyle(.secondary).accessibilityIdentifier(identifier)
             if let empty {
-                Button("Empty from Trash…", action: empty).buttonStyle(.link).accessibilityIdentifier(identifier + "Empty")
+                Button("Empty from Trash…", action: empty).buttonStyle(.link).disabled(AppLifecycleController.shared.updateInstallation.blocksNewWork).accessibilityIdentifier(identifier + "Empty")
                 if opensTrash { Text("·").foregroundStyle(.secondary).accessibilityHidden(true) }
             }
             if opensTrash { Button("Open Trash") { TrashModel.shared.open() }.buttonStyle(.link).accessibilityIdentifier(identifier + "Open") }

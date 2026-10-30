@@ -27,6 +27,10 @@ struct CacheDropApp: App {
             #if DEBUG
             DebugGalleryCommands()
             #endif
+            CommandGroup(after: .appInfo) {
+                Button("Check for Updates…") { lifecycle.manualUpdater.checkForUpdates() }
+                    .accessibilityIdentifier("checkForUpdatesMenu")
+            }
             CommandGroup(after: .windowArrangement) {
                 Button("Show CacheDrop") { lifecycle.openWorkspace?() }
             }
@@ -666,7 +670,7 @@ private struct WorkspaceView: View {
         return url.standardizedFileURL.pathComponents.starts(with: URL(fileURLWithPath: root.path).standardizedFileURL.pathComponents)
     }
     private func scanLocations(_ scopes: [RememberedScope]) {
-        guard !explorer.isScanning, !selection.workspaceRunning else { return }
+        guard !AppLifecycleController.shared.updateInstallation.blocksNewWork, !explorer.isScanning, !selection.workspaceRunning else { return }
         // Asked while History holds the maintenance lease: rechecked once it lets go, with access resolved then (#310).
         if AppLifecycleController.shared.maintenanceInProgress {
             AppLifecycleController.shared.afterMaintenance.waitFor(.folderRecheck) { scanLocations(scopes) }

@@ -62,10 +62,11 @@ import SwiftUI
     func markReviewed() async {
         let lifecycle = AppLifecycleController.shared
         guard !busy, let shown = findings, let batches = snapshot?.interruptedBatches else { return }
-        guard !lifecycle.operationInProgress, !lifecycle.maintenanceInProgress else {
+        guard !lifecycle.updateInstallation.blocksNewWork, !lifecycle.operationInProgress, !lifecycle.maintenanceInProgress else {
             markFailed = true; message = "Wait for the current cleanup to finish."; return
         }
-        busy = true; defer { busy = false }
+        busy = true; lifecycle.maintenanceInProgress = true
+        defer { busy = false; lifecycle.maintenanceInProgress = false }
         let fresh = await Self.check(batches)
         guard fresh.mapValues({ $0.map(\.finding) }) == shown.mapValues({ $0.map(\.finding) }) else {
             findings = fresh; markFailed = true
@@ -127,7 +128,7 @@ struct CleanupRecoveryView: View {
                                   symbol: "exclamationmark.circle", role: .caution)
                     }
                     Button("Mark as reviewed") { Task { await model.markReviewed() } }
-                        .buttonStyle(.borderedProminent).disabled(model.busy).accessibilityIdentifier("recoveryMarkReviewed")
+                        .buttonStyle(.borderedProminent).disabled(model.busy || AppLifecycleController.shared.updateInstallation.blocksNewWork).accessibilityIdentifier("recoveryMarkReviewed")
                 } else {
                     SkeletonRows(.line, identifier: "recoverySkeleton")
                 }
