@@ -19,10 +19,10 @@ struct CacheDropApp: App {
     var body: some Scene {
         Window("CacheDrop", id: "workspace") {
             WorkspaceView(alerts: lifecycle.alerts)
-                .frame(minWidth: 900).background { NativeWindowContract() }
+                .frame(minWidth: CacheDropDesign.Size.minimumWindow.width).background { NativeWindowContract() }
                 .cacheDropButtonRule()
         }
-        .defaultSize(width: 1120, height: 760)
+        .defaultSize(width: CacheDropDesign.Size.defaultWindow.width, height: CacheDropDesign.Size.defaultWindow.height)
         .commands {
             CommandGroup(after: .windowArrangement) {
                 Button("Show CacheDrop") { lifecycle.openWorkspace?() }
@@ -219,20 +219,20 @@ private struct WorkspaceView: View {
             navigation(.locations)
             Spacer()
             VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
-                Label("This Mac", systemImage: "laptopcomputer").font(.callout)
+                Label("This Mac", systemImage: "laptopcomputer").font(CacheDropDesign.TypeStyle.note)
                 CapacityMeter(available: startupCapacity?.available, total: startupCapacity?.total, compact: true,
                               breakdown: selection.catalog.breakdown(available: startupCapacity?.available, total: startupCapacity?.total, trash: TrashModel.shared.contents))
-                Text(capacity.sidebarObservationText).font(.caption2).foregroundStyle(.secondary)
-                    .lineLimit(1).frame(height: 14, alignment: .leading)
+                Text(capacity.sidebarObservationText).font(CacheDropDesign.TypeStyle.sidebarNote).foregroundStyle(.secondary)
+                    .lineLimit(1).frame(height: CacheDropDesign.Size.sidebarCaptionHeight, alignment: .leading)
                     .help(capacity.observationText).accessibilityLabel(capacity.observationText)
                     .accessibilityIdentifier("sidebarCapacityObservation")
-                Text(capacity.statusText.isEmpty ? " " : capacity.statusText).font(.caption2).foregroundStyle(.secondary)
-                    .frame(height: 14, alignment: .leading)
+                Text(capacity.statusText.isEmpty ? " " : capacity.statusText).font(CacheDropDesign.TypeStyle.sidebarNote).foregroundStyle(.secondary)
+                    .frame(height: CacheDropDesign.Size.sidebarCaptionHeight, alignment: .leading)
             }.padding(.horizontal, CacheDropDesign.Space.sm)
         
         }
         .padding(.horizontal, CacheDropDesign.Space.md).padding(.vertical, CacheDropDesign.Space.lg)
-        .frame(width: 190)
+        .frame(width: CacheDropDesign.Size.sidebarWidth)
         .frame(maxHeight: .infinity)
         .background { ChromeSurface(role: .sidebar) }
     }
@@ -428,7 +428,7 @@ private struct WorkspaceView: View {
                             if more > 0 {
                                 Divider().padding(.horizontal, CacheDropDesign.Space.lg)
                                 Button(overviewShowsAllCategories ? "Show fewer" : "Show \(more) more") { overviewShowsAllCategories.toggle() }
-                                    .buttonStyle(.link).font(.callout).padding(CacheDropDesign.Space.lg).frame(maxWidth: .infinity, alignment: .leading)
+                                    .buttonStyle(.link).font(CacheDropDesign.TypeStyle.note).padding(CacheDropDesign.Space.lg).frame(maxWidth: .infinity, alignment: .leading)
                                     .accessibilityIdentifier("overviewShowMore")
                             }
                         }.waitingForScan(catalog.isScanning)

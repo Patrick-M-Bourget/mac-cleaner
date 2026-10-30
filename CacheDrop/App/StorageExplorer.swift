@@ -211,7 +211,7 @@ struct StorageExplorerView: View {
                     Button(context.showsLargeAndOld ? "All files" : "Large and old files") { context.showsLargeAndOld.toggle() }
                         .buttonStyle(.link).accessibilityIdentifier("explorerMode")
                 }
-            }.font(.callout)
+            }.font(CacheDropDesign.TypeStyle.note)
             if folderAvailable, let folder = context.position.folder {
                 PageSearchField(label: "Search this folder", prompt: "Search this folder", text: $context.position.query, identifier: "explorerSearch")
                     .help(folder.path)
@@ -361,7 +361,7 @@ struct StorageExplorerView: View {
     private func inspectorField(_ title: String, _ value: String) -> some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.xs) {
             Text(title).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
-            Text(value).font(.callout).textSelection(.enabled)
+            Text(value).font(CacheDropDesign.TypeStyle.note).textSelection(.enabled)
         }
     }
     /// A folder's size on disk; "At least" when part of it couldn't be measured.
