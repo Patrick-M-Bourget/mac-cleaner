@@ -76,17 +76,37 @@ final class SystemInUseSnapshot: InUseChecking, @unchecked Sendable {
             if proc_pidfdinfo(pid, fd.proc_fd, PROC_PIDFDVNODEPATHINFO, &info, infoSize) == infoSize { paths.append(path(info.pvip.vip_path)) }
         }
         // Mapped files, such as a framework loaded from a copy, hold no descriptor.
-        var address: UInt64 = 0
+        paths += mappedPaths(pid, flavor: fileBackedRegionsAgree ? fileBackedRegions : PROC_PIDREGIONPATHINFO) ?? []
+        return paths
+    }
+
+    /// macOS's region reading that skips memory no file backs (`PROC_PIDREGIONPATHINFO2` in the kernel's proc_info.h; the
+    /// public SDK leaves it out). A process has thousands of such regions, so on the owner's Mac it reads 455 processes in
+    /// 0.27 s where the full walk takes 2.5 s (#463).
+    static let fileBackedRegions: Int32 = 22
+    /// Whether the faster reading gives exactly the mapped files the full walk gives, checked once per launch on CacheDrop's
+    /// own process, which maps hundreds. A macOS that changed or dropped it gets the full walk, so nothing reads as unused
+    /// that is mapped. A file mapped between the two readings can make one try differ, so it tries three times.
+    static let fileBackedRegionsAgree: Bool = (0..<3).contains { _ in
+        guard let fast = mappedPaths(getpid(), flavor: fileBackedRegions), let full = mappedPaths(getpid(), flavor: PROC_PIDREGIONPATHINFO),
+              !full.isEmpty else { return false }
+        return Set(fast) == Set(full)
+    }
+    /// The files mapped into `pid`'s memory, region by region with `flavor`; nil when not even the first region can be read.
+    static func mappedPaths(_ pid: pid_t, flavor: Int32) -> [String]? {
+        var paths: [String] = []
+        var address: UInt64 = 0, read = false
         var region = proc_regionwithpathinfo()
         let regionSize = Int32(MemoryLayout<proc_regionwithpathinfo>.size)
-        while proc_pidinfo(pid, PROC_PIDREGIONPATHINFO, address, &region, regionSize) == regionSize {
+        while proc_pidinfo(pid, flavor, address, &region, regionSize) == regionSize {
+            read = true
             let mapped = path(region.prp_vip.vip_path)
             if !mapped.isEmpty { paths.append(mapped) }
             let next = region.prp_prinfo.pri_address &+ region.prp_prinfo.pri_size
             guard next > address else { break }
             address = next
         }
-        return paths
+        return read ? paths : nil
     }
 
     private static func path<T>(_ tuple: T) -> String {
