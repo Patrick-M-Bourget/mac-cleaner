@@ -78,7 +78,7 @@ Each category is a catalog entry plus tests on temp-folder fixtures. Most need n
   - Purchased content such as audio plug-ins: shown, owner's call.
 
 **Tier C: non-cleanup features**
-- **Reuse existing code:** What grew (`GrowthHistory*`), storage alerts plus menu bar (`Still/Packages/StorageAlerts`), exclusions, history, diagnostics export.
+- **Reuse existing code:** What grew (`GrowthHistory*`), storage alerts plus menu bar (`CacheDrop/Packages/StorageAlerts`), exclusions, history, diagnostics export.
 - **Polish:** these come back once Tier A ships, after a check that each one still earns its place.
 
 **Out of scope (unchanged):** uninstaller, duplicates, treemap, automatic cleanup.

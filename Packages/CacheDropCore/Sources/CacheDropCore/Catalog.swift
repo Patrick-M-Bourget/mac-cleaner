@@ -197,6 +197,7 @@ extension CleanupRule {
     public var choosesItems: Bool { contents != nil || regen == .model || action == .evict || fromPickedFolders || items?.choosesEachItem == true || itemByItem }
 }
 
+/// The built-in cleanup and guidance rules, assembled with the installed apps that own their data.
 public enum BuiltInCatalog {
     private static let pnpmOwner = RuleOwner(name: "pnpm", executables: ["pnpm", "pnpx"], scripts: ["pnpm", "pnpx", "pnpm.js", "pnpm.cjs", "pnpx.js", "pnpx.cjs"])
     /// The catalog as the app uses it, with installed apps found through LaunchServices.
@@ -399,6 +400,7 @@ public struct CandidateHold: Sendable, Hashable {
     public var line: String { app.map { "In use by \($0.name) · Quit \($0.name) to clean it" } ?? refusal.reason }
 }
 
+/// Cleanup rules and their shared discovery, ownership and protection decisions.
 public struct Catalog: Sendable {
     public let rules: [CleanupRule]
     public init(rules: [CleanupRule]) { self.rules = rules }

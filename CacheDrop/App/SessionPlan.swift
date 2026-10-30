@@ -118,7 +118,7 @@ struct RefreshRequest: Sendable {
         defer { isCheckingReview = false }
         return try await prepare()
     }
-    /// Smart clean's review (#141): its own selection, checked now, through the same review and executor as the plan.
+    /// Smart clean's review: the recommended part of the shared selection, checked now through the plan's review and executor (Decision 67).
     func prepareSmartCleanReview() async throws -> WorkspaceCleanupReview {
         guard canReviewSmartClean else { throw PlanReviewError.changed }
         let catalogVersion = catalog.selectionRevision(for: .smartClean)
@@ -166,7 +166,7 @@ struct RefreshRequest: Sendable {
         workspaceFinished = true
         lifecycle.capacity.request(.cleanupEnded)
     }
-    /// Leaves a finished Smart clean's results; the Cleanup plan's selection is kept (#141).
+    /// Leaves a finished run's results; the shared selection already excludes the items the run cleaned (#349).
     func dismissResult() {
         guard !workspaceRunning, !catalog.isRunning else { return }
         workspaceFinished = false; catalog.dismissResult()
@@ -308,12 +308,12 @@ struct WorkspaceCleanupReview: Identifiable {
     let id = UUID()
     let catalog: CatalogReview?
     let catalogVersion: UInt64
-    /// The selection it came from; a finished run clears only that one (#141).
+    /// The page that opened the review; cleaned items leave the shared selection on every page (#349).
     var source = CleanupSelections.Source.plan
     /// Checks the rows again after the review quit an app (#377).
     weak var model: CatalogCleanupModel?
 }
-/// A running or finished cleanup, from either selection: the header, progress and outcomes.
+/// A running or finished cleanup from any page: the header, progress and outcomes.
 struct CleanupRunSection: View {
     let selection: SessionPlan
     /// Scrolls the page to a result row (`ScrollViewProxy.revealRow`).

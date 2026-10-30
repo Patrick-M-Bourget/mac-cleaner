@@ -40,9 +40,9 @@ enum CacheDropDesign {
         static let waiting: Double = 0.45
         /// The skeleton shimmer's band at its brightest (#308).
         static let shimmer: Double = 0.6 }
-    /// How long motion takes: the skeleton's shimmer crossing once, and rows dimming as a rescan starts or ends (#308).
     /// How far a one-line caption may shrink before it truncates, so it stays one line at larger text sizes (#353).
     enum Scale { static let oneLineCaption: CGFloat = 0.75 }
+    /// How long motion takes: the skeleton's shimmer crossing once, and rows dimming as a rescan starts or ends (#308).
     enum Motion { static let shimmer: Double = 2.4; static let waiting: Double = 0.2 }
     enum TypeStyle {
         /// The app name in the sidebar header.
@@ -843,8 +843,8 @@ extension CategorySelectionHeader where Below == EmptyView {
 
 /// A category in the Cleanup plan or Smart clean (Decision 48): the header, whose checkbox ticks the whole category, then
 /// an optional notice and the items behind "Choose items · N", or "Choose items · N · M stay(s)" when `staying` parts are listed
-/// that can't be chosen (#290). A nil `itemCount` draws no "Choose items". Each screen
-/// keeps its own selection and its own open/closed state.
+/// that can't be chosen (#290). A nil `itemCount` draws no "Choose items". Selection is shared (Decision 67);
+/// each screen keeps its own open/closed state.
 struct CategoryRow<Notice: View, Items: View>: View {
     let category: StorageCategory
     /// Nil for a row that can't be chosen: no checkbox (Decision 51).

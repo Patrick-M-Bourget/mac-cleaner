@@ -127,6 +127,7 @@ public actor FolderScanner {
         return observation.url
     }
 
+    /// Reads a folder's metadata within the entry and time limits, reporting unreadable or incomplete portions as issues.
     public func scan(_ scope: URL, cancellation: ScanCancellation? = nil, onProgress: (@Sendable (ScanProgress) -> Void)? = nil, exclusions: ExclusionPolicy = ExclusionPolicy()) throws -> ScanResult {
         try Task.checkCancellation()
         if cancellation?.isCancellationRequested == true { throw CancellationError() }

@@ -11,6 +11,8 @@ GitHub account: `Patrick-M-Bourget`. Run `gh auth status` before any `git push`.
 
 `scripts/check.sh` runs what CI runs, one line per step: the source checks (test seams, Decision numbering, copy terms, stored keys), the Core suite normal and on the strict pool (#200, with its guard run alone, #242), StorageAlerts' suite and the app build. `--fast` stops after the Core suite. Full Xcode is installed, but `xcode-select` points at the Command Line Tools, so commands of your own set `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`; the scripts do. The app it builds is `.build/xcode/Build/Products/Debug/CacheDrop.app`.
 
+Run StorageAlerts alone with `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test --package-path CacheDrop/Packages/StorageAlerts`.
+
 Verify on this Mac, not by pushing to CI. Tests touch only temp fixture folders, never real user paths.
 
 UI tests drive the screen, so run them only when the user isn't using it. Run only the journeys you changed with `scripts/ui-journeys.sh <testName>...` (`--all` for the suite): it resolves each test's class, clears leftover fixtures, stops on a failed build, keeps failure diagnostics off (they would save system logs that may include other apps' activity) and prints one line per test. Before writing or changing a journey, read `docs/agents/ui-testing.md`: how SwiftUI views appear to XCUITest, and the sandboxed runner's limits.
