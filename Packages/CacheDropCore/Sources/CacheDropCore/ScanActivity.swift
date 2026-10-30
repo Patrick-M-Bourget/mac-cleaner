@@ -11,16 +11,21 @@ public struct ScanActivityLocation: Codable, Sendable, Identifiable {
     public let logicalBytes: Int64?
     public let allocatedBytes: Int64?
     public let knownLogicalBytes: Int64?
+    /// The size on disk the scan read, when it read everything's (#447); nil in records saved before then.
+    public let knownAllocatedBytes: Int64?
     public let reasons: [String: Int]
     public let baselineID: UUID?
     /// Stored in Storage trends' history (#448): a renamed property keeps its key here; a new field needs its key here and in the StoredKeys fixture.
     private enum CodingKeys: String, CodingKey {
         case path = "path", observedAt = "observedAt", outcome = "outcome", entryCount = "entryCount", logicalBytes = "logicalBytes"
         case allocatedBytes = "allocatedBytes", knownLogicalBytes = "knownLogicalBytes", reasons = "reasons", baselineID = "baselineID"
+        case knownAllocatedBytes = "knownAllocatedBytes"
     }
-    public init(path: String, observedAt: Date? = nil, outcome: ScanActivityOutcome? = nil, entryCount: Int? = nil, logicalBytes: Int64? = nil, allocatedBytes: Int64? = nil, knownLogicalBytes: Int64? = nil, reasons: [String: Int] = [:], baselineID: UUID? = nil) {
+    public init(path: String, observedAt: Date? = nil, outcome: ScanActivityOutcome? = nil, entryCount: Int? = nil, logicalBytes: Int64? = nil, allocatedBytes: Int64? = nil, knownLogicalBytes: Int64? = nil,
+                knownAllocatedBytes: Int64? = nil, reasons: [String: Int] = [:], baselineID: UUID? = nil) {
         self.path = path; self.observedAt = observedAt; self.outcome = outcome; self.entryCount = entryCount
-        self.logicalBytes = logicalBytes; self.allocatedBytes = allocatedBytes; self.knownLogicalBytes = knownLogicalBytes; self.reasons = reasons; self.baselineID = baselineID
+        self.logicalBytes = logicalBytes; self.allocatedBytes = allocatedBytes; self.knownLogicalBytes = knownLogicalBytes
+        self.knownAllocatedBytes = knownAllocatedBytes; self.reasons = reasons; self.baselineID = baselineID
     }
     public init(scan: ScanResult, baselineID: UUID? = nil) {
         var reasons = Dictionary(scan.issues.map { ($0.reason.rawValue, 1) }, uniquingKeysWith: +)
@@ -29,7 +34,7 @@ public struct ScanActivityLocation: Codable, Sendable, Identifiable {
         if unmeasured > 0 { reasons["unmeasuredContents"] = unmeasured }
         self.init(path: scan.scope.standardizedFileURL.path, observedAt: scan.observedAt, outcome: scan.isComplete ? .complete : .partial,
                   entryCount: scan.observations.count, logicalBytes: scan.totalLogicalBytes, allocatedBytes: scan.totalAllocatedBytes,
-                  knownLogicalBytes: scan.logicalBytes, reasons: reasons, baselineID: baselineID)
+                  knownLogicalBytes: scan.logicalBytes, knownAllocatedBytes: scan.allocatedBytes, reasons: reasons, baselineID: baselineID)
     }
 }
 public struct ScanActivity: Codable, Sendable, Identifiable {
@@ -47,13 +52,13 @@ public struct ScanActivity: Codable, Sendable, Identifiable {
         startedAt <= completedAt && !locations.isEmpty && locations.count <= 128 && Set(locations.map(\.path)).count == locations.count && locations.allSatisfy {
             $0.path.hasPrefix("/") && $0.path.utf8.count <= 4096 && !$0.path.contains("\0") && ($0.observedAt.map { $0 >= startedAt && $0 <= completedAt } ?? true)
             && [$0.entryCount].compactMap { $0 }.allSatisfy { $0 >= 0 }
-            && [$0.logicalBytes, $0.allocatedBytes, $0.knownLogicalBytes].compactMap { $0 }.allSatisfy { $0 >= 0 }
+            && [$0.logicalBytes, $0.allocatedBytes, $0.knownLogicalBytes, $0.knownAllocatedBytes].compactMap { $0 }.allSatisfy { $0 >= 0 }
             && $0.reasons.count <= 32 && $0.reasons.allSatisfy { Self.reasonCategories.contains($0.key) && $0.value > 0 }
         }
     }
 }
 
-/// What a compact History row shows on the right: the logical size the scan observed.
+/// What a compact History row shows on the right: the size on disk the scan found (Decision 94).
 public struct ScanActivitySize: Equatable, Sendable {
     public let bytes: Int64
     /// False when some location has no complete size, so `bytes` is a known minimum.
@@ -61,10 +66,11 @@ public struct ScanActivitySize: Equatable, Sendable {
     public init(bytes: Int64, complete: Bool) { self.bytes = bytes; self.complete = complete }
 }
 public extension ScanActivity {
-    /// Sums each location's complete size, or its known subtotal when incomplete. Nil when nothing was measured.
+    /// Sums each location's complete size on disk, or its known subtotal when incomplete. Nil when nothing was measured on disk;
+    /// a logical size is never shown in its place.
     var observedSize: ScanActivitySize? {
-        let known = locations.compactMap { $0.logicalBytes ?? $0.knownLogicalBytes }
+        let known = locations.compactMap { $0.allocatedBytes ?? $0.knownAllocatedBytes }
         guard !known.isEmpty else { return nil }
-        return ScanActivitySize(bytes: known.reduce(0, +), complete: locations.allSatisfy { $0.logicalBytes != nil })
+        return ScanActivitySize(bytes: known.reduce(0, +), complete: locations.allSatisfy { $0.allocatedBytes != nil })
     }
 }
