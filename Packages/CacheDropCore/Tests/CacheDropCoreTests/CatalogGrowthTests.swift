@@ -157,6 +157,25 @@ private func recordCatalogScan(_ catalog: Catalog, home: URL, recorder: GrowthSc
     #expect(widest.days == 90 && widest.baselines == 30 && widest.bytes == 250_000_000)
 }
 
+/// #482: rules that share a folder (Docker's three prunes at ~/.docker, Downloads' rules) give one line per folder, and
+/// "Not counted as growth" counts folders. Rules that changed in different ways there give one line, never two that disagree.
+@Test func coverageChangesAreOnePerLocationAndMixedChangesReadAsChecked() async throws {
+    let (store, directory) = growthStore()
+    defer { try? FileManager.default.removeItem(at: directory) }
+    func rule(_ rule: String, at label: String, _ bytes: Int64, measured: Bool = true) -> GrowthAggregate {
+        GrowthAggregate(id: "location:" + rule + "|" + label, label: label, logicalBytes: bytes, dimension: .location, category: .developer, ruleID: rule, measured: measured)
+    }
+    let first = catalogSnapshot(100, [rule("npm", at: "~/.npm", 100), rule("downloads-old", at: "~/Downloads", 50), rule("downloads-keep", at: "~/Downloads", 10)])
+    _ = try await store.record(first, now: first.observedAt, expectedEpoch: try await store.recordingEpoch())
+    let second = catalogSnapshot(200, [rule("npm", at: "~/.npm", 150), rule("docker-containers", at: "~/.docker", 1), rule("docker-images", at: "~/.docker", 2),
+                                       rule("docker-build-cache", at: "~/.docker", 3), rule("downloads-new", at: "~/Downloads", 70), rule("downloads-keep", at: "~/Downloads", 30)])
+    let result = try await store.record(second, now: second.observedAt, expectedEpoch: try await store.recordingEpoch())
+    #expect(result.coverageChanges.map(\.label) == ["~/.docker", "~/Downloads"])
+    #expect(result.coverageChanges.map(\.kind) == [.newlyScanned, .checkedDifferently])
+    // Growth still counts each rule measured in both scans: npm +50 and Downloads' kept rule +20.
+    #expect(result.logicalDelta == 70)
+}
+
 @Test func aLocationThatExistsButCantBeReadIsCoverageNeverGrowth() async throws {
     let home = try fixtureHome(), (store, directory) = growthStore()
     let folders = ["Library/FixtureCache", "Library/FixtureCaches", "FixtureDownloads"].map { home.appendingPathComponent($0) }

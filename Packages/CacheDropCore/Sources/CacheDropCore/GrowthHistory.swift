@@ -59,7 +59,9 @@ public struct GrowthChange: Sendable, Identifiable {
 }
 /// A location whose coverage differs between the two scans. Its size change is never counted as growth.
 public struct GrowthCoverageChange: Sendable, Identifiable, Equatable {
-    public enum Kind: String, Sendable { case newlyReadable, newlyUnreadable, newlyScanned, noLongerScanned }
+    /// `checkedDifferently`: the rules that read one folder changed in different ways between the scans (some new, some gone,
+    /// some newly readable), as when Downloads' rules changed (#482).
+    public enum Kind: String, Sendable { case newlyReadable, newlyUnreadable, newlyScanned, noLongerScanned, checkedDifferently }
     public let id, label: String
     public let kind: Kind
     public let category: CatalogCategory?
@@ -238,8 +240,19 @@ public actor GrowthHistoryStore {
         }
         changes += categories.map { GrowthChange(id: "category:" + ($0.key?.rawValue ?? ""), label: $0.key?.rawValue ?? "", logicalDelta: $0.value, dimension: .category, category: $0.key) }
         var result = GrowthComparison(state: .compared, current: current, from: previous.observedAt, groups: changes.sorted { $0.id < $1.id })
-        result.coverageChanges = coverage
+        result.coverageChanges = perLocation(coverage)
         return result
+    }
+    /// One coverage change per folder (#482): rules that share one (Docker's three prunes at ~/.docker) are one line, kept
+    /// under the first rule's id; rules there that changed in different ways are one `checkedDifferently` line.
+    static func perLocation(_ coverage: [GrowthCoverageChange]) -> [GrowthCoverageChange] {
+        let byLabel = Dictionary(grouping: coverage, by: \.label)
+        var seen = Set<String>()
+        return coverage.compactMap { change in
+            guard seen.insert(change.label).inserted, let same = byLabel[change.label] else { return nil }
+            let kind = Set(same.map(\.kind)).count == 1 ? change.kind : .checkedDifferently
+            return GrowthCoverageChange(id: change.id, label: change.label, kind: kind, category: change.category, ruleID: same.count == 1 ? change.ruleID : nil)
+        }
     }
     private func trim(_ value: inout Archive, now: Date) throws {
         value.entries.removeAll { now.timeIntervalSince($0.snapshot.observedAt) > Double(policy.days) * .secondsPerDay }
