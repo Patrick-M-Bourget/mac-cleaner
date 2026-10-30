@@ -81,6 +81,7 @@ enum GrowthPresentation {
         case .newlyUnreadable: change.label + " couldn’t be read this time, so its size isn’t counted."
         case .newlyScanned: change.label + " is scanned for the first time, so its size isn’t counted as growth."
         case .noLongerScanned: change.label + " wasn’t scanned this time, so its size isn’t counted."
+        case .checkedDifferently: change.label + " is checked differently now, so its size isn’t counted."
         }
     }
     static func baseline(_ state: GrowthComparisonState) -> String {

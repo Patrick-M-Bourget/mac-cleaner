@@ -405,7 +405,8 @@ private func dockerRunning(_ home: URL, docker: URL, choose ruleIDs: Set<String>
     let running = try await scan()
     #expect(running.logicalDelta == 0)
     #expect(running.groups.first { $0.id == "category:developer" }?.logicalDelta ?? 0 == 0)
-    #expect(running.coverageChanges.count == 3 && Set(running.coverageChanges.map(\.kind)) == [.newlyReadable])
+    // Docker's three prunes share ~/.docker: one line for the folder, not one per rule (#482).
+    #expect(running.coverageChanges.count == 1 && running.coverageChanges.first?.kind == .newlyReadable)
 }
 
 @Test func dockerIsntRunningIsShownEvenWithoutItsFolder() throws {
