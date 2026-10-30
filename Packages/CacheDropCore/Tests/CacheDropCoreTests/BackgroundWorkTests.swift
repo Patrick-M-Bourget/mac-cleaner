@@ -78,7 +78,8 @@ private let catalog = "Checking npm cache… 4 of 31"
     var work = BackgroundWork()
     work.update(running: [.folderScan(folder: "Projects")])
     let line = work.line(catalogProgress: catalog, folderPhase: .enumerating, inspectedEntries: 1240)
-    #expect(line?.text == "Scanning Projects · Reading file metadata… · 1240 entries inspected")
+    #expect(line?.text == "Scanning Projects · Reading files… · 1,240 files read")
+    #expect(work.line(catalogProgress: catalog, folderPhase: .enumerating, inspectedEntries: 1)?.text == "Scanning Projects · Reading files… · 1 file read")
     #expect(line?.parts.map(\.id) == ["folderScanProgress", "scanPhase", "scanProgressSummary"])
 }
 
@@ -110,7 +111,11 @@ private let catalog = "Checking npm cache… 4 of 31"
 // #308: after discovery the catalog scan goes on reading apps, plug-ins and app-managed storage; the line names each phase.
 
 @Test func theCatalogLineCountsLocationsDuringDiscovery() {
-    #expect(CatalogScanPhase.starting.progressText == "Checking known locations…")
+    // #434: no word Decisions 66 and 87 took off the screen.
+    #expect(CatalogScanPhase.starting.progressText == "Starting scan…")
+    #expect(ScanPhase.enumerating.progressText == "Reading files…")
+    #expect(ScanPhase.checkingDirectories.progressText == "Checking folders…")
+    #expect(ScanPhase.rechecking.progressText == "Checking changed folders again…")
     #expect(CatalogScanPhase.location(title: "npm cache", number: 4, total: 31).progressText == "Checking npm cache… 4 of 31")
 }
 
