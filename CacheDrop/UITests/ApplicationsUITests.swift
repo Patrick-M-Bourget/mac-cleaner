@@ -149,6 +149,15 @@ final class ApplicationsUITests: XCTestCase {
         XCTAssertTrue(rows[1].waitForExistence(timeout: 5), "Clearing the search shows everything again")
         XCTAssertEqual(rows[1].value as? Int, 1, "Still ticked")
         XCTAssertTrue(app.checkBoxes["planCategory-leftovers"].exists)
+
+        // #468: a search that matches nothing shows one "No matches" with Clear search, never a section's empty-list state.
+        search.click(); search.typeText("zzqx")
+        let none = app.descendants(matching: .any)["applicationsNoMatches"]
+        XCTAssertTrue(none.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["No apps to list"].exists)
+        XCTAssertFalse(app.staticTexts["No files from deleted apps"].exists)
+        revealAndClick(none.buttons["Clear search"], in: app)
+        XCTAssertTrue(rows[1].waitForExistence(timeout: 5), "Clear search shows everything again")
     }
 
     /// #177: an app is ticked with its confirmed files, reviewed grouped by place with what stays, moved to the fixture Trash,
