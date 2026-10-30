@@ -187,7 +187,7 @@ public struct TrashEmptying: Sendable {
         var info = stat()
         guard fstatat(folder, name, &info, AT_SYMLINK_NOFOLLOW) == 0 else { return skip(errno == ENOENT ? .notInTrash : .failed) }
         if TrashPutBack.changed(info, original) != nil { return skip(.changed) }
-        let aside = Catalog.leftoverName(for: original.ruleID ?? CleanupRecord.emptyAsideRuleID)
+        let aside = Catalog.deletionRemnantName(for: original.ruleID ?? CleanupRecord.emptyAsideRuleID)
         guard renameatx_np(folder, name, folder, aside, UInt32(RENAME_EXCL)) == 0 else { return skip(errno == ENOENT ? .notInTrash : .failed) }
         func putAsideBack() -> Bool { renameatx_np(folder, aside, folder, name, UInt32(RENAME_EXCL)) == 0 }
         guard fstatat(folder, aside, &info, AT_SYMLINK_NOFOLLOW) == 0, info.resourceID == original.resourceID else {

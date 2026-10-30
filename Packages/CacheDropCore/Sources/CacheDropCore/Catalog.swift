@@ -434,7 +434,7 @@ public struct Catalog: Sendable {
     static func ownership(of url: URL, under rule: CleanupRule) -> Ownership {
         if let copies = rule.copies { return .mustNotUse(copies.owner) }
         if rule.unused != nil, rule.itemOwner == nil { return .mustNotUse(.anyApp) }
-        if Catalog.isLeftover(url.lastPathComponent, of: rule.id) { return .none }
+        if Catalog.isDeletionRemnant(url.lastPathComponent, of: rule.id) { return .none }
         if let itemOwner = rule.itemOwner { return itemOwner(url).map(Ownership.mustBeClosed) ?? .unknown }
         return rule.owner.map(Ownership.mustBeClosed) ?? .none
     }
@@ -477,30 +477,30 @@ public struct Catalog: Sendable {
             // Looked at but not read: What grew records it as not measured, so access granted later is coverage, not growth.
             if notAccessible.contains(where: { $0.id == rule.id }) { scanned.append(rule.id); return [] }
             // What an earlier cleanup left half-deleted comes back under the same rule, even if its tool is gone.
-            var leftovers = leftovers(of: rule, in: base, sizer: sizer)
+            var remnants = deletionRemnants(of: rule, in: base, sizer: sizer)
             let toolURL = rule.tool.flatMap(locateTool)
-            guard rule.action != .tool || toolURL != nil else { return leftovers.map { $0.found(under: base) } }
+            guard rule.action != .tool || toolURL != nil else { return remnants.map { $0.found(under: base) } }
             scanned.append(rule.id)
             for location in rule.locations where Self.cantRead(location, under: base) { notMeasured[rule.id, default: []].insert(location) }
             if case .docker = rule.items, let toolURL {
                 let usage = dockerUsage[toolURL.path] ?? DockerDiskUsage.read(toolURL)
                 if dockerUsage[toolURL.path] == nil, case .failure(let error) = usage { notes.append(CatalogNote(ruleID: rule.id, text: DockerDiskUsage.notice(error))) }
                 dockerUsage[toolURL.path] = usage
-                if case .failure = usage { notMeasured[rule.id, default: []].formUnion(rule.locations); return leftovers.map { $0.found(under: base) } }
+                if case .failure = usage { notMeasured[rule.id, default: []].formUnion(rule.locations); return remnants.map { $0.found(under: base) } }
             }
             // A tool that names its own folder (`uv cache dir`, `npm config get cache`) is asked; its answer replaces the rule's locations.
             var reported: URL?, defaultsNote: CatalogNote?, folderSource: String?
             if let (asker, isOwnTool) = rule.locationAsker {
                 let location = reportedLocation(of: rule, asking: asker, at: isOwnTool ? toolURL : locateTool(asker.lookup), base: base)
                 // An interrupted clean of the named folder left its rest next to it (#202).
-                if let named = location.named { leftovers += self.leftovers(of: rule, nextTo: named, in: base, sizer: sizer) }
+                if let named = location.named { remnants += self.deletionRemnants(of: rule, nextTo: named, in: base, sizer: sizer) }
                 switch location {
                 case .folder(let folder, let source): reported = folder; folderSource = source
                 case .defaults(let note, let source): defaultsNote = note; folderSource = source ?? "Default location"
                 case .notOffered(let note, let unmeasured, _):
                     notes.append(note)
                     if unmeasured { notMeasured[rule.id, default: []].formUnion(rule.locations) }
-                    return leftovers.map { $0.found(under: base) }
+                    return remnants.map { $0.found(under: base) }
                 }
             }
             // A trailing `/*` offers each folder inside (DeviceSupport versions); a `*` inside the path names a profile.
@@ -583,7 +583,7 @@ public struct Catalog: Sendable {
             }
             // The default folder offered in place of one the tool didn't name says so (#170).
             if let defaultsNote, !found.isEmpty { notes.append(defaultsNote) }
-            return (found + leftovers).map { $0.found(under: base) }
+            return (found + remnants).map { $0.found(under: base) }
         }
         var candidates: [Candidate] = []
         // One rule at a time, in catalog order, so progress can report each as it finishes (#128).

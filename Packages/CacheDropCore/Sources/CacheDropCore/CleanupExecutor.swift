@@ -376,7 +376,7 @@ public actor CleanupExecutor {
     /// swapped for a symlink after the check is never renamed.
     private func delete(_ candidate: Candidate, into record: inout CleanupRecord) {
         let parent = candidate.url.deletingLastPathComponent(), name = candidate.url.lastPathComponent
-        let asideName = Catalog.leftoverName(for: candidate.ruleID)
+        let asideName = Catalog.deletionRemnantName(for: candidate.ruleID)
         let aside = parent.appendingPathComponent(asideName)
         let parentFD = candidate.scopeRoot.map { ScopeContainment.openParent(of: candidate.url, in: $0) } ?? -1
         guard parentFD >= 0 else { record.state = .skipped; record.message = CheckRefusal.changed.reason; return }

@@ -128,7 +128,7 @@ private func recordCatalogScan(_ catalog: Catalog, home: URL, recorder: StorageT
     #expect(result.state == .firstBaseline)
 }
 
-@Test func itemsUnderAWildcardLocationAndLeftoversBesideItCountInThatLocation() async throws {
+@Test func itemsUnderAWildcardLocationAndDeletionRemnantsBesideItCountInThatLocation() async throws {
     let home = try fixtureHome(), (store, directory) = growthStore()
     defer { try? FileManager.default.removeItem(at: home); try? FileManager.default.removeItem(at: directory) }
     let rule = CleanupRule(id: "fixture-caches", category: .system, title: "Fixture caches", detail: "", consequence: "", regen: .cache, action: .delete,

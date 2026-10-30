@@ -98,7 +98,7 @@ private func recommended(_ items: [Candidate], refusing refused: [String: CheckR
     #expect(recommended([item("simulator-devices"), item("simulator-runtimes"), item("ollama-models")]).isEmpty)
 }
 
-@Test func leftoversOfAToolRuleAreNotRecommended() {
+@Test func deletionRemnantsOfAToolRuleAreNotRecommended() {
     #expect(recommended([item("homebrew", action: .delete, name: ".cachedrop-deleting-homebrew-\(UUID().uuidString)")]).isEmpty)
 }
 

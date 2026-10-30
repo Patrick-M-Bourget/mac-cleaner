@@ -118,14 +118,14 @@ public struct CleanupRecoveryReview: Sendable {
         }
     }
 
-    /// A delete, and an emptying of the Trash (#359), renames its item aside before removing it (`Catalog.leftoverName`);
+    /// A delete, and an emptying of the Trash (#359), renames its item aside before removing it (`Catalog.deletionRemnantName`);
     /// the same item may still be there.
     private func renamedAside(_ record: CleanupRecord) -> URL? {
         let ruleID = record.isEmptyFromTrash ? record.ruleID ?? CleanupRecord.emptyAsideRuleID : record.ruleID
         guard [.delete, .tool].contains(record.cleanupAction) || record.isEmptyFromTrash, let ruleID else { return nil }
         let folder = record.originalURL.deletingLastPathComponent()
         let names = (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []
-        return names.filter { Catalog.isLeftover($0, of: ruleID) }.map { folder.appendingPathComponent($0) }.first { matches($0, record) }
+        return names.filter { Catalog.isDeletionRemnant($0, of: ruleID) }.map { folder.appendingPathComponent($0) }.first { matches($0, record) }
     }
 
     private enum TrashLookup { case found(URL), absent, unreadable }

@@ -91,7 +91,7 @@ private let cargoOnly = Catalog(rules: fixtureRules.filter { $0.id == "cargo-cac
 
 /// Homebrew's `brew cleanup -s` runs as a tool; what it leaves half-deleted comes back as a plain delete. Still's leftovers
 /// (`.still-deleting-`, its former marker) come back the same way.
-@Test func aLeftoverFromAToolRuleIsOfferedAsADelete() throws {
+@Test func aDeletionRemnantFromAToolRuleIsOfferedAsADelete() throws {
     let home = try fixtureFolder("CacheDropScopeHome")
     defer { try? FileManager.default.removeItem(at: home) }
     try write(home, "Library/Caches/.cachedrop-deleting-homebrew-\(UUID().uuidString)/downloads/x")
