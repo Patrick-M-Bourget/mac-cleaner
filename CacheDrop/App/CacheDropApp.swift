@@ -24,6 +24,9 @@ struct CacheDropApp: App {
         }
         .defaultSize(width: 1120, height: 760)
         .commands {
+            #if DEBUG
+            DebugGalleryCommands()
+            #endif
             CommandGroup(after: .windowArrangement) {
                 Button("Show CacheDrop") { lifecycle.openWorkspace?() }
             }
@@ -34,6 +37,10 @@ struct CacheDropApp: App {
                 Button("Welcome to CacheDrop") { lifecycle.openWorkspace?(); WelcomeModel.shared.isShowing = true }
             }
         }
+        #if DEBUG
+        Window("Design gallery", id: "design-gallery") { DesignGallery() }
+            .defaultSize(width: 1120, height: 760)
+        #endif
         Settings { CacheDropSettingsView() }
         // #131: free space in the menu bar, shown unless turned off in Settings.
         // The binding ignores no-op writes: MenuBarExtra writes it back on every update, and an unconditional
@@ -43,6 +50,19 @@ struct CacheDropApp: App {
         } label: { CacheDropMenuBarLabel(capacity: lifecycle.capacity) }
     }
 }
+
+#if DEBUG
+/// Developer-only access to synthetic examples, separate from product navigation.
+private struct DebugGalleryCommands: Commands {
+    @Environment(\.openWindow) private var openWindow
+    var body: some Commands {
+        CommandMenu("Debug") {
+            Button("Design gallery") { openWindow(id: "design-gallery") }
+                .accessibilityIdentifier("openDesignGallery")
+        }
+    }
+}
+#endif
 
 /// ⌘R: disabled while a scan or cleanup runs, with the reason as its tooltip (#310).
 private struct ScanAgainCommand: View {
