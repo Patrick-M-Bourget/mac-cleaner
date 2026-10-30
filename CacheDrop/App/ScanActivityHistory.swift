@@ -110,8 +110,9 @@ struct ScanActivitySummary: View {
     private func locationDetail(_ location: ScanActivityLocation) -> String {
         var parts = [location.outcome.map { $0 == .complete ? "Complete" : $0.rawValue.capitalized + " · Not fully read" } ?? "Not attempted"]
         if let count = location.entryCount { parts.append("\(count) entries") }
-        if let bytes = location.logicalBytes { parts.append(format(bytes)) }
-        else if let known = location.knownLogicalBytes { parts.append("At least " + format(known)) }
+        // Sizes on disk, as the row's total and Overview show them (Decision 94).
+        if let bytes = location.allocatedBytes { parts.append(format(bytes)) }
+        else if let known = location.knownAllocatedBytes { parts.append("At least " + format(known)) }
         return parts.joined(separator: " · ")
     }
     private var locationSummary: String {
@@ -170,7 +171,8 @@ struct HistoryActivityFilterControl: View {
     func failed(_ root: URL) { locations[root.standardizedFileURL.path] = ScanActivityLocation(path: root.standardizedFileURL.path, observedAt: Date(), outcome: .failed, reasons: ["readFailed": 1]) }
     func stopped(_ root: URL?, progress: ScanProgress?) {
         guard let root, locations[root.standardizedFileURL.path] == nil else { return }
-        locations[root.standardizedFileURL.path] = ScanActivityLocation(path: root.standardizedFileURL.path, observedAt: Date(), outcome: .stopped, entryCount: progress?.visitedEntries, knownLogicalBytes: progress?.knownLogicalSubtotal)
+        locations[root.standardizedFileURL.path] = ScanActivityLocation(path: root.standardizedFileURL.path, observedAt: Date(), outcome: .stopped, entryCount: progress?.visitedEntries, knownLogicalBytes: progress?.knownLogicalSubtotal,
+                                                                       knownAllocatedBytes: progress?.knownAllocatedSubtotal)
     }
     func summary(stopped: Bool = false) -> ScanActivity {
         let values = roots.map { locations[$0.standardizedFileURL.path] ?? ScanActivityLocation(path: $0.standardizedFileURL.path) }
