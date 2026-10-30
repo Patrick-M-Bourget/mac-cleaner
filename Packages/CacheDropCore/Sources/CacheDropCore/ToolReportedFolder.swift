@@ -254,9 +254,9 @@ extension Catalog {
     /// A leftover may be a file, since discovery offers those too (#262). Nil for every other item.
     func notACacheRefusal(_ candidate: Candidate, rule: CleanupRule, base: URL) -> CheckRefusal? {
         let parent = candidate.url.deletingLastPathComponent().standardizedFileURL.path
-        guard let asker = rule.locationAsker?.tool, candidate.isDirectory || candidate.isLeftover, !isUsualLocation(candidate.url, of: rule, base: base),
-              !candidate.isLeftover || !leftoverFolders(of: rule, in: base).contains(where: { $0.standardizedFileURL.path == parent }),
-              let problem = notACache(candidate.url, of: rule, markers: candidate.isLeftover ? nil : asker.query.cacheMarkers, base: base) else { return nil }
+        guard let asker = rule.locationAsker?.tool, candidate.isDirectory || candidate.isDeletionRemnant, !isUsualLocation(candidate.url, of: rule, base: base),
+              !candidate.isDeletionRemnant || !deletionRemnantFolders(of: rule, in: base).contains(where: { $0.standardizedFileURL.path == parent }),
+              let problem = notACache(candidate.url, of: rule, markers: candidate.isDeletionRemnant ? nil : asker.query.cacheMarkers, base: base) else { return nil }
         return .notACache(problem.reason(rule.owner?.name ?? asker.name))
     }
 

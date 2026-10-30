@@ -33,6 +33,7 @@ The names CacheDrop shows, what they mean, and where they live in code. Copy fol
 | recommended | Items Smart clean ticks by default | `RecommendedPlan` |
 | ticked / selection | What will be cleaned; shared by Smart clean, the plan and Applications | `CleanupSelections` |
 | scanned location | A folder CacheDrop scans; Downloads is **Built in** | `ScannedLocation`, `RememberedLocations` |
+| deletion remnant | A file or folder renamed aside for deletion that remains after cleanup stops | `Candidate.isDeletionRemnant`, `Catalog.deletionRemnants` |
 | Files from deleted apps | Settings and data apps left behind (never "leftovers" on screen) | `RemovedAppLeftovers`, category `leftovers` |
 | Possibly related | Named like an app but not tied to it; ticked one by one | `AppUninstall.possiblyRelatedRuleID` |
 | plug-in product, vendor content | A plug-in and its formats; content shared by a vendor's products | `PlugInInventory`, `PlugInUninstall` |
@@ -58,4 +59,4 @@ The names CacheDrop shows, what they mean, and where they live in code. Copy fol
 
 ## Not shown to users
 
-observed, coverage, baseline, known locations, journal, approval, records, resource identity, metadata, directory, leftovers, available (for free space), Potential space released, Show in Finder, Rescan, Recheck.
+deletion remnant, observed, coverage, baseline, known locations, journal, approval, records, resource identity, metadata, directory, leftovers, available (for free space), Potential space released, Show in Finder, Rescan, Recheck.

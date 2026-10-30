@@ -152,7 +152,7 @@ public struct CandidateCheck: Sendable {
         // Guidance-only data is never acted on, whatever the candidate or its rule says (SPEC section 3).
         if candidate.action == .guidance || catalog.rule(candidate.ruleID)?.action == .guidance { return .guidanceOnly }
         guard let rule = catalog.rule(candidate.ruleID),
-              rule.action == candidate.action || (candidate.isLeftover && rule.deletesItems && candidate.action == .delete) else { return .changed }
+              rule.action == candidate.action || (candidate.isDeletionRemnant && rule.deletesItems && candidate.action == .delete) else { return .changed }
         // A per-item command's argument is never an option, whatever the item says (#134).
         if candidate.action == .tool, rule.tool?.itemPlaceholder != nil, candidate.toolArgument.map({ $0.isEmpty || $0.hasPrefix("-") }) ?? true { return .changed }
         let ownership = Catalog.ownership(of: candidate, under: rule)
@@ -181,7 +181,7 @@ public struct CandidateCheck: Sendable {
         if let part = Protection(rule).protectedComponent(of: candidate.url, below: root) { return .protected(part) }
         // An app cache item is the app's whole folder or an item the rule offers from it now (#203, #241); one that became a
         // web-view profile or gained offline content says so.
-        if rule.id == AppCaches.appCachesRuleID, !candidate.isLeftover, !AppCaches.isOfferedItem(candidate.url, offlineContent: rule.offlineContent) {
+        if rule.id == AppCaches.appCachesRuleID, !candidate.isDeletionRemnant, !AppCaches.isOfferedItem(candidate.url, offlineContent: rule.offlineContent) {
             return (candidate.isDirectory ? Self.protectedEntry(in: candidate.url, rule: rule) : nil).map(CheckRefusal.protected) ?? .changed
         }
         if let refusal = catalog.notACacheRefusal(candidate, rule: rule, base: root) { return refusal }
@@ -221,7 +221,7 @@ public struct CandidateCheck: Sendable {
         if rule.items == .simulatorDevices || rule.items == .simulatorRuntimes, let items = rule.items,
            let refusal = SimulatorInventory.refusal(for: candidate, items: items) { return refusal }
         // An old temporary item that anything inside changed in since the scan is in use again (`TemporaryFiles`).
-        if rule.unused != nil, !candidate.isLeftover, Catalog.lastChange(in: candidate.url).map({ $0 > candidate.observedAt }) ?? true { return .changed }
+        if rule.unused != nil, !candidate.isDeletionRemnant, Catalog.lastChange(in: candidate.url).map({ $0 > candidate.observedAt }) ?? true { return .changed }
         guard uninstalling || info.st_uid == geteuid(),
               info.st_flags & UInt32(UF_IMMUTABLE | SF_IMMUTABLE | UF_APPEND | SF_APPEND) == 0,
               access(candidate.url.deletingLastPathComponent().path, W_OK | X_OK) == 0 else { return .notPermitted }
