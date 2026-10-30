@@ -124,9 +124,9 @@ struct RefreshRequest: Sendable {
     func prepareSmartCleanReview() async throws -> WorkspaceCleanupReview {
         guard canReviewSmartClean else { throw PlanReviewError.changed }
         let catalogVersion = catalog.selectionRevision(for: .smartClean)
-        guard let items = await catalog.smartCleanCheckedNow() else { throw failure }
-        guard !items.isEmpty else { throw PlanReviewError.nothingToClean }
-        return try await review(items, from: .smartClean, catalogVersion: catalogVersion)
+        guard let checked = await catalog.smartCleanCheckedNow() else { throw failure }
+        guard !checked.items.isEmpty else { throw PlanReviewError.nothingToClean }
+        return try await review(checked.items, from: .smartClean, catalogVersion: catalogVersion, check: checked.check)
     }
     /// The Applications page's review: its chosen items, through the plan's review and executor.
     func prepareApplicationsReview() async throws -> WorkspaceCleanupReview {
@@ -134,8 +134,8 @@ struct RefreshRequest: Sendable {
         return try await review(catalog.applicationsSelected, from: .applications, catalogVersion: catalog.selectionRevision(for: .applications))
     }
     /// A page's review of `items` through the plan's review, refused when the page's choices changed meanwhile.
-    private func review(_ items: [Candidate], from source: CleanupSelections.Source, catalogVersion: UInt64) async throws -> WorkspaceCleanupReview {
-        let review = await catalog.prepareReview(of: items)
+    private func review(_ items: [Candidate], from source: CleanupSelections.Source, catalogVersion: UInt64, check: CandidateCheck? = nil) async throws -> WorkspaceCleanupReview {
+        let review = await catalog.prepareReview(of: items, using: check)
         guard let review else { throw failure }
         guard canReview(source), catalog.selectionRevision(for: source) == catalogVersion else { throw PlanReviewError.changed }
         return WorkspaceCleanupReview(catalog: review, catalogVersion: catalogVersion, source: source, model: catalog)
