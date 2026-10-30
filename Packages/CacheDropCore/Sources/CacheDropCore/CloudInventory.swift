@@ -37,8 +37,6 @@ public struct CloudInventoryReport: Sendable {
     public let cloudOnlyItemCount: Int
     public let cloudOnlyLogicalBytes: Int64?
     public let unknownStateCount: Int
-    /// The disposable feasibility gate does not establish safe eviction/pinning.
-    public var evictionAvailable: Bool { false }
     /// Overview's iCloud total reads "Unknown" while any file's membership or download state is unknown.
     public var totalIsUnknown: Bool { unknownMembershipCount > 0 || unknownStateCount > 0 }
     /// One plain line saying why the total is Unknown (#331); nil when it isn't. Counts only, never a file list.

@@ -7,9 +7,9 @@ import Darwin
 /// the Trash without a password is offered, checked at the scan and again before acting. It goes through `AppUninstall`'s
 /// path: its `Target`, review lines, History and Put back.
 public enum PlugInUninstall {
-    public static let formatsRuleID = "uninstall-plugin"
-    public static let filesRuleID = "uninstall-plugin-files"
-    public static let sharedRuleID = "uninstall-plugin-shared"
+    static let formatsRuleID = "uninstall-plugin"
+    static let filesRuleID = "uninstall-plugin-files"
+    static let sharedRuleID = "uninstall-plugin-shared"
     static let formatsRule = CleanupRule(id: formatsRuleID, category: .apps, title: "Formats", detail: "The product's plug-in formats.",
         consequence: AppUninstall.consequence, regen: .userFile, action: .trash, locations: [], owner: nil, family: .plugInUninstall)
     static let filesRule = CleanupRule(id: filesRuleID, category: .apps, title: "Its support files", detail: "Presets and support files its own installer lists.",

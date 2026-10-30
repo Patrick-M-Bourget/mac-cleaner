@@ -4,7 +4,7 @@ import Foundation
 public struct FirstRunWelcome {
     /// CacheDrop's preference recording the welcome: "pending" from the first launch that shows it, "seen" once it is
     /// finished or skipped. Only Skip and Start scan set "seen"; quitting with it open leaves it pending.
-    public static let stateKey = "CacheDrop.welcomeState"
+    static let stateKey = "CacheDrop.welcomeState"
     static let pending = "pending", seen = "seen"
     let preferences: any MigrationPreferences
 

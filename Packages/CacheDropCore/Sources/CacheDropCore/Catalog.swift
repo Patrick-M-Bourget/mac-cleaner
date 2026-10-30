@@ -443,7 +443,7 @@ public struct Catalog: Sendable {
     /// A `.tool` rule appears only when `locateTool` finds its executable. Rules based in the user's
     /// `/private/var/folders` entry appear only when `userFolder` is given (`Catalog.currentUserFolder()` in the app).
     /// Absolute paths in a rule's layout overrides are read under `systemRoot`.
-    public func discover(home: URL, userFolder: URL? = nil, exclusions: ExclusionPolicy = ExclusionPolicy(), inUse: any InUseChecking = SystemInUseChecker(), sizer: KnownLocationSizer = KnownLocationSizer(), now: Date = Date(), locateTool: (ToolCommand) -> URL? = ToolCommand.installed,
+    func discover(home: URL, userFolder: URL? = nil, exclusions: ExclusionPolicy = ExclusionPolicy(), inUse: any InUseChecking = SystemInUseChecker(), sizer: KnownLocationSizer = KnownLocationSizer(), now: Date = Date(), locateTool: (ToolCommand) -> URL? = ToolCommand.installed,
                          systemRoot: URL = URL(fileURLWithPath: "/"), cloud: any UbiquitousItemAccess = SystemUbiquitousItems()) -> [Candidate] {
         discovery(home: home, userFolder: userFolder, exclusions: exclusions, inUse: inUse, sizer: sizer, now: now, locateTool: locateTool, systemRoot: systemRoot, cloud: cloud).candidates
     }
