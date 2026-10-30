@@ -32,7 +32,7 @@ import SwiftUI
                 return try CleanupRecoverySnapshot(journal: reader)
             }.value
         } catch {
-            self.error = "CacheDrop couldn’t read its cleanup history, so it can’t tell what happened to these items. Nothing restarts by itself."
+            self.error = "CacheDrop couldn’t read its cleanup history, so it can’t tell what happened to these items."
         }
         return requiresReview
     }
