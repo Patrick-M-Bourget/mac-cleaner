@@ -266,7 +266,7 @@ public actor CleanupExecutor {
             return
         }
         if previewOnly {
-            let size = SizeFormatter.text(candidate.estimatedBytes)
+            let size = SizeEstimate(candidate).text
             record.state = .skipped; record.message = CleanupRecord.previewPrefix + " would \(verb) (\(size)). Checks passed; nothing changed."
             Self.log.info("Dry run: would \(verb, privacy: .public) \(candidate.url.path, privacy: .public), \(size, privacy: .public)")
             return

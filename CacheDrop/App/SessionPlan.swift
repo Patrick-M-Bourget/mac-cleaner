@@ -26,7 +26,7 @@ struct RefreshRequest: Sendable {
     var hasPendingChoicesOnAnyPage: Bool { catalog.anyPageDiffersFromRecommended }
     var workspaceSelectedSize: String {
         if !hasPendingChoices { return CacheDropDesign.noValue }
-        return SizeFormatter.text(catalog.estimatedBytes)
+        return catalog.sizeText(of: catalog.selectedCandidates.filter(\.releasesSpace))
     }
     /// The last run left records whose outcome is unknown; they must be reviewed before another plan.
     var requiresRecoveryReview: Bool {
