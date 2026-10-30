@@ -249,20 +249,6 @@ struct ColumnHeader: View {
         }
     }
 }
-/// A sectioned list's sort, as one pair over its size column: "Name   Size ⌄" (Applications). Its sections have their own
-/// headings at the page's left edge, so no column label sits indented over the names.
-struct SortLabels: View {
-    let nameTitle: String
-    let sizeTitle: String
-    @Binding var sort: ListSort
-    let identifier: String
-    var body: some View {
-        HStack(spacing: CacheDropDesign.Space.lg) {
-            SortButton(title: nameTitle, column: .name, sort: $sort, identifier: identifier)
-            SortButton(title: sizeTitle, column: .size, sort: $sort, identifier: identifier)
-        }.font(CacheDropDesign.TypeStyle.caption)
-    }
-}
 /// One sortable label (#352, Decision 77): clicking the active one flips its direction, clicking the other switches to it,
 /// and a chevron sits on the active one. Identified `<identifier>-name` or `<identifier>-size`.
 struct SortButton: View {

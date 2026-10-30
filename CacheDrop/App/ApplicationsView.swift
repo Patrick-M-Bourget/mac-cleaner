@@ -123,11 +123,13 @@ struct ApplicationsView: View {
             SettingsUnreadableNotice(model: catalog)
             if let approvalError { StatusRow(text: approvalError, symbol: "exclamationmark.circle", role: .caution) }
             if let status = model.status { StatusRow(text: status, identifier: "applicationsStatus") }
+            // Nothing listed yet: no Name and Size over empty states (#427).
+            if !model.apps.isEmpty || !model.plugIns.isEmpty || catalog.leftoversRow != nil { columnHeader }
             section("Apps", id: "apps", entries: model.apps, category: .apps, identifier: "applicationsApp-",
                     empty: ("No apps to list", "Only Apple’s apps are in the Applications folders."))
             section("Plug-ins", id: "plugIns", entries: model.plugIns, category: .audioPlugIns, identifier: "applicationsPlugIn-",
                     empty: ("No plug-ins to list", "No audio plug-ins other than Apple’s were found."))
-            sectionHeader("Files from deleted apps", sorts: false)
+            sectionHeader("Files from deleted apps")
             if let row = catalog.leftoversRow {
                 if model.listing.isSearching, !row.rules.flatMap(catalog.candidates(for:)).contains(where: model.listing.matches) { noMatches("leftovers") }
                 else { PlanCategoryRow(model: catalog, row: row, expanded: $leftoversExpanded, listing: model.listing).waitingForScan(catalog.isScanning) }
@@ -149,17 +151,16 @@ struct ApplicationsView: View {
                                            text: Bindable(model).listing.search, identifier: "applicationsSearch"))
             .padding(.bottom, CacheDropDesign.Space.sm)
     }
-    /// A section's heading at the page's left edge; the first listed one carries the one sort for every section, over the
-    /// sizes (#295, #352), so no label sits indented over the names.
-    private func sectionHeader(_ title: String, sorts: Bool) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: CacheDropDesign.Space.md) {
-            Text(title).font(CacheDropDesign.TypeStyle.section)
-            Spacer(minLength: CacheDropDesign.Space.md)
-            if sorts { SortLabels(nameTitle: "Name", sizeTitle: "Size", sort: Bindable(model).listing.sort, identifier: "applicationsSort") }
-        }
+    /// The list's quiet table header, one sort for every section (#295, #352): "Name" over the names, "Size" over the sizes.
+    private var columnHeader: some View {
+        ColumnHeader(nameTitle: "Name", sizeTitle: "Size", sort: Bindable(model).listing.sort, identifier: "applicationsSort",
+                     insets: EdgeInsets(top: 0, leading: CacheDropDesign.Size.categoryContentIndent, bottom: 0, trailing: 0))
     }
-    /// Whether anything is listed yet, so the sort shows only over rows (#427).
-    private var listsAnything: Bool { !model.apps.isEmpty || !model.plugIns.isEmpty || catalog.leftoversRow != nil }
+    /// A section's heading on the names' column, under "Name", so the header, the headings and the rows' titles share one
+    /// line; the checkboxes and icons sit left of it.
+    private func sectionHeader(_ title: String) -> some View {
+        Text(title).font(CacheDropDesign.TypeStyle.section).padding(.leading, CacheDropDesign.Size.categoryContentIndent)
+    }
     private func noMatches(_ id: String) -> some View {
         state("No matches", "Nothing here has “\(model.listing.search.trimmingCharacters(in: .whitespaces))” in its name or maker.", symbol: "magnifyingglass",
               id: "applicationsNoMatches-" + id)
@@ -171,8 +172,7 @@ struct ApplicationsView: View {
     @ViewBuilder private func section(_ title: String, id: String, entries: [InventoryEntry], category: StorageCategory, identifier: String,
                                       empty: (title: String, detail: String)) -> some View {
         let shown = model.listing.arranged(entries, name: \.name, maker: \.maker, bytes: { size(of: $0).sortBytes })
-        // Apps comes first, so it carries the sort while anything is listed; nothing listed shows no sort over empty states (#427).
-        sectionHeader(title, sorts: id == "apps" && listsAnything)
+        sectionHeader(title)
         if entries.isEmpty {
             if listsLoading { loading(id) }
             else if id == "apps", model.appsUnreadable {
