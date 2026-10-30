@@ -30,7 +30,7 @@ import CacheDropCore
     let planPresentation = CleanupPlanPresentation()
     let smartCleanPresentation = SmartCleanPresentation()
     let locationsExplorer = StorageExplorerContext()
-    lazy var inspection = FolderInspection(selection: selection)
+    lazy var inspection = ExploreStorage(selection: selection)
     var openWorkspace: (() -> Void)?
     /// The workspace's Scan again, for the ⌘R menu command (#127).
     var scanAgain: (() -> Void)?

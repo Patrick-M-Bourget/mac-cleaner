@@ -128,7 +128,7 @@ AA2700000000000000000006 = { isa = PBXBuildFile; fileRef = AA2700000000000000000
 AA2700000000000000000007 = { isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (AA2700000000000000000006, AA1560000000000000000002, AA1560000000000000000004); runOnlyForDeploymentPostprocessing = 0; };
 AA2700000000000000000001 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App/StorageAlerts.swift; sourceTree = "<group>"; };
 AA2700000000000000000003 = { isa = PBXBuildFile; fileRef = AA2700000000000000000001; };
-AA0000000000000000000001 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App/FolderInspection.swift; sourceTree = "<group>"; };
+AA0000000000000000000001 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App/ExploreStorage.swift; sourceTree = "<group>"; };
 AA0000000000000000000002 = { isa = PBXBuildFile; fileRef = AA0000000000000000000001; };
 AA0000000000000000000003 = { isa = XCLocalSwiftPackageReference; relativePath = ../Packages/CacheDropCore; };
 AA0000000000000000000004 = { isa = XCSwiftPackageProductDependency; package = AA0000000000000000000003; productName = CacheDropCore; };

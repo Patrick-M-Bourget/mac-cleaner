@@ -6,7 +6,7 @@ import SwiftUI
 import QuickLook
 
 @MainActor @Observable
-final class FolderInspection {
+final class ExploreStorage {
     private let scanner: FolderScanner
     private let session: InspectionSession
     private let selection: SessionPlan
