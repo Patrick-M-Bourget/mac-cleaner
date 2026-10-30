@@ -92,15 +92,17 @@ enum Destination: String, CaseIterable, Identifiable {
     var recoveryCaller = Destination.overview
     let historyModel = CleanupHistoryModel()
     var historyExpandedRuns: Set<UUID> = []
-    var historyOffset: CGPoint?
-    var growthOffset: CGPoint?
+    /// Each page's scroll position, written on every scroll frame and read back only when the page is shown again. Not
+    /// observed: a write must never re-render the workspace, which made Overview, its heaviest page, lag while scrolling.
+    @ObservationIgnored var historyOffset: CGPoint?
+    @ObservationIgnored var growthOffset: CGPoint?
     var planReturnsToGrowth = false
     var routeGeneration = UUID()
-    var overviewOffset: CGPoint?
-    var locationsOffset: CGPoint?
+    @ObservationIgnored var overviewOffset: CGPoint?
+    @ObservationIgnored var locationsOffset: CGPoint?
     var localRecordsVisible = false
     var localRecordsCaller = Destination.history
-    var localRecordsOffset: CGPoint?
+    @ObservationIgnored var localRecordsOffset: CGPoint?
     /// Overview's App-managed storage page (Decision 25).
     var appManagedVisible = false
 }

@@ -356,6 +356,34 @@ final class ProtectedItemsUITests: XCTestCase {
     }
 }
 
+/// Overview keeps its scroll position across pages, and scrolling it never re-renders the workspace: the position is
+/// remembered without being observed (Overview scroll lag, owner's smoke test 2026-10-29).
+final class ScrollPositionUITests: XCTestCase {
+    @MainActor func testOverviewComesBackWhereItWasScrolled() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        _ = try addDeveloperCaches(home, folders: ["Library/Caches/Yarn", "Library/Caches/pip", ".gradle/caches", "Library/Caches/CocoaPods"])
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        app.launch()
+        let title = app.staticTexts["Storage overview"]
+        XCTAssertTrue(title.waitForExistence(timeout: 10))
+        waitForCatalogScan(app)
+        let top = title.frame.minY
+        app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: -300)
+        let scrolled = title.frame.minY
+        XCTAssertLessThan(scrolled, top - 50, "Overview scrolled")
+
+        app.typeKey("6", modifierFlags: .command)
+        app.typeKey("1", modifierFlags: .command)
+        XCTAssertTrue(title.waitForExistence(timeout: 10))
+        let back = NSPredicate { _, _ in abs(title.frame.minY - scrolled) < 2 }
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: back, object: nil)], timeout: 5), .completed,
+                       "Overview came back at \(title.frame.minY), scrolled to \(scrolled)")
+    }
+}
+
 /// Decision 25: appearance follows the system; the override lives in the Settings window (⌘,).
 final class AppearanceSettingsUITests: XCTestCase {
     @MainActor func testAppearanceOverrideLivesInTheSettingsWindow() throws {
