@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import StorageAlerts
+@testable import CacheDropCore
 
 @Test func windowCloseOnlyKeepsEffectiveMonitoringAlive() {
     #expect(AppLifecyclePolicy.shouldKeepRunning(effectiveAlerts: true, operationInProgress: false))

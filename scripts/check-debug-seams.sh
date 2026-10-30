@@ -11,7 +11,7 @@
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
-files=$(git ls-files 'CacheDrop/App/*.swift' 'Packages/*/Sources/*.swift' 'CacheDrop/Packages/*/Sources/*.swift')
+files=$(git ls-files 'CacheDrop/App/*.swift' 'Packages/*/Sources/*.swift')
 [ -n "$files" ] || { echo "No Swift sources found" >&2; exit 2; }
 
 # shellcheck disable=SC2086
