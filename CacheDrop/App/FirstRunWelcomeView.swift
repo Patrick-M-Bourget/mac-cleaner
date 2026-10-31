@@ -151,7 +151,8 @@ struct FirstRunWelcomeView: View {
                     .font(CacheDropDesign.TypeStyle.note).foregroundStyle(.secondary)
                 FullDiskAccessLink(title: "Full Disk Access is optional · Learn more", model: access)
             case .scanning, .ready:
-                ScanPreparationProgress(text: progressText, fraction: model.step == .ready ? 1 : furthestProgress, identifier: "welcomeScanProgress")
+                ScanPreparationProgress(text: progressText, fraction: model.step == .ready ? 1 : furthestProgress, identifier: "welcomeScanProgress",
+                                        showsText: model.step != .ready) // The heading says it once (#546).
             case .failed:
                 Text(model.failure).font(CacheDropDesign.TypeStyle.note).foregroundStyle(.secondary)
             }

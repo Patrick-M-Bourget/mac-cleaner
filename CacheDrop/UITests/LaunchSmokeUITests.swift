@@ -703,6 +703,7 @@ final class FirstRunWelcomeUITests: XCTestCase {
         XCTAssertFalse(done.exists, "Catalog completion alone does not unlock the workspace")
         XCTAssertTrue(done.waitForExistence(timeout: 120))
         XCTAssertTrue(progress.exists, "The same bar remains visible when results are ready")
+        XCTAssertEqual(app.sheets.staticTexts.matching(NSPredicate(format: "label == %@", "Your results are ready")).count, 1, "The ready step says it once (#546)")
         done.click()
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 5))
         app.typeKey("4", modifierFlags: .command)
