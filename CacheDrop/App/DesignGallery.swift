@@ -110,7 +110,7 @@ struct DesignGallery: View {
                     SelectionSummary(value: "3 files", detail: "Example selection · No action will run", title: "Ready to clean")
                     SelectionSummary(value: "Synthetic mixed selection", detail: "Downloads and browser caches · No action will run", title: "Ready to clean")
                     HStack(spacing: CacheDropDesign.Space.lg) {
-                        ForEach(0..<5) { index in CategoryBadge(category: [StorageCategory.cloud, .developer, .downloads, .browser, .managed][index]) }
+                        ForEach(0..<7) { index in CategoryBadge(category: [StorageCategory.cloud, .developer, .downloads, .browser, .managed, .appCaches, .leftovers][index]) }
                     }
                     SettingsRow(title: "Selection states", detail: "Native controls retain focus, Space, disabled and mixed semantics.") {
                         NativeCategoryCheckbox(state: .unchecked, label: "Unchecked", enabled: true, action: {}, identifier: "galleryUnchecked")

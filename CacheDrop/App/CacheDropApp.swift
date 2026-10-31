@@ -23,6 +23,9 @@ struct CacheDropApp: App {
         Window("CacheDrop", id: "workspace") {
             WorkspaceView(alerts: lifecycle.alerts)
                 .frame(minWidth: CacheDropDesign.Size.minimumWindow.width).background { NativeWindowContract() }
+                // The sidebar's material runs under the traffic lights: no title bar band or line above the page (#549).
+                .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
+                .toolbar(removing: .title) // The sidebar header shows the name (#162).
                 .cacheDropButtonRule()
         }
         .defaultSize(width: CacheDropDesign.Size.defaultWindow.width, height: CacheDropDesign.Size.defaultWindow.height)
@@ -234,13 +237,13 @@ private struct WorkspaceView: View {
         }
     }
 
-    /// The sidebar, the divider and the page; `body` adds the modifiers, so neither expression grows too large to type-check (Xcode 26).
+    /// The sidebar and the page panel; `body` adds the modifiers, so neither expression grows too large to type-check (Xcode 26).
     private var workspace: some View {
+        // One material behind the sidebar and the title bar; the page sits on it as a panel (#549).
         HStack(spacing: 0) {
             sidebar
-            Divider()
-            page
-        }
+            page.contentPanel()
+        }.background { ChromeSurface(role: .sidebar).ignoresSafeArea() }
     }
 
     private var sidebar: some View {
@@ -267,7 +270,6 @@ private struct WorkspaceView: View {
         .padding(.horizontal, CacheDropDesign.Space.md).padding(.vertical, CacheDropDesign.Space.lg)
         .frame(width: CacheDropDesign.Size.sidebarWidth)
         .frame(maxHeight: .infinity)
-        .background { ChromeSurface(role: .sidebar) }
     }
 
     /// The page on the right: the appearance notice, then the destination with its bar.
@@ -288,7 +290,6 @@ private struct WorkspaceView: View {
             pageBar
             }
         }.frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(CacheDropDesign.reading)
     }
 
     var body: some View {
