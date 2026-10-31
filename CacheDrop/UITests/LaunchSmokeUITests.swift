@@ -585,67 +585,121 @@ final class ScanAgainUITests: XCTestCase {
     }
 }
 
-/// #158: the welcome shows on a first launch, never again once finished, and the Help menu opens it again.
-/// #310: the launch scan runs behind it from the start, so its last step shows that scan's progress and ends with Done; Full
-/// Disk Access granted while that scan runs is picked up by one rescan when it ends, without CacheDrop becoming active again.
+/// #478: first use guides access before preparation; later launches use compact progress.
+/// Close leaves preparation running, failure offers a usable continuation, and Help can reopen the introduction.
 /// Other journeys never see it: disposable test runs treat it as seen unless `CACHEDROP_TEST_SHOW_WELCOME` asks for it.
 final class FirstRunWelcomeUITests: XCTestCase {
-    @MainActor func testWelcomeShowsTheRunningScanPicksUpAGrantAndOpensFromHelp() throws {
+    @MainActor func testOnboardingWaitsForAccessAndReadinessBeforeOpeningOverview() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
-        let state = try configureIsolatedState(app)
-        let home = try configureCatalogHome(app)
-        // The fixture's Safari folder refuses to open, as without Full Disk Access, until the test grants it mid-scan.
-        let safari = home.appendingPathComponent("Library/Safari")
-        try FileManager.default.createDirectory(at: safari, withIntermediateDirectories: true)
-        try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: safari.path)
+        let state = try configureIsolatedState(app), home = try configureCatalogHome(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
         app.launchEnvironment["CACHEDROP_TEST_SHOW_WELCOME"] = "1"
-        // Slow enough that the launch scan is still running at the last step.
-        app.launchEnvironment["CACHEDROP_TEST_DISCOVERY_PAUSE"] = "0.4"
-        defer {
-            app.terminate(); try? FileManager.default.removeItem(at: state)
-            try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: safari.path); try? FileManager.default.removeItem(at: home)
-        }
+        app.launchEnvironment["CACHEDROP_TEST_DISCOVERY_PAUSE"] = "0.15"
+        app.launchEnvironment["CACHEDROP_TEST_INVENTORY_PAUSE"] = "3"
         app.launch()
-        let welcome = app.sheets.staticTexts["Welcome to CacheDrop"]
-        XCTAssertTrue(welcome.waitForExistence(timeout: 10), "A first launch shows the welcome")
-        XCTAssertTrue(app.staticTexts["welcomeNeverTouches"].exists)
+        let title = app.sheets.staticTexts["Welcome to CacheDrop"]
+        XCTAssertTrue(title.waitForExistence(timeout: 10))
+        let close = app.buttons["welcomeCancel"]
+        XCTAssertEqual(close.label, "Close")
+        XCTAssertLessThan(close.frame.maxY, title.frame.minY, "The close control is above the title")
+        XCTAssertGreaterThan(close.frame.midX, app.sheets.firstMatch.frame.midX, "The close control is top-right")
+        XCTAssertFalse(app.buttons["Cancel onboarding"].exists)
         app.buttons["welcomeContinue"].click()
-
-        // Step 2 is the shared Full Disk Access explanation.
-        XCTAssertTrue(app.sheets.staticTexts["Broader access is optional"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["welcomeRequestAccess"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["catalogScanProgress"].exists, "Access precedes the launch scan")
         app.sheets.links["fullDiskAccessLink"].firstMatch.click()
-        XCTAssertTrue(app.buttons["openFullDiskAccessSettings"].waitForExistence(timeout: 5)) // Not pressed: tests never open System Settings.
+        XCTAssertTrue(app.buttons["openFullDiskAccessSettings"].waitForExistence(timeout: 5))
         app.buttons["closeFullDiskAccess"].click()
-        XCTAssertFalse(app.buttons["openFullDiskAccessSettings"].waitForExistence(timeout: 2))
-        app.buttons["welcomeContinue"].click()
-
-        // Step 3: the launch scan is already running; there is no second scan to start.
-        XCTAssertTrue(app.descendants(matching: .any)["welcomeScanProgress"].waitForExistence(timeout: 5), "The last step shows the running scan")
-        XCTAssertTrue(app.sheets.staticTexts["Your first scan is running"].exists)
-        XCTAssertFalse(app.buttons["welcomeStartScan"].exists)
-        // Granted while the scan runs, as from step 2's System Settings link.
-        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: safari.path)
-        app.buttons["welcomeDone"].click()
-        XCTAssertFalse(welcome.waitForExistence(timeout: 2))
+        XCTAssertFalse(app.staticTexts["catalogScanProgress"].exists, "Opening optional guidance does not start the scan")
+        app.buttons["welcomeRequestAccess"].click()
+        let progress = app.progressIndicators["welcomeScanProgress"]
+        XCTAssertTrue(progress.waitForExistence(timeout: 5))
+        XCTAssertEqual(app.progressIndicators.matching(identifier: "welcomeScanProgress").count, 1)
+        let done = app.buttons["welcomeDone"]
+        XCTAssertFalse(done.exists, "No inactive action is shown while scanning")
+        XCTAssertTrue(app.staticTexts["Preparing Applications…"].waitForExistence(timeout: 60))
+        XCTAssertFalse(done.exists, "Catalog completion alone does not unlock the workspace")
+        XCTAssertTrue(done.waitForExistence(timeout: 120))
+        XCTAssertTrue(progress.exists, "The same bar remains visible when results are ready")
+        done.click()
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 5))
-        // The scan that began without access ends without Safari, sees the grant and scans once more, by itself.
-        let denied = app.descendants(matching: .any)["overviewNotAccessible"]
-        XCTAssertTrue(denied.waitForExistence(timeout: 60), "The launch scan began without access")
-        let gone = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: denied)
-        XCTAssertEqual(XCTWaiter.wait(for: [gone], timeout: 60), .completed, "The grant during the launch scan was picked up when it ended")
-
-        app.terminate()
-        app.launch()
-        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
-        XCTAssertFalse(welcome.waitForExistence(timeout: 3), "Finished, it never shows again")
-
+        app.typeKey("4", modifierFlags: .command)
+        XCTAssertFalse(app.descendants(matching: .any)["applicationsLoading-apps"].exists, "Applications was prepared before unlocking")
+        app.terminate(); app.launch()
+        XCTAssertTrue(app.progressIndicators["welcomeScanProgress"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.sheets.staticTexts["Welcome to CacheDrop"].exists, "Returning launches use only the compact scan gate")
+        XCTAssertTrue(app.buttons["welcomeCancel"].waitForNonExistence(timeout: 120), "Returning launches unlock automatically")
         app.menuBars.menuBarItems["Help"].click()
         app.menuBars.menuItems["Welcome to CacheDrop"].click()
-        XCTAssertTrue(welcome.waitForExistence(timeout: 5), "The Help menu opens it again")
-        app.buttons["welcomeSkip"].click()
-        XCTAssertFalse(welcome.waitForExistence(timeout: 2))
+        XCTAssertTrue(app.sheets.staticTexts["Welcome to CacheDrop"].waitForExistence(timeout: 5))
+        app.buttons["welcomeCancel"].click()
+        XCTAssertFalse(app.sheets.staticTexts["Welcome to CacheDrop"].exists)
     }
+
+    @MainActor func testCancelOnboardingBeforeAndDuringScanningKeepsPreparationRunning() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app), home = try configureCatalogHome(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        app.launchEnvironment["CACHEDROP_TEST_SHOW_WELCOME"] = "1"
+        app.launchEnvironment["CACHEDROP_TEST_DISCOVERY_PAUSE"] = "0.2"
+        app.launch()
+        XCTAssertTrue(app.sheets.staticTexts["Welcome to CacheDrop"].waitForExistence(timeout: 10))
+        app.buttons["welcomeCancel"].click()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 5))
+        waitForCatalogScan(app)
+        app.terminate(); app.launch()
+        XCTAssertTrue(app.progressIndicators["welcomeScanProgress"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.sheets.staticTexts["Welcome to CacheDrop"].exists, "Cancel marked the introduction seen")
+        app.buttons["welcomeCancel"].click()
+        XCTAssertTrue(app.staticTexts["catalogScanProgress"].waitForExistence(timeout: 5), "Cancel onboarding does not stop the scan")
+        waitForCatalogScan(app)
+        app.typeKey("4", modifierFlags: .command)
+        XCTAssertTrue(app.buttons["Applications"].isSelected, "Navigation is available after the explicit bypass")
+        app.terminate()
+        let rules = state.appendingPathComponent("Exclusions/rules-v1.json")
+        try FileManager.default.createDirectory(at: rules.deletingLastPathComponent(), withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        try Data("not settings".utf8).write(to: rules)
+        app.launch()
+        XCTAssertTrue(app.buttons["welcomeAvailableResults"].waitForExistence(timeout: 30))
+        app.buttons["welcomeAvailableResults"].click()
+        app.typeKey("4", modifierFlags: .command)
+        XCTAssertTrue(app.staticTexts["settingsUnreadable"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["applicationsLoading-apps"].waitForNonExistence(timeout: 15),
+                      "Failed initial preparation must not leave Applications in an endless loading state")
+    }
+
+    @MainActor func testOnboardingPreparationFailureCanRetryOrContinueWithAvailableResults() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app), home = try configureCatalogHome(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        let unreadable = home.appendingPathComponent(".cachedrop-test-apps-unreadable")
+        try Data().write(to: unreadable)
+        app.launchEnvironment["CACHEDROP_TEST_SHOW_WELCOME"] = "1"
+        app.launch()
+        XCTAssertTrue(app.buttons["welcomeContinue"].waitForExistence(timeout: 10))
+        app.buttons["welcomeContinue"].click()
+        app.buttons["welcomeCurrentAccess"].click()
+        XCTAssertTrue(app.buttons["welcomeRetry"].waitForExistence(timeout: 120))
+        XCTAssertFalse(app.buttons["welcomeDone"].exists, "Failed preparation is not success")
+        try FileManager.default.removeItem(at: unreadable)
+        app.buttons["welcomeRetry"].click()
+        let done = app.buttons["welcomeDone"]
+        XCTAssertTrue(done.waitForExistence(timeout: 120))
+        let enabled = NSPredicate(format: "isEnabled == true")
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: enabled, object: done)], timeout: 120), .completed)
+        done.click()
+        try Data().write(to: unreadable)
+        app.terminate(); app.launch()
+        XCTAssertTrue(app.buttons["welcomeAvailableResults"].waitForExistence(timeout: 120))
+        app.buttons["welcomeAvailableResults"].click()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 5))
+        app.typeKey("4", modifierFlags: .command)
+        XCTAssertTrue(app.descendants(matching: .any)["applicationsUnreadable"].waitForExistence(timeout: 10), "The workspace explains the limitation")
+    }
+
 }
 
 /// #223: a remembered folder whose access went stale shows one row on Overview, and its Choose again… fixes it there.

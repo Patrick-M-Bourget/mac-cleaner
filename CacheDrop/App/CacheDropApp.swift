@@ -41,7 +41,7 @@ struct CacheDropApp: App {
                 ScanAgainCommand(lifecycle: lifecycle)
             }
             CommandGroup(after: .help) {
-                Button("Welcome to CacheDrop") { lifecycle.openWorkspace?(); WelcomeModel.shared.isShowing = true }
+                Button("Welcome to CacheDrop") { lifecycle.openWorkspace?(); WelcomeModel.shared.reopen() }
             }
         }
         #if DEBUG
@@ -287,13 +287,14 @@ private struct WorkspaceView: View {
 
     var body: some View {
         workspace
+        .modifier(OnboardingBackdrop(active: welcome.isShowing))
         .environment(\.cacheDropBackgroundWork, backgroundWorkStatus)
         .onChange(of: runningTasks, initial: true) { _, tasks in backgroundWork.update(running: tasks) }
         .onChange(of: selection.catalog.selectionRevisions) { _, _ in AppLifecycleController.shared.hasPendingPlan = selection.hasPendingChoicesOnAnyPage }
         // Launch stays on Overview; its banner opens Recovery, which checks against disk (#309).
         .task { _ = await recovery.loadOnce() }
         // The launch scan, whichever page opens first; later scans start in the model when something changes (#306).
-        .task { await selection.catalog.scanIfNeeded() }
+        .task { welcome.launch(catalog: selection.catalog) }
         .task { locationsModel.load() }
         .onChange(of: locationsModel.scopes) { _, _ in
             explorerContext.allowedScopes = Set(locationsModel.included.map { URL(fileURLWithPath: $0.path).standardizedFileURL })
@@ -306,9 +307,10 @@ private struct WorkspaceView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .cacheDropAlertOpened)) { _ in destination = .overview; navigationState.savedDataVisible = false; navigationState.appManagedVisible = false; protectedItemsVisible = false; recoveryVisible = false; explorerVisible = false }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in Task { await alerts.activated() } }
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in Task { await selection.catalog.rescanIfFullDiskAccessGranted() } }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in if !welcome.waitsForAccess { Task { await selection.catalog.rescanIfFullDiskAccessGranted() } } }
         .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didWakeNotification)) { _ in Task { await alerts.activated() } }
         .toolbar { contextToolbar }
+        .onChange(of: welcome.isShowing) { _, showing in if !showing { navigate(.overview) } }
         .sheet(isPresented: $welcome.isShowing) { FirstRunWelcomeView(model: welcome, catalog: selection.catalog) }
     }
 
@@ -341,6 +343,7 @@ private struct WorkspaceView: View {
     }
 
     private func navigate(_ value: Destination) {
+        guard !welcome.isShowing else { return }
         navigationState.planReturnsToGrowth = false
         destination = value
         planReturnsToExplorer = false
@@ -357,7 +360,7 @@ private struct WorkspaceView: View {
                         accent: value == .growth ? CacheDropDesign.purple : value == .plan ? CacheDropDesign.teal : value == .history ? .secondary : CacheDropDesign.blue,
                         selectedCategories: value == .plan ? selection.actionableSelectedCategoryCount : nil) {
             navigate(value)
-        }.keyboardShortcut(value.shortcut, modifiers: .command)
+        }.keyboardShortcut(value.shortcut, modifiers: .command).disabled(welcome.isShowing)
     }
 
     private func chooseFolderForScan() {
