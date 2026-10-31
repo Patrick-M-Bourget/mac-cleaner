@@ -11,7 +11,7 @@ struct SmartCleanView: View {
     var viewHistory: (() -> Void)? = nil
     var reviewRecovery: (() -> Void)? = nil
     /// Which categories are open, kept by the caller like the plan's `CleanupPlanPresentation` (Decision 48).
-    let presentation: SmartCleanPresentation
+    @Bindable var presentation: SmartCleanPresentation
     /// The workspace's Scan again, for the state that says nothing here can be cleaned (#321).
     var scanAgain: () -> Void = {}
     @State private var review: WorkspaceCleanupReview?
@@ -50,12 +50,14 @@ struct SmartCleanView: View {
     private var page: some View {
         // What something holds stays listed, unticked, with why (#374).
         let items = model.recommendedCandidates + model.recommendedHeld
-        let rows = CatalogOverview(catalog: model.catalog, candidates: items).rows
+        let rows = presentation.sort.ordered(CatalogOverview(catalog: model.catalog, candidates: items).rows,
+                                             name: { $0.category.smartCleanTitle }, bytes: { $0.estimate.sortBytes })
         return VStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
             PageHeader(title: "Smart clean", subtitle: "A safe plan from what takes up space. Untick anything you want to keep.")
                 .accessibilityElement(children: .combine).accessibilityIdentifier("smartCleanHeader")
                 .padding(.bottom, CacheDropDesign.Space.sm)
             summary
+            ColumnHeader(nameTitle: "Name", sizeTitle: "Size", sort: $presentation.sort, identifier: "smartCleanSort")
             SettingsUnreadableNotice(model: model)
             if let approvalError { StatusRow(text: approvalError, symbol: "exclamationmark.circle", role: .caution, identifier: "smartCleanError") }
             if nothingToClean {
@@ -96,7 +98,8 @@ struct SmartCleanView: View {
         let found = items.filter { candidate in row.rules.contains { $0.id == candidate.ruleID } }
         // The plan's rule (#240): a held item is ticked on its own, never with its category (#374).
         let selection = model.categorySelection(row.rules, items: found)
-        let lines = lines(row, found: found)
+        let lines = presentation.sort.ordered(lines(row, found: found).sorted { $0.accessibilitySuffix < $1.accessibilitySuffix },
+                                              name: \.name, bytes: { SizeEstimate(sum: $0.items.map(SizeEstimate.init)).sortBytes })
         let expanded = Binding(get: { presentation.expandedCategories.contains(row.category) },
                                set: { if $0 { presentation.expandedCategories.insert(row.category) } else { presentation.expandedCategories.remove(row.category) } })
         // One consequence line per category (#319), from what its rules do.

@@ -12,11 +12,13 @@ struct CatalogItemRows: View {
     var app: String? = nil
     /// The Applications page's Sort and search, for its leftovers (#295); nil lists every item by name.
     var listing: ApplicationsListing? = nil
+    var sort: ListSort? = nil
     /// Only the items something holds (#374), under a rule row that otherwise lists none.
     var onlyHeld = false
     var body: some View {
         let found = model.candidates(for: rule).filter { (app.map($0.isUninstalled(with:)) ?? true) && (!onlyHeld || $0.hold != nil) }
         let items = listing.map { $0.sort.ordered(found.filter($0.matches), name: \.displayName, bytes: \.estimatedBytes) }
+            ?? sort.map { $0.ordered(found.sorted { $0.url.path < $1.url.path }, name: \.displayName, bytes: { SizeEstimate($0).sortBytes }) }
             ?? found.sorted { $0.displayName.localizedStandardCompare($1.displayName) == .orderedAscending }
         LazyVStack(alignment: .leading, spacing: 0) {
             ForEach(items) { item in

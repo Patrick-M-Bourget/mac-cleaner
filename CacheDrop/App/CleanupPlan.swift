@@ -208,6 +208,7 @@ private struct PlanScrollTarget: ViewModifier {
 }
 
 @MainActor @Observable final class CleanupPlanPresentation {
+    var sort = ListSort()
     var offset: CGPoint?
     /// Categories whose "Choose items" is open; opening a category from Overview opens it.
     var expandedCategories: Set<CatalogCategory> = []
@@ -220,6 +221,7 @@ private struct PlanScrollTarget: ViewModifier {
 
 /// Smart clean's open categories (#219): its own, separate from the plan's, kept until CacheDrop quits. Categories start collapsed.
 @MainActor @Observable final class SmartCleanPresentation {
+    var sort = ListSort()
     var expandedCategories: Set<CatalogCategory> = []
 }
 
@@ -256,7 +258,7 @@ struct LiveCleanupPlanView: View {
                 .help(CacheDropDesign.selectionEstimateHelp)
             SettingsUnreadableNotice(model: selection.catalog)
             if let approvalError { StatusRow(text: approvalError, symbol: "exclamationmark.circle", role: .caution) }
-            CatalogPlanSection(model: selection.catalog, expanded: $presentation.expandedCategories, exploreStorage: exploreStorage)
+            CatalogPlanSection(model: selection.catalog, expanded: $presentation.expandedCategories, sort: $presentation.sort, exploreStorage: exploreStorage)
         }.padding(CacheDropDesign.Space.page).frame(maxWidth: .infinity, alignment: .leading)
             .background(alignment: .topLeading) { DestinationViewport(offset: $presentation.offset).frame(width: 0, height: 0) }
         }
