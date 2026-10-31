@@ -15,6 +15,9 @@ struct CacheDropApp: App {
         let stateExisted = LocalStateLocation.stateFolderExists
         WelcomeModel.shared.decideAtLaunch(migration: LocalStateLocation.migrateFromOldNames(), stateExisted: stateExisted)
         AppLaunchPolicy.registerDefaults()
+        #if DEBUG
+        try? FixtureAppPresence.prepareQuitJourney()
+        #endif
     }
     var body: some Scene {
         Window("CacheDrop", id: "workspace") {

@@ -220,8 +220,7 @@ final class ApplicationsUITests: XCTestCase {
         turnOnDryRun(app)
         let synth = try addApp("Synth", id: "com.maker.synth", bytes: 1, in: home)
         let executable = synth.appendingPathComponent("Contents/MacOS/main")
-        try FileManager.default.removeItem(at: executable)
-        try FileManager.default.copyItem(atPath: "/bin/sleep", toPath: executable.path)
+        app.launchEnvironment["CACHEDROP_TEST_PREPARE_SYNTH_APP"] = "1"
         let container = home.appendingPathComponent("Library/Containers/com.maker.synth/Data/state.db")
         try FileManager.default.createDirectory(at: container.deletingLastPathComponent(), withIntermediateDirectories: true)
         try Data(repeating: 4, count: 60_000).write(to: container)
@@ -233,8 +232,8 @@ final class ApplicationsUITests: XCTestCase {
             if running.isRunning { running.terminate(); running.waitUntilExit() }
             app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home)
         }
-        // A copied system binary has an invalid bundle signature. Skip before attempting its launch, which can show
-        // a damaged-app dialog even when Process.run() later throws the known sandbox error (#383).
+        // The unsandboxed DEBUG app prepares only this known fixture, before the runner attempts its launch (#383).
+        app.launch()
         let verification = Process()
         verification.executableURL = URL(fileURLWithPath: "/usr/bin/codesign")
         verification.arguments = ["--verify", "--strict", synth.path]
@@ -242,8 +241,7 @@ final class ApplicationsUITests: XCTestCase {
         verification.standardError = FileHandle.nullDevice
         try verification.run()
         verification.waitUntilExit()
-        try XCTSkipIf(verification.terminationStatus != 0, "The fixture app needs a valid bundle signature before launch (#383)")
-        app.launch()
+        XCTAssertEqual(verification.terminationStatus, 0, "The fixture app needs a valid bundle signature before launch (#383)")
         waitForCatalogScan(app)
         app.typeKey("5", modifierFlags: .command)
         let row = element(app, "applicationsApp-" + synth.path, .checkBox)
@@ -251,11 +249,7 @@ final class ApplicationsUITests: XCTestCase {
         revealAndClick(row, in: app)
         XCTAssertEqual(row.value as? Int, 1)
 
-        // The sandboxed test runner quarantines what it writes and may not clear it, so a copied executable can't launch
-        // (Operation not permitted); the journey waits on a fixture app it can start (#383).
-        do { try running.run() } catch let error as NSError where error.domain == NSPOSIXErrorDomain && error.code == Int(EPERM) {
-            throw XCTSkip("The test runner can't launch a fixture app it wrote (#383)")
-        }
+        try running.run()
         app.buttons["Review cleanup"].click()
         let skipped = app.staticTexts["reviewSkipped-uninstall-app"]
         XCTAssertTrue(skipped.waitForExistence(timeout: 10), "The app's row will be skipped while it is open")
@@ -269,6 +263,7 @@ final class ApplicationsUITests: XCTestCase {
 
         quit.click()
         XCTAssertTrue(skipped.waitForNonExistence(timeout: 20), "Once Synth quits, its row is checked again and can be cleaned")
+        running.waitUntilExit()
         XCTAssertFalse(running.isRunning, "The fixture app was asked to quit and did")
         XCTAssertFalse(app.staticTexts["reviewSkipped-uninstall-app-files"].exists, "Its files were checked again too")
         XCTAssertFalse(quits.firstMatch.exists)
