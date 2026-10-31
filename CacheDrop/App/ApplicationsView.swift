@@ -26,11 +26,29 @@ import SwiftUI
     private(set) var status: String?
 
     /// `plugIns` is what the catalog scan read (#176), so the page lists the products it offers; nil reads them here.
-    func load(plugIns read: PlugInInventory? = nil) async {
-        guard !isLoading else { return }
+    @ObservationIgnored private var loadingTask: Task<Void, Never>?
+    private var loadedScan: UUID?
+    func load(plugIns read: PlugInInventory? = nil, scanID: UUID?) async {
+        while let loadingTask { await loadingTask.value }
+        if let scanID, loadedScan == scanID, hasLoaded { return }
+        let task = Task {
+            await readInventory(plugIns: read)
+            loadedScan = scanID
+            loadingTask = nil
+        }
+        loadingTask = task
+        await task.value
+    }
+    private func readInventory(plugIns read: PlugInInventory?) async {
         isLoading = true
         defer { isLoading = false; hasLoaded = true }
         guard let home else { apps = []; plugIns = []; return }
+        #if DEBUG
+        if LocalStateLocation.isDisposableTest,
+           let raw = LocalStateLocation.fixtureEnvironment["CACHEDROP_TEST_INVENTORY_PAUSE"], let seconds = Double(raw), seconds > 0 {
+            try? await Task.sleep(for: .seconds(min(seconds, 5)))
+        }
+        #endif
         let presence = appPresence, system = systemRoot, own = Bundle.main.bundleIdentifier
         let (listed, products) = await Task.detached(priority: .userInitiated) {
             (presence.installedApps().map { ApplicationsInventory.apps($0, excluding: own, home: home) },
@@ -99,7 +117,7 @@ struct ApplicationsView: View {
         // The sheet closes only when the choices it was built from changed, and the page says so (#307).
         .onChange(of: catalog.selectionRevision(for: .applications)) { _, _ in if review != nil { review = nil; approvalError = PlanReviewError.changedMessage } }
         // Read again after each catalog scan, so Scan again refreshes the lists too.
-        .task(id: catalog.isScanning) { if !catalog.isScanning { await model.load(plugIns: catalog.plugInInventory) } }
+        .task(id: catalog.isScanning) { if !catalog.isScanning, catalog.preparedScan != nil { await model.load(plugIns: catalog.plugInInventory, scanID: catalog.preparedScan) } }
         // A search opens Files from deleted apps, so its matching groups show.
         .onChange(of: model.listing.isSearching) { _, searching in if searching { leftoversExpanded = true } }
     }

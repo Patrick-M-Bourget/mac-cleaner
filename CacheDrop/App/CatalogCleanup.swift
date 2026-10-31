@@ -37,6 +37,8 @@ import SwiftUI
         pickedByResource = index
     }
     private(set) var isScanning = false
+    /// Identifies a fully prepared catalog; a cleared busy flag alone also includes stopped/failed scans.
+    private(set) var preparedScan: UUID?
     private(set) var hasScanned = false { didSet { summaryChanged() } }
     /// The running catalog scan's progress, one location at a time (#128); nil when no scan is running. Only a finished
     /// location changes Overview's summary, not the phase.
@@ -403,6 +405,7 @@ import SwiftUI
     func waitForScanCompletion() async { await scanLifecycle.waitForCompletion() }
 
     private func scanCatalog(cancellation: ScanCancellation) async {
+        preparedScan = nil
         isScanning = true; message = nil; scanProgress = CatalogScanProgress()
         defer { isScanning = false; hasScanned = true; scanProgress = nil }
         guard let home = Self.home else { discovered = []; uninstallable = []; notes = []; overriddenRules = []; notAccessibleRules = []; setRunning([:], open: []); ownerNames = [:]; return }
@@ -487,6 +490,7 @@ import SwiftUI
         keepOnlyCurrentChoices()
         scanProgress?.phase = .appManagedStorage
         await scanAppManaged(home: home, fullDiskAccess: scanned.access, receipts: scanned.receipts)
+        preparedScan = UUID()
         // Full Disk Access granted while it ran (from the welcome, during the launch scan): scan again once, by itself (#310).
         if fullDiskAccessRescan.scanEnded(probing: FullDiskAccessProbe(home: home)) { rescanPending = true }
     }

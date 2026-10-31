@@ -49,6 +49,7 @@ import CacheDropCore
     /// Why Scan again (⌘R, the menu bar, Overview, Storage trends) is disabled, for its tooltip; nil when it can run (#310).
     /// A scan asked for while History holds the maintenance lease waits for it instead (`afterMaintenance`).
     var scanAgainBlockedReason: String? {
+        if WelcomeModel.shared.isShowing { return "Finish setup or close the guide first" }
         if updateInstallation.blocksNewWork { return "Wait for the update to finish" }
         if selection.catalog.isScanning || inspection.isScanning { return "A scan is already running" }
         if selection.workspaceRunning || selection.catalog.isRunning { return "A cleanup is running" }

@@ -123,7 +123,9 @@ struct DesignGallery: View {
                             StatusRow(text: "Scan completed", symbol: "checkmark.circle", role: .success)
                             StatusRow(text: "Scanned 10:42 · Not fully read", symbol: "exclamationmark.circle", role: .caution)
                             StatusRow(text: "Access unavailable · Choose the folder again", symbol: "lock", role: .failure)
-                            ProgressView("Reading files…")
+                            ScanPreparationProgress(text: "Reading files…", fraction: 0.4)
+                            Text("Workspace behind onboarding").frame(maxWidth: .infinity, minHeight: CacheDropDesign.Space.page)
+                                .modifier(OnboardingBackdrop(active: true))
                         }
                     }
                     // #311: one button rule, one example of each kind.
