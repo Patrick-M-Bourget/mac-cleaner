@@ -97,7 +97,8 @@ enum CacheDropDesign {
     }
     static var reading: Color { adaptive(light: 0xFFFFFF, dark: 0x171719) }
     static var summary: Color { adaptive(light: 0xF7F8FA, dark: 0x232328) }
-    static var sidebar: Color { adaptive(light: 0xFFFFFF, dark: 0x242428) }
+    /// The sidebar's tint over its material, and its opaque fallback (#549): the same recipe in both themes.
+    static var sidebar: Color { adaptive(light: 0xF2F2F5, dark: 0x242428) }
     static var selection: Color { adaptive(light: 0xE5EDFA, dark: 0x353E51) }
     static var highlight: Color { adaptive(light: 0xFFFFFF, dark: 0xFFFFFF).opacity(0.08) }
     static var blue: Color { adaptive(light: 0x0877ED, dark: 0x60A9FF) }
@@ -164,7 +165,7 @@ enum StorageCategory {
         case .timeMachine: "clock.arrow.circlepath"
         case .xcodeArchives: "archivebox"
         case .audioPlugIns: "pianokeys"
-        case .leftovers: "square.dashed"
+        case .leftovers: "ghost" // CacheDrop's own symbol (#550), so it never reads as App caches' dashed app
         case .apps: "macwindow"
         }
     }
@@ -185,19 +186,41 @@ extension EnvironmentValues {
 enum ChromeRole { case chrome, sidebar }
 struct ChromeSurface: View {
     var role: ChromeRole = .chrome
-    @Environment(\.colorScheme) private var appearance
     @Environment(\.accessibilityReduceTransparency) private var reduced
     @Environment(\.cacheDropOpaqueChrome) private var forcedOpaque
     var body: some View {
         Group {
-            if role == .sidebar && appearance == .light { Color.white }
-            else if reduced || forcedOpaque { role == .sidebar ? CacheDropDesign.sidebar : CacheDropDesign.summary }
+            if reduced || forcedOpaque { role == .sidebar ? CacheDropDesign.sidebar : CacheDropDesign.summary }
             else {
                 Rectangle().fill(.regularMaterial)
                     .overlay { if role == .sidebar { CacheDropDesign.sidebar.opacity(CacheDropDesign.Opacity.opaqueSidebar) } }
                     .overlay { LinearGradient(colors: [CacheDropDesign.highlight, .clear], startPoint: .topLeading, endPoint: .bottomTrailing) }
             }
         }
+    }
+}
+/// The page as one solid panel on the sidebar's material (#549): inset from the window's edges, with the cards' corner
+/// radius, so no hard line separates the page from the sidebar or the title bar. A hairline edge only with Increase Contrast.
+struct ContentPanel: ViewModifier {
+    @Environment(\.colorSchemeContrast) private var contrast
+    func body(content: Content) -> some View {
+        content
+            .background(CacheDropDesign.reading)
+            .clipShape(RoundedRectangle(cornerRadius: CacheDropDesign.Radius.surface, style: .continuous))
+            .overlay {
+                if contrast == .increased { RoundedRectangle(cornerRadius: CacheDropDesign.Radius.surface, style: .continuous).strokeBorder(CacheDropDesign.separator, lineWidth: CacheDropDesign.Stroke.regular) }
+            }
+            .padding([.top, .trailing, .bottom], CacheDropDesign.Space.sm)
+    }
+}
+extension View {
+    func contentPanel() -> some View { modifier(ContentPanel()) }
+}
+extension Image {
+    /// A system symbol, or one of CacheDrop's own in the asset catalog, drawn on the SF Symbols template so it takes the
+    /// same weight (#550): the ghost for Files from deleted apps.
+    init(cacheDropSymbol name: String) {
+        if name == "ghost" { self.init(name) } else { self.init(systemName: name) }
     }
 }
 struct CategoryBadge: View {
@@ -207,7 +230,7 @@ struct CategoryBadge: View {
     /// A badge for something other than a storage category, such as a review sheet's consequence group.
     init(symbol: String, color: Color) { self.symbol = symbol; self.color = color }
     var body: some View {
-        Image(systemName: symbol).font(CacheDropDesign.TypeStyle.badgeIcon)
+        Image(cacheDropSymbol: symbol).font(CacheDropDesign.TypeStyle.badgeIcon)
             .foregroundStyle(color).frame(width: CacheDropDesign.Size.badge, height: CacheDropDesign.Size.badge)
             .background(color.opacity(CacheDropDesign.Opacity.badgeTint), in: RoundedRectangle(cornerRadius: CacheDropDesign.Radius.row))
             .accessibilityHidden(true)
@@ -992,7 +1015,7 @@ struct InspectableItemRow<Selection: View>: View {
     }
     private var content: some View {
         HStack(spacing: CacheDropDesign.Space.md) {
-            Image(systemName: symbol).foregroundStyle(.secondary).frame(width: CacheDropDesign.Size.itemIcon)
+            Image(cacheDropSymbol: symbol).foregroundStyle(.secondary).frame(width: CacheDropDesign.Size.itemIcon)
             VStack(alignment: .leading, spacing: CacheDropDesign.Space.xs) {
                 Text(name).foregroundStyle(.primary)
                 // An empty detail makes it a one-line row (Smart clean, #141).
