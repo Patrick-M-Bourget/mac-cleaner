@@ -905,6 +905,10 @@ final class ScannedLocationsUITests: XCTestCase {
         help.click()
         XCTAssertTrue(app.staticTexts["Folders CacheDrop scans at launch and when you scan again."].waitForExistence(timeout: 5))
         XCTAssertFalse(app.sheets.firstMatch.exists)
+        // #548: Locations gives the same reason as Overview, not the generic "Not fully read".
+        let status = app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'Scanned ' AND value ENDSWITH ' · 1 folder couldn’t be read'")).firstMatch
+        XCTAssertTrue(status.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'Not fully read'")).firstMatch.exists)
         app.typeKey("1", modifierFlags: .command)
         XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'couldn’t be read in full'")).firstMatch.exists)
 
