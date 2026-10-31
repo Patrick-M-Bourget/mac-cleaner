@@ -120,6 +120,7 @@ struct ApplicationsView: View {
     private var page: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
             header
+            summary
             SettingsUnreadableNotice(model: catalog)
             if let approvalError { StatusRow(text: approvalError, symbol: "exclamationmark.circle", role: .caution) }
             if let status = model.status { StatusRow(text: status, identifier: "applicationsStatus") }
@@ -161,6 +162,16 @@ struct ApplicationsView: View {
             .accessibilityElement(children: .contain).accessibilityIdentifier("applicationsHeader")
             .padding(.bottom, CacheDropDesign.Space.sm)
     }
+    /// The same selected candidates as the footer and review, including choices hidden by search (#525).
+    private var summary: some View {
+        let items = catalog.applicationsSelected
+        let value = items.isEmpty ? CacheDropDesign.noValue : catalog.sizeText(of: items) + " to Trash"
+        return SelectionSummary(value: value, detail: CacheDropDesign.items(items.count) + " selected",
+                                identifier: "applicationsSummary", title: "Ready to clean")
+            .help("Space is freed when you empty the Trash.")
+            .waitingForScan(catalog.isScanning)
+    }
+
     /// The list's quiet table header, one sort for every section (#295, #352): "Name" over the names, "Size" over the sizes.
     private var columnHeader: some View {
         ColumnHeader(nameTitle: "Name", sizeTitle: "Size", sort: Bindable(model).listing.sort, identifier: "applicationsSort",

@@ -81,16 +81,16 @@ private struct ScanAgainCommand: View {
 }
 
 enum Destination: String, CaseIterable, Identifiable {
-    case overview = "Overview", smartClean = "Smart clean", plan = "Cleanup plan", growth = "Storage trends", applications = "Applications", history = "History", locations = "Locations & access"
+    case overview = "Overview", smartClean = "Smart clean", plan = "Cleanup plan", applications = "Applications", growth = "Storage trends", history = "History", locations = "Locations & access"
     var id: String { rawValue }
-    /// ⌘1–⌘7 follow the sidebar order (#127, #141), Applications just above History (#270). Low-space alerts live in the Settings window (#131).
+    /// ⌘1–⌘7 follow the sidebar order (#127, #141), Applications above Storage trends (#525). Low-space alerts live in the Settings window (#131).
     var shortcut: KeyEquivalent {
         switch self {
         case .overview: "1"
         case .smartClean: "2"
         case .plan: "3"
-        case .growth: "4"
-        case .applications: "5"
+        case .growth: "5"
+        case .applications: "4"
         case .history: "6"
         case .locations: "7"
         }
