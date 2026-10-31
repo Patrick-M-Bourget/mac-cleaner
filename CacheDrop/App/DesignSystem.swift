@@ -97,7 +97,8 @@ enum CacheDropDesign {
     }
     static var reading: Color { adaptive(light: 0xFFFFFF, dark: 0x171719) }
     static var summary: Color { adaptive(light: 0xF7F8FA, dark: 0x232328) }
-    static var sidebar: Color { adaptive(light: 0xFFFFFF, dark: 0x242428) }
+    /// The sidebar's tint over its material, and its opaque fallback (#549): the same recipe in both themes.
+    static var sidebar: Color { adaptive(light: 0xF2F2F5, dark: 0x242428) }
     static var selection: Color { adaptive(light: 0xE5EDFA, dark: 0x353E51) }
     static var highlight: Color { adaptive(light: 0xFFFFFF, dark: 0xFFFFFF).opacity(0.08) }
     static var blue: Color { adaptive(light: 0x0877ED, dark: 0x60A9FF) }
@@ -185,13 +186,11 @@ extension EnvironmentValues {
 enum ChromeRole { case chrome, sidebar }
 struct ChromeSurface: View {
     var role: ChromeRole = .chrome
-    @Environment(\.colorScheme) private var appearance
     @Environment(\.accessibilityReduceTransparency) private var reduced
     @Environment(\.cacheDropOpaqueChrome) private var forcedOpaque
     var body: some View {
         Group {
-            if role == .sidebar && appearance == .light { Color.white }
-            else if reduced || forcedOpaque { role == .sidebar ? CacheDropDesign.sidebar : CacheDropDesign.summary }
+            if reduced || forcedOpaque { role == .sidebar ? CacheDropDesign.sidebar : CacheDropDesign.summary }
             else {
                 Rectangle().fill(.regularMaterial)
                     .overlay { if role == .sidebar { CacheDropDesign.sidebar.opacity(CacheDropDesign.Opacity.opaqueSidebar) } }
@@ -199,6 +198,23 @@ struct ChromeSurface: View {
             }
         }
     }
+}
+/// The page as one solid panel on the sidebar's material (#549): inset from the window's edges, with the cards' corner
+/// radius, so no hard line separates the page from the sidebar or the title bar. A hairline edge only with Increase Contrast.
+struct ContentPanel: ViewModifier {
+    @Environment(\.colorSchemeContrast) private var contrast
+    func body(content: Content) -> some View {
+        content
+            .background(CacheDropDesign.reading)
+            .clipShape(RoundedRectangle(cornerRadius: CacheDropDesign.Radius.surface, style: .continuous))
+            .overlay {
+                if contrast == .increased { RoundedRectangle(cornerRadius: CacheDropDesign.Radius.surface, style: .continuous).strokeBorder(CacheDropDesign.separator, lineWidth: CacheDropDesign.Stroke.regular) }
+            }
+            .padding([.top, .trailing, .bottom], CacheDropDesign.Space.sm)
+    }
+}
+extension View {
+    func contentPanel() -> some View { modifier(ContentPanel()) }
 }
 struct CategoryBadge: View {
     let symbol: String
