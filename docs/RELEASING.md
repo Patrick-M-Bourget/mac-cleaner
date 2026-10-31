@@ -71,3 +71,26 @@ Signing order and entitlement handling follow [Sparkle's custom-signing guidance
 ## Stage and promote separately
 
 After building, keep the signed DMG, `release-identity.json`, generated `appcast.xml` and reviewed HTML notes together. In the sibling `cachedrop-website` repository, run `scripts/stage-release.sh <dev|prod> DMG release-identity.json` to verify and stage identical bytes in both download destinations. Staging does not advertise a release. Then run `scripts/promote-release.sh <dev|prod> ARTIFACT_DIRECTORY HTTPS_FEED_URL` to verify both destinations, advance website latest, and publish the appcast last. See that repository's `docs/RELEASING.md` for explicit target configuration and retry instructions. Production publication remains a separate owner action.
+
+## Resume updater acceptance (#520)
+
+Use `scripts/updater-acceptance.py` to keep the #510 checklist between sessions. It records operator observations; it does not run acceptance, validate signatures, build artifacts or publish anything. Commit the source under test first: a run pins this checkout's HEAD.
+
+Prepare an ignored JSON file listing every artifact used in the run. Each entry has `identity` (a unique operator label), `path` (a file, relative to the JSON file or absolute), `sha256` (the expected lowercase SHA-256, from its release identity) and `mode` (`Release` or `fixture`). For example, replace the placeholders below with the real paths and hashes:
+
+```json
+[
+  {"identity":"Release A","path":"A/CacheDrop-0.9.6.dmg","sha256":"<A hash>","mode":"Release"},
+  {"identity":"Release B","path":"B/CacheDrop-0.9.7.dmg","sha256":"<B hash>","mode":"Release"}
+]
+```
+
+```sh
+python3 scripts/updater-acceptance.py init --run updater-check --artifacts .build/artifacts.json
+python3 scripts/updater-acceptance.py status --run updater-check
+# After observing a case; use --result fail for a failure, then record its retry later.
+python3 scripts/updater-acceptance.py record --run updater-check --case saved-state \
+  --artifact 'Release A' --artifact 'Release B' --result pass --note 'Observed preserved settings and History'
+```
+
+The ignored manifest lives at `.build/updater-acceptance/<run>/run.json`. Include fixture artifacts in the initial JSON when needed; each observation retains its selected artifact identities and modes. The required `relaunch` case checks that no cleanup selections or operations are restored. Keep secrets and personal data out of notes. `status` lists pending/failed cases and the next case, returning 1 until every case passes, then 0. Invalid input or a changed source commit/artifact hash returns 2 and refuses reuse: start a new named run. Existing artifact building, signing and distribution commands above remain separate.
