@@ -129,8 +129,14 @@ struct StorageExplorerView: View {
     }
     private var inspected: Entry? {
         guard let id = context.position.inspectedID, let resource = context.position.inspectedResource,
-              folderAvailable, context.position.query.isEmpty || !visible.isEmpty else { return nil }
+              folderAvailable, context.position.query.isEmpty || !visible.isEmpty,
+              !showsLargeAndOld || listsInspected(id: id, resource: resource) else { return nil }
         return index?.entry(id: id, resource: resource)
+    }
+    /// Whether the list on show has the inspected item; switching lists closes the inspector when it doesn't (#544).
+    private func listsInspected(id: String, resource: String) -> Bool {
+        showsLargeAndOld ? offeredHere.contains { $0.entry.item.id == id && $0.entry.item.resourceID == resource }
+            : visible.contains { $0.item.id == id && $0.item.resourceID == resource }
     }
     /// What the explorer's index is built from, gathered once per redraw (#346).
     private var indexSource: (scans: [ScanResult], reports: [ScanResult], gone: [URL]) {
@@ -184,6 +190,10 @@ struct StorageExplorerView: View {
         }
         .onChange(of: context.indexRevision) { _, _ in
             if context.position.inspectedID != nil && inspected == nil { context.clearInspector() }
+        }
+        .onChange(of: showsLargeAndOld) { _, _ in
+            if let id = context.position.inspectedID, let resource = context.position.inspectedResource,
+               !listsInspected(id: id, resource: resource) { context.clearInspector() }
         }
         .onDisappear { model.previewURL = nil; model.closePreviewAccess() }
     }
