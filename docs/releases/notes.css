@@ -1,0 +1,10 @@
+/* The one style for every version's release notes (Decision 122): brand tokens from the website's design system, light and dark. */
+:root{color-scheme:light dark;--surface:#FFFFFF;--surface-subtle:#F5F5F7;--ink:#1D1D1F;--ink-body:#424245;--ink-secondary:#6E6E73;--accent:#0071E3;--line:rgba(0,0,0,.08);--window:#ECECEC}
+@media (prefers-color-scheme:dark){:root{--surface:#111216;--surface-subtle:#17181D;--ink:#F5F5F7;--ink-body:#D1D1D6;--ink-secondary:#A1A1A8;--accent:#4D97FF;--line:rgba(255,255,255,.1);--window:#2B2B2E}}
+body{margin:0;padding:0;background:var(--window);color:var(--ink-body);font:13px/1.5 Inter,-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",sans-serif;-webkit-font-smoothing:antialiased}
+.cd-card{margin:0;padding:18px 22px 8px;background:var(--surface);border:1px solid var(--line);border-radius:12px}
+.cd-eyebrow{margin:0 0 6px;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-secondary)}
+.cd-summary{margin:0 0 14px;font-size:15px;line-height:1.4;font-weight:600;letter-spacing:-.01em;color:var(--ink)}
+.cd-changes{list-style:none;margin:0;padding:0}
+.cd-changes li{position:relative;padding:9px 0 9px 16px;border-top:1px solid var(--line)}
+.cd-changes li::before{content:"";position:absolute;left:2px;top:16px;width:5px;height:5px;border-radius:50%;background:var(--accent)}
