@@ -355,3 +355,18 @@ private func cancellableRun(_ home: URL, brewScript: String, cancellation: Clean
     #expect(path.hasPrefix(home.appendingPathComponent("tools").path + ":"))
     #expect(path.contains("/usr/bin"))
 }
+
+/// #545: Results names each DerivedData folder by its project. Xcode names the folder `<project>-<28 lowercase letters>`;
+/// only that suffix goes, so a hyphen in the project’s own name stays and a folder without it keeps its name (never the rule’s title).
+@Test func eachDerivedDataFolderIsNamedAfterItsProject() throws {
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let derived = "Library/Developer/Xcode/DerivedData/"
+    let hash = "abcdefghijklmnopqrstuvwxyzab"
+    let folders = ["MyApp-" + hash: "MyApp", "My-App-" + hash: "My-App", "ModuleCache.noindex": "ModuleCache.noindex",
+                   "Short-abcdefghijklmnop": "Short-abcdefghijklmnop", "Upper-ABCDEFGHIJKLMNOPQRSTUVWXYZAB": "Upper-ABCDEFGHIJKLMNOPQRSTUVWXYZAB",
+                   "-" + hash: "-" + hash]
+    for folder in folders.keys { try makeFolder(home, derived + folder) }
+    let found = Catalog(rules: fixtureRules).discover(fixture: home).filter { $0.ruleID == "xcode-derived-data" }
+    #expect(Dictionary(uniqueKeysWithValues: found.map { ($0.url.lastPathComponent, $0.itemName ?? "(no name)") }) == folders)
+}

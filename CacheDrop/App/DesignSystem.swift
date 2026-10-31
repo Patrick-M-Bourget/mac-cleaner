@@ -1236,9 +1236,15 @@ extension View {
     fileprivate func skeletonShimmer() -> some View { modifier(SkeletonShimmer()) }
     /// Rows from the last scan while a rescan runs (#308): they stay where they are, dimmed, and can't be clicked until it
     /// ends. Never rows that look final but ignore clicks.
-    func waitingForScan(_ waiting: Bool) -> some View {
-        disabled(waiting).opacity(waiting ? CacheDropDesign.Opacity.waiting : 1).allowsHitTesting(!waiting)
-            .animation(.easeInOut(duration: CacheDropDesign.Motion.waiting), value: waiting)
+    func waitingForScan(_ waiting: Bool) -> some View { modifier(WaitingForScan(waiting: waiting)) }
+}
+/// `waitingForScan`'s dim: it eases in and out, at once with Reduce Motion (#547).
+private struct WaitingForScan: ViewModifier {
+    let waiting: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    func body(content: Content) -> some View {
+        content.disabled(waiting).opacity(waiting ? CacheDropDesign.Opacity.waiting : 1).allowsHitTesting(!waiting)
+            .animation(reduceMotion ? nil : .easeInOut(duration: CacheDropDesign.Motion.waiting), value: waiting)
     }
 }
 
@@ -1314,6 +1320,8 @@ struct ScanPreparationProgress: View {
     let text: String
     var fraction: Double? = nil
     var identifier = ""
+    /// False keeps the line's height but shows nothing under the bar, when a heading already says the same (#546).
+    var showsText = true
     var body: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
             ProgressView(value: fraction).progressViewStyle(.linear).controlSize(.small)
@@ -1321,6 +1329,7 @@ struct ScanPreparationProgress: View {
                 .animation(reduceMotion ? nil : .easeInOut(duration: CacheDropDesign.Motion.waiting), value: fraction)
             Text(text).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
                 .lineLimit(2).frame(minHeight: CacheDropDesign.Space.xl, alignment: .topLeading)
+                .opacity(showsText ? 1 : 0).accessibilityHidden(!showsText)
         }
     }
 }
