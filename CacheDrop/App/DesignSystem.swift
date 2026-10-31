@@ -1213,9 +1213,15 @@ extension View {
     fileprivate func skeletonShimmer() -> some View { modifier(SkeletonShimmer()) }
     /// Rows from the last scan while a rescan runs (#308): they stay where they are, dimmed, and can't be clicked until it
     /// ends. Never rows that look final but ignore clicks.
-    func waitingForScan(_ waiting: Bool) -> some View {
-        disabled(waiting).opacity(waiting ? CacheDropDesign.Opacity.waiting : 1).allowsHitTesting(!waiting)
-            .animation(.easeInOut(duration: CacheDropDesign.Motion.waiting), value: waiting)
+    func waitingForScan(_ waiting: Bool) -> some View { modifier(WaitingForScan(waiting: waiting)) }
+}
+/// `waitingForScan`'s dim: it eases in and out, at once with Reduce Motion (#547).
+private struct WaitingForScan: ViewModifier {
+    let waiting: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    func body(content: Content) -> some View {
+        content.disabled(waiting).opacity(waiting ? CacheDropDesign.Opacity.waiting : 1).allowsHitTesting(!waiting)
+            .animation(reduceMotion ? nil : .easeInOut(duration: CacheDropDesign.Motion.waiting), value: waiting)
     }
 }
 
