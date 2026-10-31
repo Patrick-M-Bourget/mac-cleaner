@@ -278,7 +278,13 @@ public enum BuiltInCatalog {
                     detail: "Build files, indexes and products Xcode keeps for each project.",
                     consequence: "Xcode rebuilds them, and archives and your projects are kept.",
                     regen: .build, action: .delete, locations: ["Library/Developer/Xcode/DerivedData/*"],
-                    owner: xcode),
+                    owner: xcode,
+                    // #545: Xcode names each folder `<project>-<28 lowercase letters>`; only that suffix goes, any other name stays.
+                    itemName: { name in
+                        let hash = name.suffix(28)
+                        guard name.count > 29, name.dropLast(28).last == "-", hash.allSatisfy({ ("a"..."z").contains($0) }) else { return name }
+                        return String(name.dropLast(29))
+                    }),
         CleanupRule(id: "xcode-device-support", category: .developer, title: "Old device support files",
                     detail: "Debug symbols Xcode copied from each OS version of your devices. The 2 newest versions per platform are kept.",
                     consequence: "Xcode copies them again if you connect a device running one of those versions.",
