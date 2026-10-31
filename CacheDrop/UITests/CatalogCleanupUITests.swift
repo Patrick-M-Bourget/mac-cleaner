@@ -1088,6 +1088,7 @@ extension CatalogCleanupUITests {
 
     /// #373: Explore storage sorts its folder list and its large and old files from the column header, On disk largest
     /// first by default, by Name with folders first; clicking the active column flips it, and the choice holds across lists.
+    /// #544: switching to a list without the inspected file closes its inspector.
     @MainActor func testExplorerSortsByNameOrOnDiskAndSearches() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
@@ -1123,6 +1124,9 @@ extension CatalogCleanupUITests {
 
         let rows = [app.buttons["Inspect a-big.bin"].firstMatch, app.buttons["Open folder Zeta"].firstMatch, app.buttons["Inspect b-small.bin"].firstMatch]
         XCTAssertTrue(rows[0].waitForExistence(timeout: 5))
+        // #544: All files' hint is one sentence and mentions no checkbox, since most files have none.
+        let hint = app.staticTexts["explorerHint"]
+        XCTAssertEqual(hint.value as? String ?? hint.label, "Click a name to open or inspect it.")
         func order() -> [CGFloat] { rows.map(\.frame.minY) }
         let byName = app.buttons["explorerSort-name"], bySize = app.buttons["explorerSort-size"]
         XCTAssertEqual(bySize.value as? String, "Largest first")
@@ -1154,6 +1158,22 @@ extension CatalogCleanupUITests {
         bySize.click()
         XCTAssertEqual(bySize.value as? String, "Smallest first")
         XCTAssertTrue(files[1].frame.minY < files[0].frame.minY, "Smallest first")
+
+        // #544: a file inspected in All files that Large and old files doesn't list closes the inspector on the switch;
+        // the folder on show takes its place.
+        mode.click()
+        XCTAssertEqual(hint.value as? String ?? hint.label, "Click a name to open or inspect it.")
+        app.buttons["Open folder Zeta"].firstMatch.click()
+        let inner = app.buttons["Inspect inner.bin"].firstMatch
+        XCTAssertTrue(inner.waitForExistence(timeout: 5))
+        inner.click()
+        let inspector = app.descendants(matching: .any)["explorerInspector"]
+        XCTAssertTrue(inspector.staticTexts["inner.bin"].waitForExistence(timeout: 5))
+        mode.click()
+        XCTAssertTrue(app.staticTexts["No large or old files here"].waitForExistence(timeout: 5))
+        XCTAssertEqual(hint.value as? String ?? hint.label, "Files of 500 MB or more, or not opened in 90 days.")
+        XCTAssertTrue(inspector.staticTexts["inner.bin"].waitForNonExistence(timeout: 5))
+        XCTAssertTrue(inspector.staticTexts["Zeta"].exists)
     }
 
     /// #227, #228: the explorer's back buttons name their destination. The Cleanup plan opened from the explorer goes back to

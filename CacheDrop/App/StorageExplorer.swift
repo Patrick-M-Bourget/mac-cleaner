@@ -129,8 +129,14 @@ struct StorageExplorerView: View {
     }
     private var inspected: Entry? {
         guard let id = context.position.inspectedID, let resource = context.position.inspectedResource,
-              folderAvailable, context.position.query.isEmpty || !visible.isEmpty else { return nil }
+              folderAvailable, context.position.query.isEmpty || !visible.isEmpty,
+              !showsLargeAndOld || listsInspected(id: id, resource: resource) else { return nil }
         return index?.entry(id: id, resource: resource)
+    }
+    /// Whether the list on show has the inspected item; switching lists closes the inspector when it doesn't (#544).
+    private func listsInspected(id: String, resource: String) -> Bool {
+        showsLargeAndOld ? offeredHere.contains { $0.entry.item.id == id && $0.entry.item.resourceID == resource }
+            : visible.contains { $0.item.id == id && $0.item.resourceID == resource }
     }
     /// What the explorer's index is built from, gathered once per redraw (#346).
     private var indexSource: (scans: [ScanResult], reports: [ScanResult], gone: [URL]) {
@@ -165,7 +171,7 @@ struct StorageExplorerView: View {
                 ScanHistoryRecordingNotice()
                 breadcrumbs
                 // The screen's one explanation (Decision 25).
-                Text(showsLargeAndOld ? "Files of 500 MB or more, or not opened in 90 days." : "Click a name to open or inspect it. Tick a file to add it to your cleanup plan.")
+                Text(showsLargeAndOld ? "Files of 500 MB or more, or not opened in 90 days." : "Click a name to open or inspect it.")
                     .font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).lineLimit(1).accessibilityIdentifier("explorerHint")
                 // The inspector shows one path, only for a picked item or a folder on show (#320, #371).
                 HStack(alignment: .top, spacing: CacheDropDesign.Space.lg) {
@@ -184,6 +190,10 @@ struct StorageExplorerView: View {
         }
         .onChange(of: context.indexRevision) { _, _ in
             if context.position.inspectedID != nil && inspected == nil { context.clearInspector() }
+        }
+        .onChange(of: showsLargeAndOld) { _, _ in
+            if let id = context.position.inspectedID, let resource = context.position.inspectedResource,
+               !listsInspected(id: id, resource: resource) { context.clearInspector() }
         }
         .onDisappear { model.previewURL = nil; model.closePreviewAccess() }
     }
