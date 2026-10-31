@@ -295,7 +295,7 @@ private struct NavigationPrototype: View {
     private var overview: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
             HStack(alignment: .top, spacing: CacheDropDesign.Space.lg) {
-                VolumeSummary(available: ThemePrototypeData.available, total: ThemePrototypeData.total, observation: "Updated 10:42 AM",
+                VolumeSummary(available: ThemePrototypeData.available, total: ThemePrototypeData.total, observation: "Updated 10:42 AM", name: "This Mac",
                               breakdown: StorageBreakdown(used: 60_000_000_000, total: ThemePrototypeData.total,
                                                           categories: [(.developer, .measured(1_800_000_000)), (.browser, .measured(640_000_000)), (.downloads, .measured(128_000_000))], trash: .empty))
                 SummarySurface {
@@ -309,7 +309,7 @@ private struct NavigationPrototype: View {
             VStack(spacing: 0) {
                 ForEach(ThemePrototypeData.categories) { item in
                     StorageReviewRow(category: item.category, title: item.title, detail: item.detail, value: item.size,
-                                     meaning: item.category == .downloads ? "Review files" : "Rebuildable", action: { destination = .plan })
+                                     meaning: item.category == .downloads ? "Review files" : "Rebuildable", action: { destination = .plan }, identifier: "prototypeOverview-" + item.id)
                     if item.id != ThemePrototypeData.categories.last?.id { Divider() }
                 }
             }
@@ -444,7 +444,7 @@ private struct ThemePrototypeReviewSheet: View {
                 }
                 DisclosureGroup("Show files · \(items.reduce(0) { $0 + $1.count })") {
                     Text("Example selection · No files on disk are changed").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
-                }.font(CacheDropDesign.TypeStyle.caption)
+                }.font(CacheDropDesign.TypeStyle.caption).accessibilityIdentifier("prototypeReviewFiles-" + consequence.title)
             }
         }
     }
