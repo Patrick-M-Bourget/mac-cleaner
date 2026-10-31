@@ -165,7 +165,7 @@ struct StorageExplorerView: View {
                 ScanHistoryRecordingNotice()
                 breadcrumbs
                 // The screen's one explanation (Decision 25).
-                Text(showsLargeAndOld ? "Files of 500 MB or more, or not opened in 90 days." : "Click a name to open or inspect it. Tick a file to add it to your cleanup plan.")
+                Text(showsLargeAndOld ? "Files of 500 MB or more, or not opened in 90 days." : "Click a name to open or inspect it.")
                     .font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).lineLimit(1).accessibilityIdentifier("explorerHint")
                 // The inspector shows one path, only for a picked item or a folder on show (#320, #371).
                 HStack(alignment: .top, spacing: CacheDropDesign.Space.lg) {

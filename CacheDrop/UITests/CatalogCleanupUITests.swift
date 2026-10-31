@@ -1123,6 +1123,9 @@ extension CatalogCleanupUITests {
 
         let rows = [app.buttons["Inspect a-big.bin"].firstMatch, app.buttons["Open folder Zeta"].firstMatch, app.buttons["Inspect b-small.bin"].firstMatch]
         XCTAssertTrue(rows[0].waitForExistence(timeout: 5))
+        // #544: All files' hint is one sentence and mentions no checkbox, since most files have none.
+        let hint = app.staticTexts["explorerHint"]
+        XCTAssertEqual(hint.value as? String ?? hint.label, "Click a name to open or inspect it.")
         func order() -> [CGFloat] { rows.map(\.frame.minY) }
         let byName = app.buttons["explorerSort-name"], bySize = app.buttons["explorerSort-size"]
         XCTAssertEqual(bySize.value as? String, "Largest first")
