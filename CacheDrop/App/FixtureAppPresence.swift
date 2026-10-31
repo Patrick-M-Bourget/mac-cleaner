@@ -20,5 +20,37 @@ struct FixtureAppPresence: AppPresence {
             + SystemAppPresence.bundles(in: home.appendingPathComponent("Applications")).compactMap(SystemAppPresence.app)
     }
     func isRegistered(bundleID: String) -> Bool { false }
+
+    /// #383: only this opt-in journey's disposable Synth bundle is made launchable outside the sandboxed runner.
+    /// The journey verifies the signature and launches it itself; preparation errors fail that test, never skip it.
+    @MainActor static func prepareQuitJourney() throws {
+        guard LocalStateLocation.isDisposableTest,
+              LocalStateLocation.fixtureEnvironment["CACHEDROP_TEST_PREPARE_SYNTH_APP"] == "1",
+              let home = CatalogCleanupModel.home else { return }
+        _ = try LocalStateLocation.root(create: false)
+        let bundle = home.appendingPathComponent("Applications/Synth.app")
+        let contents = bundle.appendingPathComponent("Contents")
+        let macOS = contents.appendingPathComponent("MacOS")
+        let executable = macOS.appendingPathComponent("main")
+        let info = contents.appendingPathComponent("Info.plist")
+        let paths = [bundle, contents, macOS, executable, info]
+        guard paths.allSatisfy({ $0.path == $0.resolvingSymlinksInPath().path }),
+              let identity = NSDictionary(contentsOf: info),
+              identity["CFBundleIdentifier"] as? String == "com.maker.synth",
+              identity["CFBundleExecutable"] as? String == "main" else { throw CocoaError(.fileReadNoPermission) }
+        try FileManager.default.removeItem(at: executable)
+        try FileManager.default.copyItem(atPath: "/bin/sleep", toPath: executable.path)
+        for path in paths { removexattr(path.path, "com.apple.quarantine", 0) }
+        for arguments in [["--force", "--sign", "-", bundle.path], ["--verify", "--strict", bundle.path]] {
+            let command = Process()
+            command.executableURL = URL(fileURLWithPath: "/usr/bin/codesign")
+            command.arguments = arguments
+            command.standardOutput = FileHandle.nullDevice
+            command.standardError = FileHandle.nullDevice
+            try command.run()
+            command.waitUntilExit()
+            guard command.terminationStatus == 0 else { throw CocoaError(.fileWriteUnknown) }
+        }
+    }
 }
 #endif

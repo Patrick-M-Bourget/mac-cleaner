@@ -457,7 +457,7 @@ final class CatalogCleanupUITests: XCTestCase {
         npm.executableURL = URL(fileURLWithPath: "/bin/sh")
         npm.arguments = [script.path]
         try npm.run()
-        defer { if npm.isRunning { npm.terminate() }; app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        defer { if npm.isRunning { npm.terminate(); npm.waitUntilExit() }; app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
         app.launch()
 
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
@@ -2041,7 +2041,7 @@ extension CatalogCleanupUITests {
         let npm = Process()
         npm.executableURL = URL(fileURLWithPath: "/bin/sh")
         npm.arguments = [script.path]
-        defer { if npm.isRunning { npm.terminate() }; app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        defer { if npm.isRunning { npm.terminate(); npm.waitUntilExit() }; app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
         app.launch()
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
         waitForCatalogScan(app)
