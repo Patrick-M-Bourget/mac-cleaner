@@ -200,6 +200,8 @@ import CacheDropCore
         // Low-space alerts (#131): restore a saved choice. Nothing is asked for until you turn alerts on.
         if !LocalStateLocation.isDisposableTest { lifecycle.alerts.configureNotifications() }
         lifecycle.alerts.configure()
+        // A copy relaunched by Move to Applications ejects the disk image it came from (#559).
+        MoveToApplicationsModel.ejectIfAsked()
     }
     func applicationDidBecomeActive(_ notification: Notification) {
         AppLifecycleController.shared.capacity.request(.foreground)

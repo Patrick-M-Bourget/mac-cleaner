@@ -14,6 +14,8 @@ struct CacheDropApp: App {
     init() {
         let stateExisted = LocalStateLocation.stateFolderExists
         WelcomeModel.shared.decideAtLaunch(migration: LocalStateLocation.migrateFromOldNames(), stateExisted: stateExisted)
+        // Asked before onboarding, which waits for it (#559).
+        MoveToApplicationsModel.shared.decideAtLaunch()
         AppLaunchPolicy.registerDefaults()
         #if DEBUG
         try? FixtureAppPresence.prepareQuitJourney()
@@ -209,6 +211,7 @@ private struct WorkspaceView: View {
     }
     @State private var capacity = AppLifecycleController.shared.capacity
     @Bindable private var welcome = WelcomeModel.shared
+    @Bindable private var moveOffer = MoveToApplicationsModel.shared
     private var startupCapacity: StartupCapacityReading? { capacity.reading }
     /// The destination's own page shows: no records, recovery, inspection, exclusions or app-managed page covers it.
     private func showsOwnPage(_ page: Destination, evenUnderAppManaged: Bool = false) -> Bool {
@@ -294,14 +297,17 @@ private struct WorkspaceView: View {
 
     var body: some View {
         workspace
-        .modifier(OnboardingBackdrop(active: welcome.isShowing))
+        // Moving to Applications comes first; onboarding and the launch scan wait until it's answered (#559).
+        .sheet(isPresented: $moveOffer.isShowing) { MoveToApplicationsView(model: moveOffer) }
+        .onChange(of: moveOffer.isShowing) { _, showing in if !showing { welcome.launch(catalog: selection.catalog) } }
+        .modifier(OnboardingBackdrop(active: welcome.isShowing || moveOffer.isShowing))
         .environment(\.cacheDropBackgroundWork, backgroundWorkStatus)
         .onChange(of: runningTasks, initial: true) { _, tasks in backgroundWork.update(running: tasks) }
         .onChange(of: selection.catalog.selectionRevisions) { _, _ in AppLifecycleController.shared.hasPendingPlan = selection.hasPendingChoicesOnAnyPage }
         // Launch stays on Overview; its banner opens Recovery, which checks against disk (#309).
         .task { _ = await recovery.loadOnce() }
         // The launch scan, whichever page opens first; later scans start in the model when something changes (#306).
-        .task { welcome.launch(catalog: selection.catalog) }
+        .task { if !moveOffer.isShowing { welcome.launch(catalog: selection.catalog) } }
         .task { locationsModel.load() }
         .onChange(of: locationsModel.scopes) { _, _ in
             explorerContext.allowedScopes = Set(locationsModel.included.map { URL(fileURLWithPath: $0.path).standardizedFileURL })
@@ -318,7 +324,7 @@ private struct WorkspaceView: View {
         .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didWakeNotification)) { _ in Task { await alerts.activated() } }
         .toolbar { contextToolbar }
         .onChange(of: welcome.isShowing) { _, showing in if !showing { navigate(.overview) } }
-        .sheet(isPresented: $welcome.isShowing) { FirstRunWelcomeView(model: welcome, catalog: selection.catalog) }
+        .sheet(isPresented: Binding(get: { welcome.isShowing && !moveOffer.isShowing }, set: { welcome.isShowing = $0 })) { FirstRunWelcomeView(model: welcome, catalog: selection.catalog) }
     }
 
     @ToolbarContentBuilder private var contextToolbar: some ToolbarContent {

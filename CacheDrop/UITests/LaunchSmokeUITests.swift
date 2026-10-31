@@ -789,6 +789,97 @@ final class FirstRunWelcomeUITests: XCTestCase {
 
 }
 
+/// #559: a copy opened from a disk image offers to move to Applications before onboarding. `CACHEDROP_TEST_APP_LOCATION`
+/// forces where the copy seems to run; the fixture home's `cachedrop-test-Applications` stands for /Applications and its
+/// `Applications` for ~/Applications. No disk image is ever mounted, and a move records its relaunch instead of opening a copy.
+final class MoveToApplicationsUITests: XCTestCase {
+    private let title = "Move CacheDrop to your Applications folder?"
+
+    @MainActor func testNotNowKeepsThisCopyAndOnboardingFollowsAndOnlyADiskImageOrTranslocatedCopyIsAsked() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app), home = try configureCatalogHome(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        app.launchEnvironment["CACHEDROP_TEST_SHOW_WELCOME"] = "1"
+        app.launchEnvironment["CACHEDROP_TEST_APP_LOCATION"] = "disk-image"
+        app.launch()
+        XCTAssertTrue(app.sheets.staticTexts[title].waitForExistence(timeout: 10))
+        XCTAssertEqual(app.staticTexts["moveToApplicationsDetail"].label, "From the disk image, CacheDrop can’t install updates.")
+        XCTAssertEqual(app.buttons["moveToApplicationsMove"].label, "Move to Applications")
+        XCTAssertEqual(app.buttons["moveToApplicationsNotNow"].label, "Not now")
+        XCTAssertFalse(app.staticTexts["Welcome to CacheDrop"].exists, "Onboarding waits for the answer")
+        XCTAssertFalse(app.staticTexts["catalogScanProgress"].exists, "So does the launch scan")
+        app.typeKey(.escape, modifierFlags: [])
+        XCTAssertTrue(app.sheets.staticTexts["Welcome to CacheDrop"].waitForExistence(timeout: 10), "Onboarding follows Not now")
+        XCTAssertFalse(app.staticTexts[title].exists)
+        app.buttons["welcomeCancel"].click()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 5))
+        app.terminate()
+        app.launchEnvironment["CACHEDROP_TEST_SHOW_WELCOME"] = nil
+        app.launchEnvironment["CACHEDROP_TEST_APP_LOCATION"] = "translocated"
+        app.launch()
+        XCTAssertTrue(app.sheets.staticTexts[title].waitForExistence(timeout: 10), "Not now held for that copy only")
+        app.buttons["moveToApplicationsNotNow"].click()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 5))
+        waitForCatalogScan(app)
+        for location in ["applications", "user-applications", "build-products", "other"] {
+            app.terminate()
+            app.launchEnvironment["CACHEDROP_TEST_APP_LOCATION"] = location
+            app.launch()
+            XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+            XCTAssertFalse(app.staticTexts[title].exists, "Not asked from \(location)")
+        }
+    }
+
+    @MainActor func testMoveCopiesToApplicationsTrashesTheOldCopyAndQuits() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app), home = try configureCatalogHome(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        let applications = home.appendingPathComponent("cachedrop-test-Applications")
+        let old = applications.appendingPathComponent("CacheDrop.app/Contents/Info.plist")
+        try FileManager.default.createDirectory(at: old.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data("older copy".utf8).write(to: old)
+        app.launchEnvironment["CACHEDROP_TEST_APP_LOCATION"] = "disk-image"
+        app.launch()
+        XCTAssertTrue(app.sheets.staticTexts[title].waitForExistence(timeout: 10))
+        app.typeKey(.return, modifierFlags: [])
+        XCTAssertTrue(app.wait(for: .notRunning, timeout: 60), "This copy quits once the moved one is in place")
+        let moved = applications.appendingPathComponent("CacheDrop.app")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: moved.appendingPathComponent("Contents/MacOS/CacheDrop").path))
+        XCTAssertEqual(try String(contentsOf: state.appendingPathComponent("moved-to-applications"), encoding: .utf8), moved.path,
+                       "The moved copy is the one relaunched")
+        let trashed = home.appendingPathComponent(".Trash/CacheDrop.app/Contents/Info.plist")
+        XCTAssertEqual(try String(contentsOf: trashed, encoding: .utf8), "older copy", "The older copy went to the Trash")
+        let staging = try FileManager.default.contentsOfDirectory(atPath: applications.path).filter { $0.hasPrefix(".CacheDrop-") }
+        XCTAssertEqual(staging, [], "No staging copy stays behind")
+    }
+
+    @MainActor func testMoveOffersTheHomeApplicationsFolderAndAFailureSaysWhyAndKeepsRunning() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app), home = try configureCatalogHome(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        let applications = home.appendingPathComponent("cachedrop-test-Applications")
+        try FileManager.default.createDirectory(at: applications, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o555])
+        app.launchEnvironment["CACHEDROP_TEST_APP_LOCATION"] = "translocated"
+        app.launch()
+        XCTAssertTrue(app.sheets.staticTexts[title].waitForExistence(timeout: 10))
+        XCTAssertEqual(app.staticTexts["moveToApplicationsDetail"].label, "It goes to the Applications folder in your home folder.")
+        // The home folder's Applications can't be written to either by the time Move is clicked: it decides again then.
+        try FileManager.default.createDirectory(at: home.appendingPathComponent("Applications"), withIntermediateDirectories: false,
+                                                attributes: [.posixPermissions: 0o555])
+        app.buttons["moveToApplicationsMove"].click()
+        let failure = app.staticTexts["moveToApplicationsFailure"]
+        XCTAssertTrue(failure.waitForExistence(timeout: 10))
+        XCTAssertEqual(failure.label, "CacheDrop can’t write to an Applications folder, so it stays where it is.")
+        XCTAssertEqual(app.state, .runningForeground, "CacheDrop keeps running where it is")
+        app.typeKey(.escape, modifierFlags: [])
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 5))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: state.appendingPathComponent("moved-to-applications").path))
+    }
+}
+
 /// #223: a remembered folder whose access went stale shows one row on Overview, and its Choose again… fixes it there.
 final class ScannedLocationsUITests: XCTestCase {
     /// #254: the folder is still there but can't be read, so the row says "Access unavailable", not "Folder not found".
