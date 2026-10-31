@@ -4,7 +4,7 @@ import Observation
 import CacheDropCore
 import SwiftUI
 
-/// Owns the initial preparation task independently of the sheet, so Cancel never stops a scan (#478).
+/// Owns the initial preparation task independently of the sheet, so Close never stops a scan (#478).
 @MainActor @Observable final class WelcomeModel {
     enum Step { case welcome, access, scanning, ready, failed }
     static let shared = WelcomeModel()
@@ -57,13 +57,21 @@ import SwiftUI
             if retry || catalog.preparedScan == nil { await catalog.rescan() }
             else { await catalog.rescanIfFullDiskAccessGranted() }
             var problem: String?
-            if catalog.preparedScan == nil {
-                problem = catalog.settingsUnreadable ? CatalogCleanupModel.settingsUnreadableText : "The scan couldn't finish. Try again or continue with available results."
-            } else {
+            while true {
+                preparingInventory = false
+                if catalog.isScanning { await catalog.waitForScanCompletion() }
+                guard let scanID = catalog.preparedScan else {
+                    problem = catalog.settingsUnreadable ? CatalogCleanupModel.settingsUnreadableText : "The scan couldn't finish. Try again or continue with available results."
+                    break
+                }
                 let apps = ApplicationsModel.shared
                 preparingInventory = true
-                await apps.load(plugIns: catalog.plugInInventory, scanID: catalog.preparedScan)
+                await apps.load(plugIns: catalog.plugInInventory, scanID: scanID)
+                // Returning from System Settings can start another scan while inventory loads.
+                // Only inventory prepared for the current completed catalog can unlock the workspace.
+                if catalog.isScanning || catalog.preparedScan != scanID { continue }
                 if apps.appsUnreadable || !apps.hasLoaded { problem = "CacheDrop couldn't read the list of apps." }
+                break
             }
             failure = problem ?? ""
             preparation = nil
@@ -142,10 +150,8 @@ struct FirstRunWelcomeView: View {
                 Text("Allow access to check Downloads and app data, or continue with the access already available.")
                     .font(CacheDropDesign.TypeStyle.note).foregroundStyle(.secondary)
                 FullDiskAccessLink(title: "Full Disk Access is optional · Learn more", model: access)
-            case .scanning:
-                ScanPreparationProgress(text: progressText, fraction: furthestProgress, identifier: "welcomeScanProgress")
-            case .ready:
-                EmptyView()
+            case .scanning, .ready:
+                ScanPreparationProgress(text: progressText, fraction: model.step == .ready ? 1 : furthestProgress, identifier: "welcomeScanProgress")
             case .failed:
                 Text(model.failure).font(CacheDropDesign.TypeStyle.note).foregroundStyle(.secondary)
             }
@@ -187,7 +193,7 @@ struct FirstRunWelcomeView: View {
         }
     }
     private var progressText: String {
-        catalog.isScanning ? catalog.scanProgressText : "Preparing Applications…"
+        model.step == .ready ? "Your results are ready" : catalog.isScanning ? catalog.scanProgressText : "Preparing Applications…"
     }
     /// A visual stage estimate, not a work/time percentage. Only actual readiness reaches the end.
     private var fraction: Double {

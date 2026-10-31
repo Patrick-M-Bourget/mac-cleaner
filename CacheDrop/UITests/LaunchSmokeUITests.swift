@@ -585,9 +585,8 @@ final class ScanAgainUITests: XCTestCase {
     }
 }
 
-/// #158: the welcome shows on a first launch, never again once finished, and the Help menu opens it again.
-/// #310: the launch scan runs behind it from the start, so its last step shows that scan's progress and ends with Done; Full
-/// Disk Access granted while that scan runs is picked up by one rescan when it ends, without CacheDrop becoming active again.
+/// #478: first use guides access before preparation; later launches use compact progress.
+/// Close leaves preparation running, failure offers a usable continuation, and Help can reopen the introduction.
 /// Other journeys never see it: disposable test runs treat it as seen unless `CACHEDROP_TEST_SHOW_WELCOME` asks for it.
 final class FirstRunWelcomeUITests: XCTestCase {
     @MainActor func testOnboardingWaitsForAccessAndReadinessBeforeOpeningOverview() throws {
@@ -622,6 +621,7 @@ final class FirstRunWelcomeUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Preparing Applications…"].waitForExistence(timeout: 60))
         XCTAssertFalse(done.exists, "Catalog completion alone does not unlock the workspace")
         XCTAssertTrue(done.waitForExistence(timeout: 120))
+        XCTAssertTrue(progress.exists, "The same bar remains visible when results are ready")
         done.click()
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 5))
         app.typeKey("4", modifierFlags: .command)
@@ -657,6 +657,16 @@ final class FirstRunWelcomeUITests: XCTestCase {
         waitForCatalogScan(app)
         app.typeKey("4", modifierFlags: .command)
         XCTAssertTrue(app.buttons["Applications"].isSelected, "Navigation is available after the explicit bypass")
+        app.terminate(); app.launch()
+        XCTAssertTrue(app.progressIndicators["welcomeScanProgress"].waitForExistence(timeout: 10))
+        app.buttons["welcomeCancel"].click()
+        let stop = app.buttons["Stop scan"].firstMatch
+        XCTAssertTrue(stop.waitForExistence(timeout: 5))
+        stop.click()
+        waitForCatalogScan(app)
+        app.typeKey("4", modifierFlags: .command)
+        XCTAssertTrue(app.descendants(matching: .any)["applicationsLoading-apps"].waitForNonExistence(timeout: 15),
+                      "A stopped initial scan must not leave Applications in an endless loading state")
     }
 
     @MainActor func testOnboardingPreparationFailureCanRetryOrContinueWithAvailableResults() throws {

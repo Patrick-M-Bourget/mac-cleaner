@@ -117,7 +117,7 @@ struct ApplicationsView: View {
         // The sheet closes only when the choices it was built from changed, and the page says so (#307).
         .onChange(of: catalog.selectionRevision(for: .applications)) { _, _ in if review != nil { review = nil; approvalError = PlanReviewError.changedMessage } }
         // Read again after each catalog scan, so Scan again refreshes the lists too.
-        .task(id: catalog.isScanning) { if !catalog.isScanning, catalog.preparedScan != nil { await model.load(plugIns: catalog.plugInInventory, scanID: catalog.preparedScan) } }
+        .task(id: catalog.isScanning) { if !catalog.isScanning { await model.load(plugIns: catalog.plugInInventory, scanID: catalog.preparedScan) } }
         // A search opens Files from deleted apps, so its matching groups show.
         .onChange(of: model.listing.isSearching) { _, searching in if searching { leftoversExpanded = true } }
     }
