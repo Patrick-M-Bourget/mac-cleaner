@@ -165,7 +165,7 @@ enum StorageCategory {
         case .timeMachine: "clock.arrow.circlepath"
         case .xcodeArchives: "archivebox"
         case .audioPlugIns: "pianokeys"
-        case .leftovers: "square.dashed"
+        case .leftovers: "ghost" // CacheDrop's own symbol (#550), so it never reads as App caches' dashed app
         case .apps: "macwindow"
         }
     }
@@ -216,6 +216,13 @@ struct ContentPanel: ViewModifier {
 extension View {
     func contentPanel() -> some View { modifier(ContentPanel()) }
 }
+extension Image {
+    /// A system symbol, or one of CacheDrop's own in the asset catalog, drawn on the SF Symbols template so it takes the
+    /// same weight (#550): the ghost for Files from deleted apps.
+    init(cacheDropSymbol name: String) {
+        if name == "ghost" { self.init(name) } else { self.init(systemName: name) }
+    }
+}
 struct CategoryBadge: View {
     let symbol: String
     let color: Color
@@ -223,7 +230,7 @@ struct CategoryBadge: View {
     /// A badge for something other than a storage category, such as a review sheet's consequence group.
     init(symbol: String, color: Color) { self.symbol = symbol; self.color = color }
     var body: some View {
-        Image(systemName: symbol).font(CacheDropDesign.TypeStyle.badgeIcon)
+        Image(cacheDropSymbol: symbol).font(CacheDropDesign.TypeStyle.badgeIcon)
             .foregroundStyle(color).frame(width: CacheDropDesign.Size.badge, height: CacheDropDesign.Size.badge)
             .background(color.opacity(CacheDropDesign.Opacity.badgeTint), in: RoundedRectangle(cornerRadius: CacheDropDesign.Radius.row))
             .accessibilityHidden(true)
@@ -1008,7 +1015,7 @@ struct InspectableItemRow<Selection: View>: View {
     }
     private var content: some View {
         HStack(spacing: CacheDropDesign.Space.md) {
-            Image(systemName: symbol).foregroundStyle(.secondary).frame(width: CacheDropDesign.Size.itemIcon)
+            Image(cacheDropSymbol: symbol).foregroundStyle(.secondary).frame(width: CacheDropDesign.Size.itemIcon)
             VStack(alignment: .leading, spacing: CacheDropDesign.Space.xs) {
                 Text(name).foregroundStyle(.primary)
                 // An empty detail makes it a one-line row (Smart clean, #141).
