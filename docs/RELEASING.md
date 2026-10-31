@@ -12,7 +12,7 @@ Preparation requires a stable, increasing `x.y.z` version and increments the sha
 
 ## Sparkle prerequisite setup
 
-The app embeds **Sparkle 2.10.1**, pinned exactly in the Xcode project and Package.resolved. It does not create an updater or initiate update checks. `CacheDrop/UpdateInfo.plist` contains the public EdDSA key, canonical feed URL, and disabled automatic-update/profiling defaults. Only the public key belongs in source. The matching private key stays in the owner's login Keychain, Sparkle account `ed25519`.
+The app embeds **Sparkle 2.10.1**, pinned exactly in the Xcode project and Package.resolved. **Check for Updates…** in the app menu and Settings creates the shared updater when first used. Scheduled checks, automatic downloads and installations, permission prompts and system profiling are disabled. Approved installation waits for active cleanup and maintenance to finish, stops scans and awaits saved results; **Cancel update** restores availability before handoff. `CacheDrop/UpdateInfo.plist` contains the public EdDSA key, canonical feed URL, and disabled automatic-update/profiling defaults. Only the public key belongs in source. The matching private key stays in the owner's login Keychain, Sparkle account `ed25519`.
 
 Use the tools from the matching official distribution:
 
