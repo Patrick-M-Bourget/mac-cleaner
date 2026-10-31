@@ -68,7 +68,15 @@ import Testing
 
     @Test func itGoesToApplicationsThroughAStagingCopyBesideIt() {
         #expect(decide() == .move(.init(folder: "/Applications", destination: "/Applications/CacheDrop.app",
-                                        staging: "/Applications/.CacheDrop-T1.app", createsFolder: false, trashesExisting: false)))
+                                        staging: "/Applications/.CacheDrop-T1.app", createsFolder: false, trashesExisting: false, isInHomeFolder: false)))
+    }
+
+    @Test func theMainFolderIsNeverTakenForTheHomeFoldersWhateverItsPath() {
+        let decision = ApplicationsMove.decide(applications: "/tmp/fixture/Applications", applicationsAccess: .writable,
+                                               userApplications: "/tmp/fixture/home/Applications", userApplicationsAccess: .creatable,
+                                               existing: { _ in .none }, token: "T1")
+        guard case .move(let plan) = decision else { Issue.record("\(decision)"); return }
+        #expect(!plan.isInHomeFolder)
     }
 
     @Test func anExistingCopyGoesToTheTrash() {
@@ -86,7 +94,7 @@ import Testing
         #expect(decide(applications: .unwritable) == .move(.init(folder: "/Users/someone/Applications",
                                                                  destination: "/Users/someone/Applications/CacheDrop.app",
                                                                  staging: "/Users/someone/Applications/.CacheDrop-T1.app",
-                                                                 createsFolder: true, trashesExisting: false)))
+                                                                 createsFolder: true, trashesExisting: false, isInHomeFolder: true)))
         guard case .move(let plan) = decide(applications: .unwritable, user: .writable) else { Issue.record("no move"); return }
         #expect(!plan.createsFolder)
         #expect(plan.isInHomeFolder)
@@ -118,7 +126,7 @@ private final class RecordedSteps: ApplicationsMoveSteps, @unchecked Sendable {
 /// #559: the old copy goes to the Trash only after the new one is copied and verified; a failure says why and undoes the staging copy.
 @Suite struct ApplicationsMovePerformTests {
     private let plan = ApplicationsMove.Plan(folder: "/A", destination: "/A/CacheDrop.app", staging: "/A/.CacheDrop-T.app",
-                                             createsFolder: true, trashesExisting: true)
+                                             createsFolder: true, trashesExisting: true, isInHomeFolder: false)
 
     @Test func itCopiesVerifiesThenTrashesTheOldCopyAndPutsTheNewOneInPlace() {
         let steps = RecordedSteps()

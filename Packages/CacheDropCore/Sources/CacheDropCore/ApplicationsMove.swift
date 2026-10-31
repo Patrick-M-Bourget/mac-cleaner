@@ -30,7 +30,7 @@ public enum ApplicationsMove {
         /// The copy already at `destination` goes to the Trash, only after the new copy passed its signature check.
         public var trashesExisting: Bool
         /// The Applications folder in the home folder, used when the main one can't be written to.
-        public var isInHomeFolder: Bool { folder != "/Applications" }
+        public var isInHomeFolder: Bool
     }
     public enum Decision: Equatable, Sendable {
         case move(Plan)
@@ -46,9 +46,9 @@ public enum ApplicationsMove {
     public static func decide(applications: String, applicationsAccess: FolderAccess,
                               userApplications: String, userApplicationsAccess: FolderAccess,
                               existing: (String) -> ExistingCopy, token: String) -> Decision {
-        let folder: String, access: FolderAccess
-        if applicationsAccess == .writable { folder = applications; access = .writable }
-        else if userApplicationsAccess != .unwritable { folder = userApplications; access = userApplicationsAccess }
+        let folder: String, access: FolderAccess, inHome: Bool
+        if applicationsAccess == .writable { folder = applications; access = .writable; inHome = false }
+        else if userApplicationsAccess != .unwritable { folder = userApplications; access = userApplicationsAccess; inHome = true }
         else { return .refused(noFolderReason) }
         let destination = (folder as NSString).appendingPathComponent(bundleName)
         let trashes: Bool
@@ -59,7 +59,7 @@ public enum ApplicationsMove {
         }
         return .move(Plan(folder: folder, destination: destination,
                           staging: (folder as NSString).appendingPathComponent(".CacheDrop-\(token).app"),
-                          createsFolder: access == .creatable, trashesExisting: trashes))
+                          createsFolder: access == .creatable, trashesExisting: trashes, isInHomeFolder: inHome))
     }
 
     /// Copies to the staging path, checks the copy's signature, then trashes the old copy and puts the new one in place.
