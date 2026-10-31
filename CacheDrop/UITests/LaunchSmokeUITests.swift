@@ -657,16 +657,17 @@ final class FirstRunWelcomeUITests: XCTestCase {
         waitForCatalogScan(app)
         app.typeKey("4", modifierFlags: .command)
         XCTAssertTrue(app.buttons["Applications"].isSelected, "Navigation is available after the explicit bypass")
-        app.terminate(); app.launch()
-        XCTAssertTrue(app.progressIndicators["welcomeScanProgress"].waitForExistence(timeout: 10))
-        app.buttons["welcomeCancel"].click()
-        let stop = app.buttons["Stop scan"].firstMatch
-        XCTAssertTrue(stop.waitForExistence(timeout: 5))
-        stop.click()
-        waitForCatalogScan(app)
+        app.terminate()
+        let rules = state.appendingPathComponent("Exclusions/rules-v1.json")
+        try FileManager.default.createDirectory(at: rules.deletingLastPathComponent(), withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        try Data("not settings".utf8).write(to: rules)
+        app.launch()
+        XCTAssertTrue(app.buttons["welcomeAvailableResults"].waitForExistence(timeout: 30))
+        app.buttons["welcomeAvailableResults"].click()
         app.typeKey("4", modifierFlags: .command)
+        XCTAssertTrue(app.staticTexts["settingsUnreadable"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.descendants(matching: .any)["applicationsLoading-apps"].waitForNonExistence(timeout: 15),
-                      "A stopped initial scan must not leave Applications in an endless loading state")
+                      "Failed initial preparation must not leave Applications in an endless loading state")
     }
 
     @MainActor func testOnboardingPreparationFailureCanRetryOrContinueWithAvailableResults() throws {
