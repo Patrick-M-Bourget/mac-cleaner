@@ -29,6 +29,8 @@ final class RemovedAppLeftoversUITests: XCTestCase {
         let category = app.checkBoxes["planCategory-leftovers"]
         XCTAssertTrue(category.waitForExistence(timeout: 5))
         expandDisclosures(in: app)
+        // Applications' summary card (#525) puts these rows below the window, and lazy rows exist only once on screen.
+        reveal(category, in: app, nearTop: true)
         XCTAssertTrue(app.checkBoxes["planProfile-removed-app-leftovers-Synth"].waitForExistence(timeout: 5), "Grouped per app")
         let possible = app.checkBoxes["planItem-Gone"]
         XCTAssertTrue(possible.exists)
@@ -68,6 +70,7 @@ final class RemovedAppLeftoversUITests: XCTestCase {
 
         XCTAssertTrue(app.checkBoxes["planCategory-leftovers"].waitForExistence(timeout: 10))
         expandDisclosures(in: app)
+        reveal(app.checkBoxes["planCategory-leftovers"], in: app, nearTop: true) // Below the summary card (#525).
         let item = app.checkBoxes["planItem-Gone"], group = app.checkBoxes["planProfile-removed-app-leftovers-Synth"]
         XCTAssertTrue(item.waitForExistence(timeout: 5))
         XCTAssertEqual(item.value as? Int, 0, "A possibly related item is never recommended")

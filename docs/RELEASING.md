@@ -32,7 +32,7 @@ Signed builds also require a valid **Developer ID Application** identity for tea
 
 ## Build and verify
 
-Write and review a brief HTML fragment for release notes. Supply a versioned, immutable HTTPS artifact directory explicitly. Production publication will use the public Supabase updates bucket; its actual URL must be configured by the owner. Do not use the private website download URL or GitHub Releases as the enclosure URL. For acceptance, supply a separate test bucket/path and retain the resulting local feed separately. No production upload, website update, feed promotion or deployment occurs here.
+Write the version's notes as `docs/releases/x.y.z.html` (content only, in the shape Decision 122 sets; `docs/releases/notes.css` is the shared style), then build the file to sign with `scripts/release-notes.py x.y.z --out .build/release-notes/x.y.z.html` and pass that path as `--release-notes`. Supply a versioned, immutable HTTPS artifact directory explicitly. Production publication will use the public Supabase updates bucket; its actual URL must be configured by the owner. Do not use the private website download URL or GitHub Releases as the enclosure URL. For acceptance, supply a separate test bucket/path and retain the resulting local feed separately. No production upload, website update, feed promotion or deployment occurs here.
 
 ```sh
 scripts/release.sh \
