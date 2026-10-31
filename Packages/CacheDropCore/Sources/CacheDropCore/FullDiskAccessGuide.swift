@@ -1,6 +1,6 @@
 import Foundation
 
-/// The one explanation every "not accessible" row and Locations & access show (SPEC section 7).
+/// The one explanation every "not accessible" row and System access show (SPEC section 7).
 public enum FullDiskAccessGuide {
     public static let title = "Broader access is optional"
     public static let summary = "Full Disk Access lets CacheDrop see protected places like Mail and Safari data. It’s broad authority, not read-only. CacheDrop’s scans stay read-only either way."

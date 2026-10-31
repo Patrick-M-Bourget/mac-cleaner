@@ -230,7 +230,7 @@ struct StorageExplorerView: View {
                     } else if showsLargeAndOld {
                         largeAndOldFiles
                     } else if context.position.folder == nil {
-                        if scans.isEmpty && goneLocations.isEmpty { EmptyState(title: "No scanned folders", detail: "Add a folder in Locations & access to explore it.", symbol: "folder") }
+                        if scans.isEmpty && goneLocations.isEmpty { EmptyState(title: "No scanned folders", detail: "Add a folder in Locations to explore it.", symbol: "folder") }
                         ForEach(context.sort.ordered(scans, name: \.scope.lastPathComponent, bytes: { $0.allocatedBytes ?? 0 }), id: \.scope) { scan in
                             // The size, then only the caveats that apply.
                             InspectableItemRow(name: scan.scope.lastPathComponent,

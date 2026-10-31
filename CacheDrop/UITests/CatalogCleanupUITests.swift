@@ -33,7 +33,7 @@ import XCTest
 
 /// #320: Overview's Explore storage link is always there, so a journey waits for the scanned folder to show in Overview's
 /// Scanned locations group (#345), with its size rather than "Not scanned", before it uses the link to open the explorer, which
-/// with no scanned folder opens Locations & access.
+/// with no scanned folder opens Locations.
 @MainActor func waitForScannedFolder(_ app: XCUIApplication, timeout: TimeInterval = 20, file: StaticString = #filePath, line: UInt = #line) {
     // Built-in Downloads (#342) is scanned at launch on its own, so it never counts as the folder a journey picked.
     let scanned = NSPredicate(format: "identifier BEGINSWITH 'overviewLocation:' AND NOT (identifier ENDSWITH '/Downloads') AND NOT (value CONTAINS 'Not scanned')")
@@ -305,8 +305,8 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertEqual(app.windows.firstMatch.frame.width, 900, accuracy: 1, "The window is at its minimum width")
         let height = actionStrip(app).frame.height
         XCTAssertEqual(height, 32 + 2 * 16 + 1, accuracy: 1)
-        // History and Locations & access did not start the scan; their bars show it.
-        for (key, screen) in [("5", "History"), ("6", "Locations & access")] {
+        // History and Locations did not start the scan; their bars show it.
+        for (key, screen) in [("6", "History"), ("7", "Locations"), ("8", "System access")] {
             app.typeKey(key, modifierFlags: .command)
             XCTAssertTrue(progress.waitForExistence(timeout: 5), "Scan progress shows on \(screen)")
             XCTAssertTrue(actionStrip(app).frame.contains(progress.frame), screen)
@@ -315,7 +315,7 @@ final class CatalogCleanupUITests: XCTestCase {
         app.typeKey("1", modifierFlags: .command)
         XCTAssertTrue(progress.waitForNonExistence(timeout: 60))
         // With and without buttons, the bar is the same height once the scan is done.
-        for (key, screen) in [("1", "Overview"), ("2", "Smart clean"), ("3", "Cleanup plan"), ("4", "Storage trends"), ("5", "History"), ("6", "Locations & access")] {
+        for (key, screen) in [("1", "Overview"), ("2", "Smart clean"), ("3", "Cleanup plan"), ("4", "Applications"), ("5", "Storage trends"), ("6", "History"), ("7", "Locations"), ("8", "System access")] {
             app.typeKey(key, modifierFlags: .command)
             XCTAssertTrue(app.buttons[screen].waitForExistence(timeout: 5))
             let strip = actionStrip(app)
@@ -1275,7 +1275,7 @@ extension CatalogCleanupUITests {
         XCTAssertFalse(app.buttons["Open folder " + folder.lastPathComponent].exists)
     }
 
-    /// #320: Explore storage's home is Locations & access. A scanned folder's Explore link opens it at that folder; ticking
+    /// #320: Explore storage's home is Locations. A scanned folder's Explore link opens it at that folder; ticking
     /// a large file enables Add to cleanup plan, which lands on the plan with the file ticked and "‹ Explore storage".
     @MainActor func testExploreFromLocationsAddsALargeFileToThePlan() throws {
         continueAfterFailure = false
@@ -1294,9 +1294,9 @@ extension CatalogCleanupUITests {
         app.launch()
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
 
-        // Downloads is always a scanned location (Decision 83), so folders are added from Locations & access in the sidebar.
-        app.buttons["Locations & access"].click()
-        XCTAssertTrue(app.staticTexts["Locations & access"].waitForExistence(timeout: 5))
+        // Downloads is always a scanned location (Decision 83), so folders are added from Locations in the sidebar.
+        app.buttons["Locations"].click()
+        XCTAssertTrue(app.staticTexts["Locations"].waitForExistence(timeout: 5))
         app.buttons["Add folder…"].click()
         let panel = app.sheets.firstMatch.exists ? app.sheets.firstMatch : app.dialogs.firstMatch
         XCTAssertTrue(panel.waitForExistence(timeout: 5))
@@ -1310,7 +1310,7 @@ extension CatalogCleanupUITests {
         revealAndClick(explore, in: app)
         let back = app.buttons["explorerBack"]
         assertBackButton(back, isAbove: "Explore storage", in: app)
-        XCTAssertEqual(back.label, "Back to Locations & access")
+        XCTAssertEqual(back.label, "Back to Locations")
         // The folder on show has an inspector as tall as its content (#371), and the bar's button waits for a tick.
         let inspector = app.descendants(matching: .any)["explorerInspector"]
         XCTAssertTrue(inspector.waitForExistence(timeout: 5))
@@ -1335,7 +1335,7 @@ extension CatalogCleanupUITests {
         XCTAssertEqual(planned.value as? Int, 1)
         planBack.click()
         XCTAssertTrue(item.waitForExistence(timeout: 5))
-        XCTAssertEqual(back.label, "Back to Locations & access")
+        XCTAssertEqual(back.label, "Back to Locations")
 
         // A file's name shows it in the inspector. At the list of locations nothing is picked, so there is
         // no inspector and the list takes the width (#371); back returns to the folder and its picked file.
@@ -2389,7 +2389,7 @@ final class EmptyStateUITests: XCTestCase {
         return home
     }
 
-    /// The plan on an empty home says there's nothing to clean up, and Explore storage leads to Locations & access,
+    /// The plan on an empty home says there's nothing to clean up, and Explore storage leads to Locations,
     /// where a folder can be added, since no folder is scanned yet.
     @MainActor func testThePlanOnAnEmptyHomeSaysNothingToCleanUpAndLeadsToExploreStorage() throws {
         continueAfterFailure = false
@@ -2408,11 +2408,11 @@ final class EmptyStateUITests: XCTestCase {
         let explore = empty.buttons["planEmptyAction"]
         XCTAssertEqual(explore.label, "Explore storage")
         revealAndClick(explore, in: app)
-        XCTAssertTrue(app.descendants(matching: .any)["manageLocalRecords"].waitForExistence(timeout: 5), "With no scanned folder, it opens Locations & access")
+        XCTAssertTrue(app.descendants(matching: .any)["manageLocalRecords"].waitForExistence(timeout: 5), "With no scanned folder, it opens Locations")
     }
 
     /// #372: Overview on an empty home keeps every category listed as "Empty", with no Review link, and says there's
-    /// nothing to clean up in one line above the list, whose Explore storage leads to Locations & access.
+    /// nothing to clean up in one line above the list, whose Explore storage leads to Locations.
     @MainActor func testOverviewOnAnEmptyHomeListsEveryCategoryAsEmptyUnderOneLine() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
@@ -2441,7 +2441,7 @@ final class EmptyStateUITests: XCTestCase {
         let explore = empty.links["overviewEmptyAction"]
         XCTAssertEqual(explore.label, "Explore storage")
         revealAndClick(explore, in: app)
-        XCTAssertTrue(app.descendants(matching: .any)["manageLocalRecords"].waitForExistence(timeout: 5), "With no scanned folder, it opens Locations & access")
+        XCTAssertTrue(app.descendants(matching: .any)["manageLocalRecords"].waitForExistence(timeout: 5), "With no scanned folder, it opens Locations")
     }
 
     /// Storage trends with no recorded scan says so and offers Scan now, which records the first baseline.

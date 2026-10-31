@@ -84,7 +84,7 @@ import CacheDropCore
     }
 }
 
-/// Locations & access's way to custom exclusions (#313).
+/// Locations's way to custom exclusions (#313).
 struct ProtectedItemsEntry: View {
     var action: () -> Void
     var body: some View {

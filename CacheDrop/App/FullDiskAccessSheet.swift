@@ -17,26 +17,7 @@ struct FullDiskAccessSheet: View {
                 Spacer(minLength: CacheDropDesign.Space.md)
                 CloseButton(identifier: "dismissFullDiskAccess", action: close)
             }
-            Text(FullDiskAccessGuide.summary).font(CacheDropDesign.TypeStyle.note).foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true).accessibilityIdentifier("fullDiskAccessSummary")
-            RecommendationGroup {
-                ForEach(Array(FullDiskAccessGuide.coverage(model.status).enumerated()), id: \.offset) { index, row in
-                    if index > 0 { Divider().padding(.horizontal, CacheDropDesign.Space.lg) }
-                    HStack(spacing: CacheDropDesign.Space.md) {
-                        Image(systemName: row.included ? "checkmark.circle" : "minus.circle")
-                            .foregroundStyle(row.included ? StatusRole.success.color : StatusRole.neutral.color)
-                            .frame(width: CacheDropDesign.Size.rowIcon).accessibilityHidden(true)
-                        Text(row.title)
-                        Spacer(minLength: CacheDropDesign.Space.md)
-                        Text(row.value).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
-                            .accessibilityIdentifier(index == 0 ? "fullDiskAccessCoverage" : "fullDiskAccessSheetStatus")
-                    }
-                    .padding(.horizontal, CacheDropDesign.Space.lg).padding(.vertical, CacheDropDesign.Space.md)
-                }
-            }
-            if !granted {
-                StatusRow(text: FullDiskAccessGuide.howToTurnOn, identifier: "fullDiskAccessHowTo")
-            }
+            FullDiskAccessDetails(status: model.status)
             Divider()
             SheetFooter {
                 if granted {
@@ -52,5 +33,34 @@ struct FullDiskAccessSheet: View {
         .task { await model.refresh() }
         // Coming back from System Settings: check again without being asked.
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in Task { await model.refresh() } }
+    }
+}
+
+/// The same inert explanation on System access, in contextual sheets and in the Design gallery.
+struct FullDiskAccessDetails: View {
+    let status: FullDiskAccessStatus?
+    var body: some View {
+        VStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
+            Text(FullDiskAccessGuide.summary).font(CacheDropDesign.TypeStyle.note).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true).accessibilityIdentifier("fullDiskAccessSummary")
+            RecommendationGroup {
+                ForEach(Array(FullDiskAccessGuide.coverage(status).enumerated()), id: \.offset) { index, row in
+                    if index > 0 { Divider().padding(.horizontal, CacheDropDesign.Space.lg) }
+                    HStack(spacing: CacheDropDesign.Space.md) {
+                        Image(systemName: row.included ? "checkmark.circle" : "minus.circle")
+                            .foregroundStyle(row.included ? StatusRole.success.color : StatusRole.neutral.color)
+                            .frame(width: CacheDropDesign.Size.rowIcon).accessibilityHidden(true)
+                        Text(row.title)
+                        Spacer(minLength: CacheDropDesign.Space.md)
+                        Text(row.value).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                            .accessibilityIdentifier(index == 0 ? "fullDiskAccessCoverage" : "fullDiskAccessSheetStatus")
+                    }
+                    .padding(.horizontal, CacheDropDesign.Space.lg).padding(.vertical, CacheDropDesign.Space.md)
+                }
+            }
+            if status != .granted {
+                StatusRow(text: FullDiskAccessGuide.howToTurnOn, identifier: "fullDiskAccessHowTo")
+            }
+        }
     }
 }

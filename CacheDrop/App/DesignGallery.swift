@@ -65,6 +65,7 @@ struct DesignGallery: View {
                         StatusRow(text: "Not granted", symbol: "lock.shield")
                         Button("Learn more") {}.buttonStyle(.link).accessibilityIdentifier("galleryAccessExample")
                     }
+                    FullDiskAccessDetails(status: .notGranted)
                     // Explore storage's inspector (#320, #371): one path, as tall as its content.
                     ExplorerInspector(name: "Camera guide.pdf") {
                         Text("Location").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)

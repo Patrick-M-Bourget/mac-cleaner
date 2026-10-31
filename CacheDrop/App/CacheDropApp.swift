@@ -81,9 +81,11 @@ private struct ScanAgainCommand: View {
 }
 
 enum Destination: String, CaseIterable, Identifiable {
-    case overview = "Overview", smartClean = "Smart clean", plan = "Cleanup plan", applications = "Applications", growth = "Storage trends", history = "History", locations = "Locations & access"
-    var id: String { rawValue }
-    /// ⌘1–⌘7 follow the sidebar order (#127, #141), Applications above Storage trends (#525). Low-space alerts live in the Settings window (#131).
+    case overview = "Overview", smartClean = "Smart clean", plan = "Cleanup plan", applications = "Applications", growth = "Storage trends", history = "History", locations = "Locations", systemAccess = "System access"
+    /// Sidebar identity survives the visible Locations rename (#527).
+    var id: String { self == .locations ? "Locations & access" : rawValue }
+    var isSettings: Bool { self == .locations || self == .systemAccess }
+    /// ⌘1–⌘8 follow the sidebar order (#127, #141), Applications above Storage trends (#525). System access follows Locations (#527). Low-space alerts live in the Settings window (#131).
     var shortcut: KeyEquivalent {
         switch self {
         case .overview: "1"
@@ -93,6 +95,7 @@ enum Destination: String, CaseIterable, Identifiable {
         case .applications: "4"
         case .history: "6"
         case .locations: "7"
+        case .systemAccess: "8"
         }
     }
     var symbol: String {
@@ -103,6 +106,7 @@ enum Destination: String, CaseIterable, Identifiable {
         case .plan: "checklist"
         case .history: "clock"
         case .locations: "folder.badge.gearshape"
+        case .systemAccess: "lock.shield"
         case .applications: "square.grid.2x2"
         }
     }
@@ -126,6 +130,7 @@ enum Destination: String, CaseIterable, Identifiable {
     var planReturnsToGrowth = false
     @ObservationIgnored var overviewOffset: CGPoint?
     @ObservationIgnored var locationsOffset: CGPoint?
+    @ObservationIgnored var systemAccessOffset: CGPoint?
     var savedDataVisible = false
     var savedDataCaller = Destination.history
     @ObservationIgnored var savedDataOffset: CGPoint?
@@ -157,6 +162,7 @@ private struct WorkspaceView: View {
         case .growth: return $navigationState.growthOffset
         case .overview: return $navigationState.overviewOffset
         case .locations: return $navigationState.locationsOffset
+        case .systemAccess: return $navigationState.systemAccessOffset
         case .plan, .smartClean, .applications: return nil
         }
     }
@@ -223,7 +229,7 @@ private struct WorkspaceView: View {
         switch destination {
         case .overview: return nil
         case .smartClean, .plan, .applications: return nil
-        case .history, .locations: return "" // Decision 25: no toolbar subtitles
+        case .history, .locations, .systemAccess: return "" // Decision 25: no toolbar subtitles
         case .growth: return ""
         }
     }
@@ -241,9 +247,9 @@ private struct WorkspaceView: View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
             AppBrand().padding(.horizontal, CacheDropDesign.Space.sm).padding(.bottom, CacheDropDesign.Space.xl)
             Text("Storage").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).padding(.horizontal, CacheDropDesign.Space.sm)
-            ForEach(Destination.allCases.filter { $0 != .locations }) { navigation($0) }
+            ForEach(Destination.allCases.filter { !$0.isSettings }) { navigation($0) }
             Text("Settings").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).padding(.horizontal, CacheDropDesign.Space.sm).padding(.top, CacheDropDesign.Space.xl)
-            navigation(.locations)
+            ForEach(Destination.allCases.filter(\.isSettings)) { navigation($0) }
             Spacer()
             VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
                 Label("This Mac", systemImage: "laptopcomputer").font(CacheDropDesign.TypeStyle.note)
@@ -361,6 +367,7 @@ private struct WorkspaceView: View {
                         selectedCategories: value == .plan ? selection.actionableSelectedCategoryCount : nil) {
             navigate(value)
         }.keyboardShortcut(value.shortcut, modifiers: .command).disabled(welcome.isShowing)
+            .accessibilityIdentifier(value.id)
     }
 
     private func chooseFolderForScan() {
@@ -556,10 +563,10 @@ private struct WorkspaceView: View {
             ForEach(locationsModel.recoveries, id: \.scope.id) { scope, status in
                 Group {
                 if scope.isBuiltIn {
-                    // Built-in Downloads is never picked (#342, #388): Full Disk Access is its fix, not Choose again….
+                    // Built-in Downloads is never picked; folder guidance belongs in Locations (#527).
                     HStack(alignment: .firstTextBaseline, spacing: CacheDropDesign.Space.sm) {
                         StatusRow(text: recoveryText(scope, status: status), symbol: "info.circle", role: .caution, identifier: "overviewLocationRecovery").fixedSize()
-                        FullDiskAccessLink(title: "Grant Full Disk Access")
+                        Button("Locations") { navigate(.locations) }.buttonStyle(.link).accessibilityIdentifier("overviewDownloadsLocations")
                         Spacer(minLength: 0)
                     }
                 } else {
@@ -584,7 +591,7 @@ private struct WorkspaceView: View {
             HStack(alignment: .firstTextBaseline, spacing: CacheDropDesign.Space.md) {
                 Text("Scanned locations").font(CacheDropDesign.TypeStyle.section)
                 Spacer(minLength: CacheDropDesign.Space.md)
-                // Always there (#320): with no scanned folder it leads to Locations & access, where folders are added.
+                // Always there (#320): with no scanned folder it leads to Locations, where folders are added.
                 Button("Explore storage") { exploreStorage(caller: .overview) }
                     .buttonStyle(.link).font(CacheDropDesign.TypeStyle.caption).disabled(selection.workspaceRunning)
                 // One clear action: pick a folder, remember it and scan it now (#125).
@@ -616,16 +623,14 @@ private struct WorkspaceView: View {
                              identifier: "overviewLocation:" + location.scope.path, mutedValue: location.bytes == nil)
                 .help(location.scope.path)
             if let problem = location.problem {
-                // One caution line; Scan again is its own link, Full Disk Access opens its sheet beside it (#358).
-                HStack(alignment: .firstTextBaseline, spacing: CacheDropDesign.Space.sm) {
-                    StatusRow(text: problem, symbol: "exclamationmark.circle", role: .caution, identifier: "overviewLocationProblem:" + location.scope.path,
-                              action: location.action == .scanAgain ? StatusAction(title: "Scan again", identifier: "overviewLocationScanAgain", isDisabled: !canScanAgain, action: scanAgain) : nil)
-                        .fixedSize(horizontal: location.action == .grantFullDiskAccess, vertical: false)
-                    if location.action == .grantFullDiskAccess {
-                        FullDiskAccessLink(title: "Grant Full Disk Access")
-                        Spacer(minLength: 0)
-                    }
-                }.padding([.horizontal, .bottom], CacheDropDesign.Space.lg)
+                let action: StatusAction? = switch location.action {
+                case .openLocations: StatusAction(title: "Locations", identifier: "overviewLocationAccess:" + location.scope.path) { navigate(.locations) }
+                case .scanAgain: StatusAction(title: "Scan again", identifier: "overviewLocationScanAgain", isDisabled: !canScanAgain, action: scanAgain)
+                case nil: nil
+                }
+                StatusRow(text: problem, symbol: "exclamationmark.circle", role: .caution,
+                          identifier: "overviewLocationProblem:" + location.scope.path, action: action)
+                    .padding([.horizontal, .bottom], CacheDropDesign.Space.lg)
             }
         }
     }
@@ -664,7 +669,7 @@ private struct WorkspaceView: View {
         guard let scope else { return false }
         return locationsModel.recoveries.contains { URL(fileURLWithPath: $0.scope.path).standardizedFileURL == scope }
     }
-    /// Renews a remembered location's access: the user picks the same folder again. Shared by Locations & access and Overview (#223).
+    /// Renews a remembered location's access: the user picks the same folder again. Shared by Locations and Overview (#223).
     @discardableResult private func chooseAgain(_ scope: RememberedScope) -> Bool {
         guard let url = ExploreStorage.chooseFolder(remembering: true) else { return false }
         if url.standardizedFileURL.path == scope.path { return locationsModel.remember(url, downloads: isDownloadsLocation(url)) }
@@ -759,6 +764,7 @@ private struct WorkspaceView: View {
                 case .plan, .smartClean, .applications: EmptyView()
                 case .history: history
                 case .locations: locations
+                case .systemAccess: SystemAccessView()
                 }
             }
         }.padding(CacheDropDesign.Space.page).frame(maxWidth: .infinity, alignment: .leading)
@@ -829,7 +835,7 @@ private struct WorkspaceView: View {
         destination = .plan
     }
 
-    /// Opens Explore storage, or Locations & access when no included folder has been scanned (#320, #321).
+    /// Opens Explore storage, or Locations when no included folder has been scanned (#320, #321).
     private func exploreStorage(caller: Destination) {
         if hasScannedFolder { openExplorer(caller: caller) } else { navigate(.locations) }
     }
@@ -872,7 +878,7 @@ private struct WorkspaceView: View {
 
     private var locations: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
-            PageHeader(title: "Locations & access", subtitle: "Folders CacheDrop scans at launch and when you scan again.")
+            PageHeader(title: "Locations", subtitle: "Folders CacheDrop scans at launch and when you scan again.")
             ScanHistoryRecordingNotice()
             HStack {
                 Button("Add folder…", action: chooseFolderForScan).disabled(explorer.isScanning || selection.workspaceRunning)
@@ -892,8 +898,7 @@ private struct WorkspaceView: View {
                         }
                         if locationsModel.statuses[scope.id]?.needsRecovery == true {
                             // A row's actions are links (#311).
-                            if scope.isBuiltIn { FullDiskAccessLink(title: "Grant Full Disk Access") } // Never picked (#388).
-                            else { Button("Choose again…") { chooseAgain(scope) }.buttonStyle(.link) }
+                            if !scope.isBuiltIn { Button("Choose again…") { chooseAgain(scope) }.buttonStyle(.link) }
                             Button("Scan again") { scanLocations([scope]) }.buttonStyle(.link).disabled(!scope.isIncluded)
                         }
                         // Built-in Downloads can't be forgotten (#342).
@@ -911,7 +916,6 @@ private struct WorkspaceView: View {
                 Divider()
             }
             if let message = locationsModel.message { StatusRow(text: message, symbol: "info.circle") }
-            FullDiskAccessSetting()
             ProtectedItemsEntry { protectedItemsVisible = true }
             SavedDataEntry { openSavedData(caller: .locations) }
         }.confirmationDialog("Forget location?", isPresented: Binding(get: { locationToForget != nil }, set: { if !$0 { locationToForget = nil } }), titleVisibility: .visible) {

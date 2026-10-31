@@ -35,11 +35,11 @@ private func location(_ scan: ScanResult?, scope: String = "/tmp/Projects") -> S
 }
 
 
-/// #358: a location whose folders macOS kept from CacheDrop says how many, and offers Full Disk Access.
-@Test func unreadableFoldersNameTheirCountAndOfferFullDiskAccess() {
+/// #527: a folder read failure alone does not establish that Full Disk Access is missing.
+@Test func unreadableFoldersNameTheirCountWithoutAssumingFullDiskAccess() {
     let row = location(scan(issues: [("/tmp/Projects/a", .accessDenied), ("/tmp/Projects/b", .accessRevoked), ("/tmp/Projects/b", .accessDenied)]))
     #expect(row.problem == "2 folders couldn’t be read")
-    #expect(row.action == .grantFullDiskAccess)
+    #expect(row.action == .openLocations)
     #expect(location(scan(issues: [("/tmp/Projects/a", .accessDenied)])).problem == "1 folder couldn’t be read")
 }
 
@@ -59,11 +59,11 @@ private func location(_ scan: ScanResult?, scope: String = "/tmp/Projects") -> S
     #expect(row.action == .scanAgain)
 }
 
-/// Several reasons share one line; Full Disk Access is the fix that matters most.
-@Test func reasonsShareOneLineAndFullDiskAccessComesFirst() {
+/// Several reasons share one line; folder guidance comes before retrying an incomplete scan.
+@Test func reasonsShareOneLineAndFolderGuidanceComesFirst() {
     let row = location(scan(issues: [("/tmp/Projects", .timeLimit), ("/tmp/Projects/a", .accessDenied)]))
     #expect(row.problem == "1 folder couldn’t be read · Scan stopped early")
-    #expect(row.action == .grantFullDiskAccess)
+    #expect(row.action == .openLocations)
 }
 
 /// #358: what the user excluded, packages the scan doesn't open and other volumes are neutral notes, never a problem.

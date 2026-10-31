@@ -17,7 +17,7 @@ public struct ScannedLocation: Equatable, Sendable {
     public let problem: String?
     public let action: Action?
 
-    public enum Action: Equatable, Sendable { case grantFullDiskAccess, scanAgain }
+    public enum Action: Equatable, Sendable { case openLocations, scanAgain }
 
     public init(scope: URL, scan: ScanResult?, isBuiltIn: Bool = false) {
         self.scope = scope.standardizedFileURL
@@ -35,7 +35,8 @@ public struct ScannedLocation: Equatable, Sendable {
         if unread > 0 { parts.append(Self.count(unread, "item") + " couldn’t be read") }
         if stopped { parts.append("Scan stopped early") }
         problem = parts.isEmpty ? nil : parts.joined(separator: " · ")
-        action = denied > 0 ? .grantFullDiskAccess : unread > 0 || stopped ? .scanAgain : nil
+        // A folder's read failure does not establish which macOS permission is missing (#527).
+        action = denied > 0 ? .openLocations : unread > 0 || stopped ? .scanAgain : nil
         // Left out on purpose or by design, so never a warning: the user's Protected items, packages the scan lists without opening
         // (`hasUnmeasuredContents`: their contents aren't counted), special files and other volumes.
         let observations = scan?.observations ?? []
