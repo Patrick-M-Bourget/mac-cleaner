@@ -59,12 +59,15 @@ public enum PlugInUninstall {
         }
         var shared: [String: Candidate] = [:], items: [Candidate] = []
         func item(_ rule: CleanupRule, _ url: URL) -> Candidate? {
+            // Receipt support must stay in its recorded system path, including every parent (#329).
+            let scope = rule.id == formatsRuleID ? url.deletingLastPathComponent() : systemRoot
+            guard ScopeContainment.contains(url, in: scope) else { return nil }
             var info = stat()
             guard lstat(url.path, &info) == 0, [S_IFDIR, S_IFREG].contains(info.st_mode & S_IFMT), !isNeverTouched(url, below: systemRoot),
                   let volume = try? url.resourceValues(forKeys: [.volumeUUIDStringKey]).volumeUUIDString, !exclusions.covers(url, volumeID: volume) else { return nil }
             let size = sizer.size(url)
             return catalog.candidate(rule, url, info, logical: size.logicalBytes, allocated: size.allocatedBytes, complete: size.complete, lastUsed: nil)
-                .found(under: url.deletingLastPathComponent())
+                .found(under: scope)
         }
         let taken = RemovedAppLeftovers.notOffered
         let productNames = Set(products.map { RemovedAppLeftovers.token($0.name) }.filter { !$0.isEmpty })

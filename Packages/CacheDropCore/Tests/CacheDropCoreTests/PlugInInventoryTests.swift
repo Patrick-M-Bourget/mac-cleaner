@@ -74,28 +74,28 @@ private func scan(_ root: URL, _ home: URL) -> PlugInInventory {
 }
 
 /// A real installer receipt in the fixture root: its plist, and a BOM made by `mkbom` from a staging copy of `paths`.
-private func receipt(_ id: String, listing paths: [String], in root: URL) throws {
+private func receipt(_ id: String, listing paths: [String], in root: URL, prefix: String = "/") throws {
     let receipts = root.appendingPathComponent("var/db/receipts"), staging = try fixtureFolder("Staging")
     defer { try? FileManager.default.removeItem(at: staging) }
     try FileManager.default.createDirectory(at: receipts, withIntermediateDirectories: true)
     for path in paths { try FileManager.default.createDirectory(at: staging.appendingPathComponent(path + "/Contents"), withIntermediateDirectories: true) }
-    let info: [String: Any] = ["PackageIdentifier": id, "PackageVersion": "1.0", "InstallPrefixPath": "/"]
+    let info: [String: Any] = ["PackageIdentifier": id, "PackageVersion": "1.0", "InstallPrefixPath": prefix]
     try PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0).write(to: receipts.appendingPathComponent(id + ".plist"))
     let mkbom = Process()
     mkbom.executableURL = URL(fileURLWithPath: "/usr/bin/mkbom")
-    mkbom.arguments = [staging.path, receipts.appendingPathComponent(id + ".bom").path]
+    mkbom.arguments = [staging.appendingPathComponent(String(prefix.drop { $0 == "/" })).path, receipts.appendingPathComponent(id + ".bom").path]
     try mkbom.run(); mkbom.waitUntilExit()
     #expect(mkbom.terminationStatus == 0)
 }
 
-@Test func aProductWithSeveralFormatsIsOneRowWithItsDetails() throws {
+@Test(arguments: ["/", "", "Library"]) func aProductWithSeveralFormatsIsOneRowWithItsDetails(prefix: String) throws {
     let root = try fixtureFolder("Root"), home = try fixtureFolder("Home")
     defer { try? FileManager.default.removeItem(at: root); try? FileManager.default.removeItem(at: home) }
     let au = "Library/Audio/Plug-Ins/Components/Pro Synth.component", aax = "Library/Application Support/Avid/Audio/Plug-Ins/ProSynthAAX.aaxplugin"
     try plugIn(au, in: root, id: "com.maker.prosynth.au", version: "2.1", component: "Maker Audio: Pro Synth", architectures: [arm64, x86_64])
     try plugIn(aax, in: root, id: nil, version: "2.1", architectures: [arm64])
     // Installed by the same receipt, so one product though their names and bundle IDs differ.
-    try receipt("com.maker.prosynth.pkg", listing: [au, aax], in: root)
+    try receipt("com.maker.prosynth.pkg", listing: [au, aax], in: root, prefix: prefix)
     // No receipt: the VST3 joins by its bundle ID's vendor and its name.
     try plugIn("Library/Audio/Plug-Ins/VST3/Pro Synth.vst3", in: home, id: "com.maker.vst3.Pro Synth", version: "2.0")
 

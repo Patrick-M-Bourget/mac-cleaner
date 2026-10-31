@@ -35,7 +35,7 @@ private func plugIn(_ relative: String, id: String, in root: URL) throws {
     try PropertyListSerialization.data(fromPropertyList: ["CFBundleIdentifier": id], format: .xml, options: 0).write(to: bundle.appendingPathComponent("Contents/Info.plist"))
 }
 /// A real installer receipt for what is at `paths` under `root` now, as an installer records it.
-private func receipt(_ id: String, listing paths: [String], in root: URL) throws {
+private func receipt(_ id: String, listing paths: [String], in root: URL, prefix: String = "/") throws {
     let receipts = root.appendingPathComponent("var/db/receipts")
     let staging = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropReceipt-\(UUID())")
     defer { try? FileManager.default.removeItem(at: staging) }
@@ -44,18 +44,18 @@ private func receipt(_ id: String, listing paths: [String], in root: URL) throws
         try FileManager.default.createDirectory(at: staging.appendingPathComponent(path).deletingLastPathComponent(), withIntermediateDirectories: true)
         try FileManager.default.copyItem(at: root.appendingPathComponent(path), to: staging.appendingPathComponent(path))
     }
-    let info: [String: Any] = ["PackageIdentifier": id, "PackageVersion": "1.0", "InstallPrefixPath": "/"]
+    let info: [String: Any] = ["PackageIdentifier": id, "PackageVersion": "1.0", "InstallPrefixPath": prefix]
     try PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0).write(to: receipts.appendingPathComponent(id + ".plist"))
     let mkbom = Process()
     mkbom.executableURL = URL(fileURLWithPath: "/usr/bin/mkbom")
-    mkbom.arguments = [staging.path, receipts.appendingPathComponent(id + ".bom").path]
+    mkbom.arguments = [staging.appendingPathComponent(String(prefix.drop { $0 == "/" })).path, receipts.appendingPathComponent(id + ".bom").path]
     try mkbom.run(); mkbom.waitUntilExit()
     #expect(mkbom.terminationStatus == 0)
 }
 
 /// Pro Synth (AU, VST3, its own presets and a license file its receipt lists), Pro Delay of the same maker, and a suite
 /// receipt both install a shared folder from.
-private func fixture(in folder: String? = nil) throws -> (root: URL, home: URL) {
+private func fixture(in folder: String? = nil, prefix: String = "/") throws -> (root: URL, home: URL) {
     let base = folder.map { FileManager.default.temporaryDirectory.appendingPathComponent($0 + "-\(UUID())") } ?? FileManager.default.temporaryDirectory
     let root = base.appendingPathComponent("CacheDropPlugInUninstall-\(UUID())").resolvingSymlinksInPath()
     let home = root.appendingPathComponent("Users/me")
@@ -67,10 +67,10 @@ private func fixture(in folder: String? = nil) throws -> (root: URL, home: URL) 
     try write(support + "Pro Synth/License.dat", in: root)
     try write(support + "Pro Delay/Presets/Echo.fxp", in: root)
     try write(support + "Shared/Engine.wav", in: root, bytes: 5000)
-    try receipt("com.maker.prosynth.pkg", listing: [plugIns + "Components/Pro Synth.component", plugIns + "VST3/Pro Synth.vst3", support + "Pro Synth"], in: root)
-    try receipt("com.maker.prodelay.pkg", listing: [plugIns + "VST3/Pro Delay.vst3", support + "Pro Delay"], in: root)
+    try receipt("com.maker.prosynth.pkg", listing: [plugIns + "Components/Pro Synth.component", plugIns + "VST3/Pro Synth.vst3", support + "Pro Synth"], in: root, prefix: prefix)
+    try receipt("com.maker.prodelay.pkg", listing: [plugIns + "VST3/Pro Delay.vst3", support + "Pro Delay"], in: root, prefix: prefix)
     // A suite receipt lists both products and their shared folder.
-    try receipt("com.maker.suite.pkg", listing: [plugIns + "VST3/Pro Synth.vst3", plugIns + "VST3/Pro Delay.vst3", support + "Shared"], in: root)
+    try receipt("com.maker.suite.pkg", listing: [plugIns + "VST3/Pro Synth.vst3", plugIns + "VST3/Pro Delay.vst3", support + "Shared"], in: root, prefix: prefix)
     try FileManager.default.createDirectory(at: root.appendingPathComponent(".Trash"), withIntermediateDirectories: true)
     return (root, home)
 }
@@ -86,8 +86,8 @@ private func check(_ home: URL, running: Running = Running()) -> CandidateCheck 
 }
 private func names(_ items: [Candidate]) -> Set<String> { Set(items.map(\.url.lastPathComponent)) }
 
-@Test func aProductIsOfferedWithEveryFormatAndItsOwnSupportFilesNothingOfAnotherProduct() throws {
-    let (root, home) = try fixture()
+@Test(arguments: ["/", "", "Library"]) func aProductIsOfferedWithEveryFormatAndItsOwnSupportFilesNothingOfAnotherProduct(prefix: String) throws {
+    let (root, home) = try fixture(prefix: prefix)
     defer { try? FileManager.default.removeItem(at: root) }
     let (inventory, items) = scan(root, home)
     let synth = try product("Pro Synth", inventory)
@@ -111,8 +111,8 @@ private func names(_ items: [Candidate]) -> Set<String> { Set(items.map(\.url.la
     #expect(!items.contains { $0.url.lastPathComponent == "Pro Synth License" })
 }
 
-@Test func sharedItemsAreListedUnderEveryProductCountedOnceAndNeverTickedWithIt() throws {
-    let (root, home) = try fixture()
+@Test(arguments: ["/", "", "Library"]) func sharedItemsAreListedUnderEveryProductCountedOnceAndNeverTickedWithIt(prefix: String) throws {
+    let (root, home) = try fixture(prefix: prefix)
     defer { try? FileManager.default.removeItem(at: root) }
     let (inventory, items) = scan(root, home)
     let synth = try product("Pro Synth", inventory), delay = try product("Pro Delay", inventory)
@@ -124,6 +124,8 @@ private func names(_ items: [Candidate]) -> Set<String> { Set(items.map(\.url.la
     let selection = CategorySelection(rules: PlugInUninstall.rules, candidates: items.filter { $0.isUninstalled(with: synth) }, selected: [])
     guard case .choose(let ids) = selection.toggle else { Issue.record("The product ticks its own items"); return }
     #expect(!ids.contains(shared[0].id), "A shared item is ticked one by one only")
+    let presets = try #require(items.first { $0.ruleID == PlugInUninstall.filesRuleID && $0.isUninstalled(with: synth) })
+    #expect(ids.contains(presets.id), "Its own support follows the product checkbox")
 }
 
 @Test func formatsThatNeedAPasswordAreNeverOfferedAndTheReviewSaysTheyStay() throws {
@@ -147,8 +149,8 @@ private func names(_ items: [Candidate]) -> Set<String> { Set(items.map(\.url.la
         == "Pro Synth: 1 file needs Native Access or your password to remove, so it stays. Remove it with Native Access or in Finder if you want it gone.")
 }
 
-@Test func uninstallingMovesTheProductToTrashAndPutBackRestoresEveryItem() async throws {
-    let (root, home) = try fixture()
+@Test(arguments: ["/", "", "Library"]) func uninstallingMovesTheProductToTrashAndPutBackRestoresEveryItem(prefix: String) async throws {
+    let (root, home) = try fixture(prefix: prefix)
     defer { try? FileManager.default.removeItem(at: root) }
     let (inventory, items) = scan(root, home)
     let synth = try product("Pro Synth", inventory)
@@ -390,8 +392,8 @@ private func unreadableReceipt(_ id: String, in root: URL) throws {
     try Data("not a bill of materials".utf8).write(to: receipts.appendingPathComponent(id + ".bom"))
 }
 
-@Test func aReceiptThatCantBeReadNeverCountsAsListingNothing() throws {
-    let (root, home) = try fixture()
+@Test(arguments: ["/", "", "Library"]) func aReceiptThatCantBeReadNeverCountsAsListingNothing(prefix: String) throws {
+    let (root, home) = try fixture(prefix: prefix)
     defer { try? FileManager.default.removeItem(at: root) }
     let (_, items) = scan(root, home)
     let presets = try #require(items.first { $0.url.lastPathComponent == "Presets" })
@@ -587,4 +589,34 @@ private func unreadableReceipt(_ id: String, in root: URL) throws {
     let (_, items) = scan(root, home)
     #expect(!items.contains { $0.url.lastPathComponent == "com.maker.prosynth.plist" })
     #expect(PlugInUninstall.fileRefusal(root.appendingPathComponent(prefs).path) == .unrecognised("com.maker.prosynth.plist"), "Nor moved")
+}
+
+@Test func relativeReceiptSupportCannotBeReachedThroughASymlinkAtTheScanOrClick() throws {
+    let (root, home) = try fixture(prefix: "Library")
+    defer { try? FileManager.default.removeItem(at: root) }
+    let (_, items) = scan(root, home)
+    let presets = try #require(items.first { $0.ruleID == PlugInUninstall.filesRuleID })
+    #expect(check(home).check(presets) == nil)
+    let maker = root.appendingPathComponent("Library/Application Support/Maker")
+    let elsewhere = root.appendingPathComponent("Elsewhere")
+    try FileManager.default.moveItem(at: maker, to: elsewhere)
+    try FileManager.default.createSymbolicLink(at: maker, withDestinationURL: elsewhere)
+    #expect(check(home).check(presets) == .changed, "Same identity reached through a different parent is refused")
+    let (_, again) = scan(root, home)
+    #expect(!again.contains { $0.ruleID != PlugInUninstall.formatsRuleID }, "Support paths must be reached without a symlink")
+    #expect(again.contains { $0.ruleID == PlugInUninstall.formatsRuleID })
+}
+
+@Test func losingTheReceiptDatabaseAfterScanningKeepsSupportButNotFormatBundles() throws {
+    let (root, home) = try fixture(prefix: "Library")
+    defer { try? FileManager.default.removeItem(at: root) }
+    let (_, items) = scan(root, home)
+    let presets = try #require(items.first { $0.ruleID == PlugInUninstall.filesRuleID })
+    let format = try #require(items.first { $0.ruleID == PlugInUninstall.formatsRuleID })
+    try FileManager.default.moveItem(at: root.appendingPathComponent("var/db/receipts"), to: root.appendingPathComponent("SavedReceipts"))
+    #expect(check(home).check(presets) == .receiptsUnread)
+    #expect(check(home).check(format) == nil)
+    let (_, again) = scan(root, home)
+    #expect(again.allSatisfy { $0.ruleID == PlugInUninstall.formatsRuleID })
+    #expect(!again.isEmpty)
 }
