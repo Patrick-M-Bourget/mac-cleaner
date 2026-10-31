@@ -8,18 +8,20 @@ import SwiftUI
 struct CatalogPlanSection: View {
     @Bindable var model: CatalogCleanupModel
     @Binding var expanded: Set<CatalogCategory>
+    @Binding var sort: ListSort
     /// Where the empty state leads (#321).
     var exploreStorage: (() -> Void)? = nil
     var body: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
+            ColumnHeader(nameTitle: "Name", sizeTitle: "Size", sort: $sort, identifier: "planSort")
             // Nothing known yet: skeleton rows; a rescan dims the rows already shown (#308).
             if !model.hasScanned {
                 SkeletonRows(.category, identifier: "planSkeleton")
             } else {
                 VStack(alignment: .leading, spacing: 0) {
-                    ForEach(model.planCategories) { row in
+                    ForEach(sort.ordered(model.planCategories, name: { $0.category.overviewTitle }, bytes: { $0.estimate.sortBytes })) { row in
                         PlanCategoryRow(model: model, row: row, expanded: Binding(get: { expanded.contains(row.category) },
-                                                                                 set: { if $0 { expanded.insert(row.category) } else { expanded.remove(row.category) } }))
+                                                                                 set: { if $0 { expanded.insert(row.category) } else { expanded.remove(row.category) } }), sort: sort)
                             .id(row.category)
                         Divider().padding(.vertical, CacheDropDesign.Space.md)
                     }
@@ -60,6 +62,8 @@ struct PlanCategoryRow: View {
     @Binding var expanded: Bool
     /// The Applications page's Sort and search, for its files from deleted apps (#295); nil lists everything.
     var listing: ApplicationsListing? = nil
+    /// Cleanup pages pass their own sort; Applications retains its existing listing behavior.
+    var sort: ListSort? = nil
     var body: some View {
         let state = model.selectionState(for: row.rules)
         CategoryRow(category: row.category.storageCategory, state: state, title: row.category.overviewTitle, detail: row.category.overviewDetail,
@@ -71,10 +75,13 @@ struct PlanCategoryRow: View {
             switch row.planLayout {
             case .ruleRows:
                 VStack(alignment: .leading, spacing: 0) {
-                    ForEach(row.rules) { rule in PlanRuleRows(model: model, rule: rule, listing: listing) }
+                    let rules = sort?.ordered(row.rules, name: \.title, bytes: {
+                        SizeEstimate(sum: model.candidates(for: $0).map(SizeEstimate.init)).sortBytes
+                    }) ?? row.rules
+                    ForEach(rules) { rule in PlanRuleRows(model: model, rule: rule, listing: listing, sort: sort) }
                 }
             case .items:
-                if let rule = row.rules.first { PlanRuleItems(model: model, rule: rule, listing: listing) }
+                if let rule = row.rules.first { PlanRuleItems(model: model, rule: rule, listing: listing, sort: sort) }
             case .categoryOnly:
                 EmptyView()
             }
@@ -114,9 +121,11 @@ private struct PlanRuleItems: View {
     @Bindable var model: CatalogCleanupModel
     let rule: CleanupRule
     var listing: ApplicationsListing? = nil
+    /// Cleanup pages pass their own sort; Applications retains its existing listing behavior.
+    var sort: ListSort? = nil
     var body: some View {
-        if !rule.selectedOneByOne, model.candidates(for: rule).contains(where: { $0.group != nil }) { CatalogProfileRows(model: model, rule: rule, listing: listing) }
-        else { CatalogItemRows(model: model, rule: rule, listing: listing) }
+        if !rule.selectedOneByOne, model.candidates(for: rule).contains(where: { $0.group != nil }) { CatalogProfileRows(model: model, rule: rule, listing: listing, sort: sort) }
+        else { CatalogItemRows(model: model, rule: rule, listing: listing, sort: sort) }
     }
 }
 
@@ -126,6 +135,8 @@ private struct PlanRuleRows: View {
     let rule: CleanupRule
     /// A search that matches none of the rule's items hides its row (#295).
     var listing: ApplicationsListing? = nil
+    /// Cleanup pages pass their own sort; Applications retains its existing listing behavior.
+    var sort: ListSort? = nil
     var body: some View {
         let items = model.candidates(for: rule), state = model.selectionState(for: [rule])
         if !items.contains(where: { listing?.matches($0) ?? true }) { EmptyView() } else {
@@ -146,11 +157,11 @@ private struct PlanRuleRows: View {
                                       identifier: "planRule-" + rule.id, showsTitle: false).fixedSize()
             }.help(source.map { _ in rule.detail + "\n" + items.map(\.url.path).joined(separator: "\n") } ?? "")
             PlanRunningOwners(model: model, rule: rule).padding(.leading, CacheDropDesign.Space.xl).padding(.bottom, CacheDropDesign.Space.sm)
-            if rule.choosesItems && !rule.groupsByProject { CatalogItemRows(model: model, rule: rule, listing: listing).padding(.leading, CacheDropDesign.Space.xl) }
-            else if items.contains(where: { $0.group != nil }) { CatalogProfileRows(model: model, rule: rule, listing: listing).padding(.leading, CacheDropDesign.Space.xl) }
+            if rule.choosesItems && !rule.groupsByProject { CatalogItemRows(model: model, rule: rule, listing: listing, sort: sort).padding(.leading, CacheDropDesign.Space.xl) }
+            else if items.contains(where: { $0.group != nil }) { CatalogProfileRows(model: model, rule: rule, listing: listing, sort: sort).padding(.leading, CacheDropDesign.Space.xl) }
             // Items something holds (#374) are listed under the rule, each ticked on its own.
             else if items.contains(where: { $0.hold != nil }) {
-                CatalogItemRows(model: model, rule: rule, listing: listing, onlyHeld: true).padding(.leading, CacheDropDesign.Space.xl)
+                CatalogItemRows(model: model, rule: rule, listing: listing, sort: sort, onlyHeld: true).padding(.leading, CacheDropDesign.Space.xl)
             }
             Divider()
         }

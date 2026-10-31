@@ -2500,3 +2500,92 @@ extension CatalogCleanupUITests {
         XCTAssertFalse(FileManager.default.fileExists(atPath: folder.appendingPathComponent("recent/node_modules").path), "Ticking overrides a recent edit")
     }
 }
+
+extension CatalogCleanupUITests {
+    /// #521: sizes and names deliberately disagree at the category, rule and item levels.
+    @MainActor private func addSortingFixture(in home: URL) throws {
+        _ = try addDeveloperCaches(home, folders: ["Library/Caches/Yarn"])
+        try Data(repeating: 3, count: 400_000).write(to: home.appendingPathComponent("Library/Caches/Yarn/entry"))
+        let old = Date().addingTimeInterval(-200 * 86_400)
+        for (name, bytes) in [("Alpha.dmg", 400_000), ("Zulu.dmg", 800_000)] {
+            let file = home.appendingPathComponent("Downloads/Fixture.noindex/" + name)
+            try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data(repeating: 5, count: bytes).write(to: file)
+            try FileManager.default.setAttributes([.creationDate: old, .modificationDate: old], ofItemAtPath: file.path)
+            var times = [timeval(tv_sec: Int(old.timeIntervalSince1970), tv_usec: 0), timeval(tv_sec: Int(old.timeIntervalSince1970), tv_usec: 0)]
+            XCTAssertEqual(utimes(file.path, &times), 0)
+        }
+    }
+
+    @MainActor func testSmartCleanSortsCategoriesAndLinesAndKeepsEachPagesChoice() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app), home = try configureCatalogHome(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        try addSortingFixture(in: home)
+        app.launch(); waitForCatalogScan(app)
+        app.typeKey("2", modifierFlags: .command)
+        let name = app.buttons["smartCleanSort-name"], size = app.buttons["smartCleanSort-size"]
+        XCTAssertTrue(size.waitForExistence(timeout: 5))
+        XCTAssertEqual(size.value as? String, "Largest first")
+        expandDisclosures(in: app)
+        let developer = app.checkBoxes["smartCleanCategory-developer"], downloads = app.checkBoxes["smartCleanCategory-downloads"]
+        let npm = app.checkBoxes["smartCleanLine-npm-cache|"], yarn = app.checkBoxes["smartCleanLine-yarn-cache|"]
+        XCTAssertTrue(npm.exists && yarn.exists)
+        XCTAssertLessThan(downloads.frame.minY, developer.frame.minY)
+        XCTAssertLessThan(yarn.frame.minY, npm.frame.minY)
+        revealAndClick(npm, in: app)
+        for (button, developerFirst, npmFirst) in [(name, true, true), (name, false, false), (size, false, false), (size, true, true)] {
+            revealAndClick(button, in: app)
+            XCTAssertEqual(developer.frame.minY < downloads.frame.minY, developerFirst)
+            XCTAssertEqual(npm.frame.minY < yarn.frame.minY, npmFirst)
+            XCTAssertEqual(npm.value as? Int, 0, "Sorting preserves an untick")
+            XCTAssertEqual(yarn.value as? Int, 1)
+        }
+        app.typeKey("3", modifierFlags: .command)
+        XCTAssertEqual(app.buttons["planSort-size"].value as? String, "Largest first", "Each page starts with its own default")
+        app.buttons["planSort-name"].click()
+        expandDisclosures(in: app)
+        XCTAssertEqual(app.checkBoxes["planRule-npm-cache"].value as? Int, 0, "The selection is shared across pages")
+        app.typeKey("2", modifierFlags: .command)
+        XCTAssertEqual(size.value as? String, "Smallest first", "Navigation preserves Smart clean's choice")
+        app.typeKey("3", modifierFlags: .command)
+        XCTAssertEqual(app.buttons["planSort-name"].value as? String, "A to Z", "Navigation preserves the plan's separate choice")
+        app.terminate(); app.launch(); waitForCatalogScan(app)
+        app.typeKey("2", modifierFlags: .command)
+        XCTAssertEqual(size.value as? String, "Largest first")
+        app.typeKey("3", modifierFlags: .command)
+        XCTAssertEqual(app.buttons["planSort-size"].value as? String, "Largest first", "A new launch resets both sorts")
+    }
+
+    @MainActor func testCleanupPlanSortsRulesAndItemsWithinTheirCategoriesWithoutChangingTicks() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app), home = try configureCatalogHome(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        try addSortingFixture(in: home)
+        app.launch(); waitForCatalogScan(app)
+        app.typeKey("3", modifierFlags: .command)
+        let name = app.buttons["planSort-name"], size = app.buttons["planSort-size"]
+        XCTAssertTrue(size.waitForExistence(timeout: 5))
+        expandDisclosures(in: app)
+        let npm = app.checkBoxes["planRule-npm-cache"], yarn = app.checkBoxes["planRule-yarn-cache"]
+        let alpha = app.checkBoxes["planItem-Alpha.dmg"], zulu = app.checkBoxes["planItem-Zulu.dmg"]
+        let developer = app.checkBoxes["planCategory-developer"], downloads = app.checkBoxes["planCategory-downloads"]
+        XCTAssertTrue(npm.exists && yarn.exists && alpha.exists && zulu.exists)
+        XCTAssertLessThan(downloads.frame.minY, developer.frame.minY)
+        XCTAssertLessThan(yarn.frame.minY, npm.frame.minY)
+        XCTAssertLessThan(zulu.frame.minY, alpha.frame.minY)
+        revealAndClick(alpha, in: app)
+        let ticked = alpha.value as? Int
+        for (button, developerFirst, smallerFirst) in [(name, true, true), (name, false, false), (size, false, false), (size, true, true)] {
+            revealAndClick(button, in: app)
+            XCTAssertEqual(developer.frame.minY < downloads.frame.minY, developerFirst)
+            XCTAssertEqual(npm.frame.minY < yarn.frame.minY, smallerFirst)
+            XCTAssertEqual(alpha.frame.minY < zulu.frame.minY, smallerFirst)
+            XCTAssertLessThan(downloads.frame.minY, min(alpha.frame.minY, zulu.frame.minY), "Items stay below their own category")
+            XCTAssertLessThan(developer.frame.minY, min(npm.frame.minY, yarn.frame.minY), "Rules stay below their own category")
+            XCTAssertEqual(alpha.value as? Int, ticked, "Sorting never changes a tick")
+        }
+    }
+}
