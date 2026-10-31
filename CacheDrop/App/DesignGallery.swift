@@ -13,15 +13,21 @@ struct DesignGallery: View {
     @State private var growthExamplesExpanded = false
     @State private var alertExamplesExpanded = false
     @State private var categoryRowExpanded = false
+    @State private var showsNavigationPrototype = false
     var body: some View {
         VStack(spacing: 0) {
             HStack {
                 Text("CacheDrop · Component gallery").font(.headline).accessibilityIdentifier("designGalleryTitle")
                 Spacer()
+                Button(showsNavigationPrototype ? "Components" : "Navigation prototype") { showsNavigationPrototype.toggle() }
+                    .accessibilityIdentifier("galleryNavigationPrototype")
                 Toggle("Opaque chrome", isOn: $opaque).accessibilityIdentifier("galleryOpaqueChrome")
                 AppearancePicker(choice: $appearance).labelsHidden().fixedSize()
                 CloseButton(label: "Close Design gallery", identifier: "closeDesignGallery") { dismissWindow(id: "design-gallery") }
             }.padding(CacheDropDesign.Space.lg).background { ChromeSurface() }
+            if showsNavigationPrototype {
+                NavigationPrototype()
+            } else {
             ScrollView {
                 VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
                     PageHeader(title: "Native design system", subtitle: "Developer examples only · No personal storage measurements",
@@ -204,6 +210,7 @@ struct DesignGallery: View {
             ActionStrip(message: "Developer gallery · Actions are inert examples") { ReviewCleanupButton(enabled: false, focusRequest: 0, action: {}) }
                 .environment(\.cacheDropBackgroundWork, BackgroundWorkStatus(line: .init(parts: [.init(id: "galleryFolderScan", text: "Scanning Downloads"), .init(id: "galleryPhase", text: "Reading files…"), .init(id: "galleryCount", text: "1,240 files read")], runsFolderScan: true), stop: {}, returnToScan: {}))
             ActionStrip(message: "Developer gallery · Actions are inert examples") { ReviewCleanupButton(enabled: false, focusRequest: 0, action: {}) }
+            }
         }
         .accessibilityElement(children: .contain).accessibilityIdentifier("designGallery")
         .cacheDropButtonRule()
@@ -211,6 +218,179 @@ struct DesignGallery: View {
         .preferredColorScheme(appearance == .automatic ? nil : appearance == .dark ? .dark : .light)
     }
 }
+/// Throwaway #537 comparison in the gallery: current shell, inset glass, and system split sidebar.
+/// The gallery IS the native prototype; it has no second copy of the experimental components.
+private struct NavigationPrototype: View {
+    private enum Layout: String, CaseIterable {
+        case current = "A · Current", inset = "B · Inset glass", system = "C · System sidebar"
+    }
+    private enum Backdrop: String, CaseIterable { case bright = "Bright", dark = "Dark", colorful = "Colorful" }
+    @State private var layout = Layout.inset
+    @State private var backdrop = Backdrop.colorful
+    @State private var destination: Destination? = .plan
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("#537 · Navigation prototype · Synthetic data").font(CacheDropDesign.TypeStyle.caption)
+                Spacer()
+                Picker("Backdrop", selection: $backdrop) {
+                    ForEach(Backdrop.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                }.fixedSize().accessibilityIdentifier("navigationPrototypeBackdrop")
+            }.padding(CacheDropDesign.Space.md).background(CacheDropDesign.summary)
+            shell
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background { background }
+                .overlay(alignment: .bottom) { switcher.padding(CacheDropDesign.Space.md) }
+        }
+        .accessibilityElement(children: .contain).accessibilityIdentifier("navigationPrototype")
+    }
+
+    @ViewBuilder private var shell: some View {
+        switch layout {
+        case .current:
+            HStack(spacing: 0) {
+                NavigationPrototypeSidebar(destination: $destination, native: false)
+                    .frame(width: CacheDropDesign.Size.sidebarWidth).background { ChromeSurface(role: .sidebar) }
+                Divider()
+                content
+            }
+        case .inset:
+            HStack(spacing: CacheDropDesign.Space.md) {
+                NavigationPrototypeSidebar(destination: $destination, native: true)
+                    .frame(width: CacheDropDesign.Size.sidebarWidth + CacheDropDesign.Space.page)
+                    .modifier(NavigationPrototypeGlass())
+                    .padding(.vertical, CacheDropDesign.Space.md).padding(.leading, CacheDropDesign.Space.md)
+                content
+            }
+        case .system:
+            NavigationSplitView {
+                NavigationPrototypeSidebar(destination: $destination, native: true)
+                    .navigationSplitViewColumnWidth(min: CacheDropDesign.Size.sidebarWidth,
+                                                    ideal: CacheDropDesign.Size.sidebarWidth + CacheDropDesign.Space.page)
+            } detail: { content }
+                .navigationSplitViewStyle(.balanced)
+                .toolbar(.hidden, for: .windowToolbar)
+        }
+    }
+
+    private var content: some View {
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
+                    PageHeader(title: destination?.rawValue ?? "Cleanup plan", subtitle: "Synthetic selection · No files will change")
+                    SelectionSummary(value: "543.6 MB", detail: "109 items selected", title: "Ready to clean")
+                    VStack(spacing: 0) {
+                        example(.developer, title: "Developer caches and build files", detail: "Package caches and build files that tools rebuild", size: "1.91 GB", count: 33)
+                        Divider()
+                        example(.browser, title: "Browser caches", detail: "Cached pages and images browsers fetch again", size: "640 MB", count: 4)
+                        Divider()
+                        example(.downloads, title: "Downloads", detail: "Files you downloaded", size: "128 MB", count: 3)
+                    }
+                    Text("Navigation changes only this example. Every page uses the same synthetic selection.")
+                        .font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                }.padding(CacheDropDesign.Space.page)
+            }.scrollEdgeEffectHidden(true, for: .top)
+            ActionStrip(message: "Synthetic selection") { ReviewCleanupButton(enabled: false, focusRequest: 0, action: {}) }
+            // The review switcher is tooling, separate from the app's bottom bar.
+            Color.clear.frame(height: CacheDropDesign.Size.actionStripRow + CacheDropDesign.Space.xl)
+        }.frame(maxWidth: .infinity, maxHeight: .infinity).background(CacheDropDesign.reading)
+    }
+
+    private func example(_ category: StorageCategory, title: String, detail: String, size: String, count: Int) -> some View {
+        CategoryRow(category: category, state: .checked, title: title, detail: detail, size: size, enabled: true,
+                    identifier: "prototypeCategory-" + title, itemCount: count, expanded: .constant(false), toggle: {}) {
+            EmptyView()
+        } items: { EmptyView() }
+    }
+
+    @ViewBuilder private var background: some View {
+        switch backdrop {
+        case .bright: Color.white
+        case .dark: Color.black
+        case .colorful:
+            LinearGradient(colors: [CacheDropDesign.blue, CacheDropDesign.purple, CacheDropDesign.teal], startPoint: .topLeading, endPoint: .bottomTrailing)
+        }
+    }
+
+    private var switcher: some View {
+        HStack(spacing: CacheDropDesign.Space.md) {
+            Button { cycle(-1) } label: { Image(systemName: "chevron.left") }
+                .keyboardShortcut("[", modifiers: .command).accessibilityLabel("Previous prototype").accessibilityIdentifier("navigationPrototypePrevious")
+            Picker("Layout", selection: $layout) {
+                ForEach(Layout.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+            }.labelsHidden().fixedSize().accessibilityIdentifier("navigationPrototypeLayout")
+            Button { cycle(1) } label: { Image(systemName: "chevron.right") }
+                .keyboardShortcut("]", modifiers: .command).accessibilityLabel("Next prototype").accessibilityIdentifier("navigationPrototypeNext")
+        }.padding(CacheDropDesign.Space.md).background(CacheDropDesign.summary, in: Capsule())
+            .overlay { Capsule().strokeBorder(CacheDropDesign.separator, lineWidth: CacheDropDesign.Stroke.regular) }
+    }
+
+    private func cycle(_ step: Int) {
+        let layouts = Layout.allCases
+        let index = layouts.firstIndex(of: layout) ?? 0
+        layout = layouts[(index + step + layouts.count) % layouts.count]
+    }
+}
+
+/// Regular glass belongs to navigation; the reading canvas keeps its existing surface.
+private struct NavigationPrototypeGlass: ViewModifier {
+    @Environment(\.accessibilityReduceTransparency) private var reduced
+    @Environment(\.colorSchemeContrast) private var contrast
+    @Environment(\.cacheDropOpaqueChrome) private var opaque
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: CacheDropDesign.Radius.surface * 2)
+        content.background {
+            if reduced || opaque { shape.fill(CacheDropDesign.sidebar) }
+            else { Color.clear.glassEffect(.regular, in: shape) }
+        }.clipShape(shape)
+            .overlay { if contrast == .increased { shape.strokeBorder(CacheDropDesign.separator, lineWidth: CacheDropDesign.Stroke.regular) } }
+    }
+}
+
+/// Shared by every candidate layout. Native List owns keyboard focus and selection in B and C.
+private struct NavigationPrototypeSidebar: View {
+    @Binding var destination: Destination?
+    @Environment(\.cacheDropOpaqueChrome) private var opaque
+    let native: Bool
+    var body: some View {
+        VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
+            AppBrand().padding(CacheDropDesign.Space.lg)
+            if native {
+                List(selection: $destination) {
+                    Section("Storage") {
+                        ForEach(Destination.allCases.filter { $0 != .locations }) { row($0) }
+                    }
+                    Section("Settings") { row(.locations) }
+                }.listStyle(.sidebar).scrollContentBackground(.hidden)
+                    .accessibilityIdentifier("prototypeNavigationList")
+            } else {
+                Text("Storage").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                ForEach(Destination.allCases.filter { $0 != .locations }) { currentRow($0) }
+                Text("Settings").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).padding(.top, CacheDropDesign.Space.xl)
+                currentRow(.locations)
+                Spacer()
+            }
+            VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
+                Label("This Mac", systemImage: "laptopcomputer").font(CacheDropDesign.TypeStyle.note)
+                CapacityMeter(available: 40_000_000_000, total: 100_000_000_000, compact: true)
+                Text("Updated 10:42 AM").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+            }.padding(CacheDropDesign.Space.lg)
+        }.padding(.horizontal, CacheDropDesign.Space.sm)
+            .background { if opaque { CacheDropDesign.sidebar } }
+    }
+    private func row(_ page: Destination) -> some View {
+        NavigationLink(value: page) {
+            Label(page.rawValue, systemImage: page.symbol)
+                .badge(page == .plan ? 7 : 0)
+        }.accessibilityIdentifier("prototype-" + page.rawValue)
+    }
+    private func currentRow(_ page: Destination) -> some View {
+        CacheDropSidebarRow(title: page.rawValue, symbol: page.symbol, selected: destination == page,
+                           selectedCategories: page == .plan ? 7 : nil) { destination = page }
+    }
+}
+
 /// Inert presentation examples reuse the live capacity components; no reads or timers.
 private struct CapacityGalleryExamples: View {
     var body: some View {
