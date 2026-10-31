@@ -55,3 +55,56 @@ private func fixture() throws -> (root: URL, home: URL, listings: [String: Strin
         InstallerReceipt(id: "com.maker.synth.pkg", apps: [root.path + "/Applications/Synth.app"], paths: [home.path + "/Library/Application Support/Synth"]),
     ])
 }
+
+/// A missing record stays readable, including prefixes at the Library, format-folder and bundle levels (#329).
+@Test(arguments: [
+    ("Library", ".\n./Audio/Plug-Ins/VST3/FX.vst3/Contents/Info.plist\n"),
+    ("Library/Audio/Plug-Ins/VST3", ".\n./FX.vst3/Contents/Info.plist\n"),
+    ("Library/Audio/Plug-Ins/VST3/FX.vst3", ".\n./Contents/Info.plist\n"),
+])
+func aMissingRecordedFileDoesNotMakeARelativeReceiptUnread(example: (prefix: String, listing: String)) throws {
+    let (root, home, listings) = try fixture()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let file = root.appendingPathComponent("var/db/receipts/com.maker.fx.pkg.plist")
+    let info: [String: Any] = ["PackageIdentifier": "com.maker.fx.pkg", "InstallPrefixPath": example.prefix]
+    try PropertyListSerialization.data(fromPropertyList: info, format: .binary, options: 0).write(to: file)
+    let read = ReceiptListings.read(under: root) { bom in
+        bom.deletingPathExtension().lastPathComponent == "com.maker.fx.pkg" ? example.listing : listings[bom.deletingPathExtension().lastPathComponent]
+    }
+    #expect(read.byReceipt["com.maker.fx.pkg"]?.contains(root.path + "/Library/Audio/Plug-Ins/VST3/FX.vst3/Contents/Info.plist") == true)
+    #expect(read.unread == ["com.maker.broken.pkg.plist"])
+    #expect(PlugInInventory.scan(home: home, systemRoot: root, receipts: read).products.isEmpty)
+}
+
+@Test(arguments: [".\n./../Users/me/Library/Preferences/Other.plist\n", ".\n./Audio/../../Other\n", ".\n.not-a-bom-path\n", ".\n.//Library/Other\n", ".\n./bad\0path\n"])
+func anInvalidReceiptEntryKeepsTheWholeReceiptUnread(listing: String) throws {
+    let (root, _, _) = try fixture()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let read = ReceiptListings.read(under: root) { _ in listing }
+    #expect(read.byReceipt.isEmpty)
+    #expect(Set(read.unread) == ["com.maker.synth.pkg.plist", "com.maker.fx.pkg.plist", "com.maker.broken.pkg.plist"])
+}
+
+@Test(arguments: ["Library/../Users/me", "../outside", "Library/bad\0prefix"])
+func anInvalidInstallPrefixKeepsTheWholeReceiptUnread(prefix: String) throws {
+    let (root, _, _) = try fixture()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let file = root.appendingPathComponent("var/db/receipts/com.maker.fx.pkg.plist")
+    let info: [String: Any] = ["PackageIdentifier": "com.maker.fx.pkg", "InstallPrefixPath": prefix]
+    try PropertyListSerialization.data(fromPropertyList: info, format: .binary, options: 0).write(to: file)
+    let read = ReceiptListings.read(under: root) { _ in ".\n./Audio/Plug-Ins/VST3/FX.vst3\n" }
+    #expect(read.byReceipt["com.maker.fx.pkg"] == nil)
+    #expect(read.unread == ["com.maker.fx.pkg.plist"])
+}
+
+@Test func aReceiptDatabaseThatCannotBeListedIsUnknownNeverAnEmptySuccessfulRead() throws {
+    let (root, _, _) = try fixture()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let folder = root.appendingPathComponent("var/db/receipts")
+    try FileManager.default.removeItem(at: folder)
+    // A file in place of the folder gives a deterministic enumeration failure, even under an elevated test runner.
+    try Data().write(to: folder)
+    let read = ReceiptListings.read(under: root)
+    #expect(read.byReceipt.isEmpty)
+    #expect(!read.unread.isEmpty)
+}
