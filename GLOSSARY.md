@@ -13,7 +13,8 @@ The names CacheDrop shows, what they mean, and where they live in code. Copy fol
 | Applications | Apps, plug-ins and files from deleted apps | `ApplicationsView`, `ApplicationsInventory` |
 | Storage trends | What grew or shrank between two scans | `StorageTrends*` (`StorageTrendsHistoryView`, `StorageTrendsHistoryStore`) |
 | History | Past cleanups and scans | `CleanupHistoryView`, `ScanActivityHistory` |
-| Locations & access | Scanned locations, Full Disk Access, Protected items, Saved data | `CacheDropApp.swift`, `RememberedLocations` |
+| Locations | Scanned locations, Protected items, Saved data | `CacheDropApp.swift`, `RememberedLocations` |
+| System access | Optional Full Disk Access status and guidance | `SystemAccessView`, `FullDiskAccessGuide` |
 | Explore storage | Browse a scanned folder by size | `StorageExplorer`, `ExploreStorage` |
 | Protected items | Paths CacheDrop never offers | `ProtectedItems*` (`ProtectedItemsView`, `ProtectedItemsPolicy`) |
 | Saved data | What CacheDrop keeps on this Mac, and Reset | `SavedData*` (`SavedDataView`) |

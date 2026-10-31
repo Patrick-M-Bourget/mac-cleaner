@@ -211,7 +211,73 @@ final class LaunchSmokeUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
     }
 
-    /// #115: launch never asks for access; Locations & access shows the state in one row and the shared explanation.
+    /// #527: folder settings and optional system access have separate destinations and shortcuts.
+    @MainActor func testLocationsAndSystemAccessHaveSeparateContents() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        app.launch()
+        app.typeKey("7", modifierFlags: .command)
+        XCTAssertTrue(app.staticTexts["Folders CacheDrop scans at launch and when you scan again."].waitForExistence(timeout: 10))
+        XCTAssertEqual(app.buttons["Locations & access"].label, "Locations", "The visible rename preserves the existing sidebar identifier")
+        XCTAssertTrue(app.links["manageLocalRecords"].exists)
+        XCTAssertTrue(app.links["openProtectedItems"].exists)
+        XCTAssertFalse(app.staticTexts["fullDiskAccessStatus"].exists)
+        app.typeKey("8", modifierFlags: .command)
+        XCTAssertTrue(app.staticTexts["Full Disk Access is optional. You can keep using CacheDrop without it."].waitForExistence(timeout: 5))
+        let status = app.staticTexts["fullDiskAccessStatus"]
+        XCTAssertTrue(status.waitForExistence(timeout: 5))
+        XCTAssertTrue((status.value as? String ?? status.label).contains("Couldn’t check"))
+        XCTAssertTrue(app.staticTexts["fullDiskAccessSummary"].exists)
+        XCTAssertTrue(app.links["systemAccessOpenSettings"].exists)
+        XCTAssertFalse(app.sheets.firstMatch.exists)
+        XCTAssertFalse(app.links["manageLocalRecords"].exists)
+    }
+
+    /// The system boundary is delayed only in this fixture so the loading state can be inspected.
+    @MainActor func testSystemAccessKeepsGuidanceWhileCheckingAndUnknown() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app), home = try configureCatalogHome(app)
+        app.launchEnvironment["CACHEDROP_TEST_FULL_DISK_ACCESS_PAUSE"] = "10"
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        app.launch()
+        app.typeKey("8", modifierFlags: .command)
+        let status = app.staticTexts["fullDiskAccessStatus"]
+        XCTAssertTrue(status.waitForExistence(timeout: 5))
+        XCTAssertTrue((status.value as? String ?? status.label).contains("Checking…"))
+        XCTAssertTrue(app.staticTexts["fullDiskAccessSummary"].exists)
+        XCTAssertTrue(app.links["systemAccessOpenSettings"].isHittable)
+        let unknown = NSPredicate(format: "label CONTAINS %@ OR value CONTAINS %@", "Couldn’t check", "Couldn’t check")
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: unknown, object: status)], timeout: 15), .completed)
+        XCTAssertTrue(app.staticTexts["fullDiskAccessSummary"].exists)
+        XCTAssertTrue(app.links["systemAccessOpenSettings"].isHittable)
+    }
+
+    @MainActor func testFolderAccessGuidanceOpensLocations() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app), home = try configureCatalogHome(app)
+        let downloads = home.appendingPathComponent("Downloads")
+        try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: downloads.path)
+        defer {
+            app.terminate(); try? FileManager.default.removeItem(at: state)
+            try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: downloads.path)
+            try? FileManager.default.removeItem(at: home)
+        }
+        app.launch()
+        let help = app.links["overviewDownloadsLocations"]
+        XCTAssertTrue(help.waitForExistence(timeout: 20))
+        help.click()
+        XCTAssertTrue(app.staticTexts["Folders CacheDrop scans at launch and when you scan again."].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.sheets.firstMatch.exists)
+        XCTAssertFalse(app.links["fullDiskAccessLink"].exists)
+        XCTAssertTrue(app.links["Scan again"].exists)
+    }
+
+    /// #527: System access shows guidance directly; contextual FDA links keep the shared sheet.
     /// The fixture home's Safari folder refuses to open, which is how the probe sees missing Full Disk Access.
     @MainActor func testFullDiskAccessIsExplainedOnlyWhenAsked() throws {
         continueAfterFailure = false
@@ -229,11 +295,14 @@ final class LaunchSmokeUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
         XCTAssertFalse(app.sheets.firstMatch.exists, "Nothing asks for access at launch")
 
-        app.buttons["Locations & access"].click()
+        app.typeKey("8", modifierFlags: .command)
         let status = app.staticTexts["fullDiskAccessStatus"]
         XCTAssertTrue(status.waitForExistence(timeout: 5))
         XCTAssertTrue((status.value as? String ?? status.label).contains("Not granted"))
 
+        XCTAssertTrue(app.staticTexts["fullDiskAccessSummary"].exists)
+        XCTAssertTrue(app.links["systemAccessOpenSettings"].isHittable)
+        app.typeKey("1", modifierFlags: .command)
         // #161: the calm sheet: title, two-line explanation, coverage table, one note, two buttons.
         revealAndClick(app.links["fullDiskAccessLink"].firstMatch, in: app)
         let sheet = app.sheets.firstMatch
@@ -251,20 +320,28 @@ final class LaunchSmokeUITests: XCTestCase {
         sheet.buttons["dismissFullDiskAccess"].click()
         XCTAssertFalse(sheet.staticTexts["Broader access is optional"].waitForExistence(timeout: 2))
 
-        // Granted: the same sheet shows a single Done. The fixture's Safari folder opening stands in for the grant.
-        app.terminate()
+        // Returning from another app refreshes the same System access instance.
+        app.typeKey("8", modifierFlags: .command)
+        let finder = XCUIApplication(bundleIdentifier: "com.apple.finder")
+        finder.activate()
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: safari.path)
-        app.launch()
-        app.buttons["Locations & access"].click()
-        XCTAssertTrue(app.staticTexts["fullDiskAccessStatus"].waitForExistence(timeout: 5))
-        revealAndClick(app.links["fullDiskAccessLink"].firstMatch, in: app)
-        let done = sheet.buttons["closeFullDiskAccess"]
+        app.activate()
+        let granted = NSPredicate(format: "label CONTAINS %@ OR value CONTAINS %@", "Granted", "Granted")
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: granted, object: status)], timeout: 10), .completed)
+        XCTAssertFalse(app.links["systemAccessOpenSettings"].exists)
+        XCTAssertEqual(app.staticTexts["fullDiskAccessSheetStatus"].value as? String ?? app.staticTexts["fullDiskAccessSheetStatus"].label, "Included")
+        XCTAssertFalse(app.staticTexts["fullDiskAccessHowTo"].exists)
+
+        // Onboarding still opens the shared sheet, whose granted state has a single Done.
+        app.menuBars.menuBarItems["Help"].click()
+        app.menuBars.menuItems["Welcome to CacheDrop"].click()
+        app.buttons["welcomeContinue"].click()
+        app.sheets.links["fullDiskAccessLink"].firstMatch.click()
+        let done = app.buttons["closeFullDiskAccess"]
         XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == 'Done'"), object: done)], timeout: 10), .completed)
-        XCTAssertFalse(sheet.buttons["openFullDiskAccessSettings"].exists)
-        XCTAssertEqual(protected.value as? String ?? protected.label, "Included")
-        XCTAssertFalse(sheet.staticTexts["fullDiskAccessHowTo"].exists)
+        XCTAssertFalse(app.buttons["openFullDiskAccessSettings"].exists)
         done.click()
-        XCTAssertFalse(sheet.waitForExistence(timeout: 2))
+        XCTAssertFalse(app.staticTexts["Broader access is optional"].waitForExistence(timeout: 2))
     }
 
     /// #124: Full Disk Access granted while CacheDrop was away: coming back rescans once, and the "needs Full Disk Access"
@@ -412,7 +489,7 @@ final class BackButtonUITests: XCTestCase {
         let manage = app.descendants(matching: .any)["manageLocalRecords"]
         XCTAssertTrue(manage.waitForExistence(timeout: 5))
         revealAndClick(manage, in: app)
-        let back = app.buttons["Back to Locations & access"]
+        let back = app.buttons["Back to Locations"]
         assertBackButton(back, isAbove: "Saved data", in: app)
         XCTAssertTrue(actionStrip(app).exists, "The bottom bar stays, empty")
         back.click()
@@ -421,7 +498,7 @@ final class BackButtonUITests: XCTestCase {
     }
 }
 
-/// #313: custom exclusions are reached from Locations & access, as its Protected items row.
+/// #313: custom exclusions are reached from Locations, as its Protected items row.
 final class ProtectedItemsUITests: XCTestCase {
     @MainActor func testProtectedItemsOpensFromLocationsAndReturns() throws {
         continueAfterFailure = false
@@ -436,7 +513,7 @@ final class ProtectedItemsUITests: XCTestCase {
         let open = app.descendants(matching: .any)["openProtectedItems"]
         XCTAssertTrue(open.waitForExistence(timeout: 5))
         revealAndClick(open, in: app)
-        let back = app.buttons["Back to Locations & access"]
+        let back = app.buttons["Back to Locations"]
         assertBackButton(back, isAbove: "Protected items", in: app)
         XCTAssertTrue(app.buttons["chooseExclusion"].waitForExistence(timeout: 5), "The page offers adding an exclusion")
         back.click()
@@ -523,7 +600,7 @@ final class AppearanceSettingsUITests: XCTestCase {
     }
 }
 
-/// #127, #141, #270: ⌘1–⌘7 follow the sidebar order, Applications above Storage trends, and ⌘R scans again from any screen.
+/// #127, #141, #270, #527: ⌘1–⌘8 follow the sidebar order, Applications above Storage trends, and ⌘R scans again from any screen.
 final class KeyboardShortcutsUITests: XCTestCase {
     @MainActor func testShortcutsFollowTheSidebarAndCommandRScansAgain() throws {
         continueAfterFailure = false
@@ -535,7 +612,7 @@ final class KeyboardShortcutsUITests: XCTestCase {
         app.launch()
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
 
-        let sidebar = ["Overview", "Smart clean", "Cleanup plan", "Applications", "Storage trends", "History", "Locations & access"]
+        let sidebar = ["Overview", "Smart clean", "Cleanup plan", "Applications", "Storage trends", "History", "Locations", "System access"]
         let rows = sidebar.map { app.buttons[$0].frame.minY }
         XCTAssertEqual(rows, rows.sorted(), "The sidebar lists \(sidebar.joined(separator: ", ")) from the top")
         for (index, title) in sidebar.enumerated().reversed() {
@@ -788,7 +865,7 @@ final class ScannedLocationsUITests: XCTestCase {
     }
 
     /// #345, #358: a scanned folder is a row in Overview's Scanned locations group, under the recommended categories, with its
-    /// size and an Explore link; a subfolder it couldn't read gives that row its own reason and Full Disk Access, and the generic
+    /// size and an Explore link; a subfolder it couldn't read gives that row its own reason and Locations guidance, and the generic
     /// "couldn't be read in full" line is gone.
     @MainActor func testAScannedFolderIsARowWithItsOwnReasonAndExploreLink() throws {
         continueAfterFailure = false
@@ -822,7 +899,12 @@ final class ScannedLocationsUITests: XCTestCase {
         let problem = element(identifier: "overviewLocationProblem:" + folder.path, in: app)
         XCTAssertTrue(problem.waitForExistence(timeout: 5))
         XCTAssertEqual(problem.value as? String, "1 folder couldn’t be read")
-        XCTAssertEqual(app.links["fullDiskAccessLink"].label, "Grant Full Disk Access")
+        let help = element(identifier: "overviewLocationAccess:" + folder.path, in: app)
+        XCTAssertEqual(help.label, "Locations")
+        help.click()
+        XCTAssertTrue(app.staticTexts["Folders CacheDrop scans at launch and when you scan again."].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.sheets.firstMatch.exists)
+        app.typeKey("1", modifierFlags: .command)
         XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'couldn’t be read in full'")).firstMatch.exists)
 
         // The row is one button, labelled for what it does (#358).
@@ -1072,7 +1154,7 @@ extension RecoveryReviewUITests {
         app.typeKey("7", modifierFlags: .command)
         revealAndClick(app.links["openProtectedItems"], in: app)
         assertBlockedDuringUpdate([app.buttons["chooseExclusion"]])
-        app.buttons["Back to Locations & access"].click()
+        app.buttons["Back to Locations"].click()
         revealAndClick(app.links["manageLocalRecords"], in: app)
         assertBlockedDuringUpdate([app.buttons["clearHistory"], app.buttons["resetCacheDrop"]])
         let reader = try SQLiteCleanupJournal(url: state.appendingPathComponent("cleanup.sqlite"), readOnly: true)

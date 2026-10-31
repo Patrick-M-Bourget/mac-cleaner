@@ -218,7 +218,7 @@ final class ExploreStorage {
             .max { $0.observedAt < $1.observedAt }
     }
 
-    static let unavailableMessage = "This folder’s size is unknown because it can’t be reached; reconnect it and scan again, or choose it again in Locations & access."
+    static let unavailableMessage = "This folder’s size is unknown because it can’t be reached; reconnect it and scan again, or choose it again in Locations."
     func markUnavailable(_ url: URL) {
         scope = url
         let previous = scopeReports.first { $0.current.scope.path == url.path }
@@ -290,7 +290,7 @@ final class ExploreStorage {
         closePreviewAccess()
         if let scope {
             do { previewLease = try AppLifecycleController.shared.locations.leases(for: [scope]).first }
-            catch { message = "Choose this folder again in Locations & access to preview it. Nothing was downloaded."; return }
+            catch { message = "Choose this folder again in Locations to preview it. Nothing was downloaded."; return }
         }
         if let scope, scope.startAccessingSecurityScopedResource() { previewAccessScope = scope }
         let token = UUID(); previewGeneration = token

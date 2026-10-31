@@ -13,6 +13,12 @@ import CacheDropCore
     init(detector: (any FullDiskAccessDetecting)? = CatalogCleanupModel.home.map { FullDiskAccessProbe(home: $0) }) { self.detector = detector }
 
     func refresh() async {
+        #if DEBUG
+        // Delay only the fixture's probe to inspect Checking… without a real permission request.
+        if LocalStateLocation.isDisposableTest, let seconds = Double(ProcessInfo.processInfo.environment["CACHEDROP_TEST_FULL_DISK_ACCESS_PAUSE"] ?? ""), seconds > 0 {
+            try? await Task.sleep(for: .seconds(min(seconds, 10)))
+        }
+        #endif
         guard let detector else { status = .unknown; return }
         status = await Task.detached { detector.status() }.value
     }

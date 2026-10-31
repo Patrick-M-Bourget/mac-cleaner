@@ -12,7 +12,7 @@ AA9600000000000000000001 = { isa = PBXFileReference; lastKnownFileType = sourcec
 AA9600000000000000000002 = { isa = PBXBuildFile; fileRef = AA9600000000000000000001; };
 AA7600000000000000000001 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "App/FullDiskAccessModel.swift"; sourceTree = "<group>"; };
 AA7600000000000000000002 = { isa = PBXBuildFile; fileRef = AA7600000000000000000001; };
-AA7600000000000000000003 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "App/FullDiskAccessSetting.swift"; sourceTree = "<group>"; };
+AA7600000000000000000003 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "App/SystemAccessView.swift"; sourceTree = "<group>"; };
 AA7600000000000000000004 = { isa = PBXBuildFile; fileRef = AA7600000000000000000003; };
 AA7600000000000000000007 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "App/FullDiskAccessLink.swift"; sourceTree = "<group>"; };
 AA7600000000000000000008 = { isa = PBXBuildFile; fileRef = AA7600000000000000000007; };

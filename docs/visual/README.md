@@ -9,4 +9,6 @@ The Scope selector outside the app switches between **M1 · Personal build** and
 - [Full design, dark](roadmap-dark.png)
 - [Editable fragment](preview-source.html)
 
+**Locations** retains scanned folders, Protected items and Saved data; **System access** immediately follows it and displays optional Full Disk Access guidance directly (#527). The HTML uses synthetic access status and never opens System Settings.
+
 The example data uses an internal `installers` key for the Downloads action. Don't copy fixture identifiers into the native model.
