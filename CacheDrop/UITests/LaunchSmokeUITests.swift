@@ -594,6 +594,7 @@ final class FirstRunWelcomeUITests: XCTestCase {
         let app = XCUIApplication()
         let state = try configureIsolatedState(app), home = try configureCatalogHome(app)
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        try Data("Light".utf8).write(to: state.appendingPathComponent("appearance-preference.txt"))
         app.launchEnvironment["CACHEDROP_TEST_SHOW_WELCOME"] = "1"
         app.launchEnvironment["CACHEDROP_TEST_DISCOVERY_PAUSE"] = "0.15"
         app.launchEnvironment["CACHEDROP_TEST_INVENTORY_PAUSE"] = "3"
@@ -607,12 +608,15 @@ final class FirstRunWelcomeUITests: XCTestCase {
         XCTAssertFalse(app.buttons["Cancel onboarding"].exists)
         app.buttons["welcomeContinue"].click()
         XCTAssertTrue(app.buttons["welcomeRequestAccess"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.buttons["welcomeRequestAccess"].label, "Request access…")
+        XCTAssertEqual(app.buttons["welcomeCurrentAccess"].label, "Scan with current access")
+        XCTAssertTrue(app.sheets.staticTexts["CacheDrop can request access to Downloads and app data. macOS may ask you to allow access. Full Disk Access is optional."].exists)
         XCTAssertFalse(app.staticTexts["catalogScanProgress"].exists, "Access precedes the launch scan")
         app.sheets.links["fullDiskAccessLink"].firstMatch.click()
         XCTAssertTrue(app.buttons["openFullDiskAccessSettings"].waitForExistence(timeout: 5))
         app.buttons["closeFullDiskAccess"].click()
         XCTAssertFalse(app.staticTexts["catalogScanProgress"].exists, "Opening optional guidance does not start the scan")
-        app.buttons["welcomeRequestAccess"].click()
+        app.typeKey(.return, modifierFlags: [])
         let progress = app.progressIndicators["welcomeScanProgress"]
         XCTAssertTrue(progress.waitForExistence(timeout: 5))
         XCTAssertEqual(app.progressIndicators.matching(identifier: "welcomeScanProgress").count, 1)
@@ -677,10 +681,15 @@ final class FirstRunWelcomeUITests: XCTestCase {
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
         let unreadable = home.appendingPathComponent(".cachedrop-test-apps-unreadable")
         try Data().write(to: unreadable)
+        try Data("Dark".utf8).write(to: state.appendingPathComponent("appearance-preference.txt"))
         app.launchEnvironment["CACHEDROP_TEST_SHOW_WELCOME"] = "1"
         app.launch()
         XCTAssertTrue(app.buttons["welcomeContinue"].waitForExistence(timeout: 10))
         app.buttons["welcomeContinue"].click()
+        XCTAssertTrue(app.buttons["welcomeRequestAccess"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.buttons["welcomeRequestAccess"].label, "Request access…")
+        XCTAssertEqual(app.buttons["welcomeCurrentAccess"].label, "Scan with current access")
+        XCTAssertTrue(app.sheets.staticTexts["CacheDrop can request access to Downloads and app data. macOS may ask you to allow access. Full Disk Access is optional."].exists)
         app.buttons["welcomeCurrentAccess"].click()
         XCTAssertTrue(app.buttons["welcomeRetry"].waitForExistence(timeout: 120))
         XCTAssertFalse(app.buttons["welcomeDone"].exists, "Failed preparation is not success")

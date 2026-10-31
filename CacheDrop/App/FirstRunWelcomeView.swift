@@ -147,7 +147,7 @@ struct FirstRunWelcomeView: View {
                 StatusRow(text: "It never touches your files without asking, your logins, or Photos, Mail and Messages data.",
                           symbol: "hand.raised", identifier: "welcomeNeverTouches")
             case .access:
-                Text("Allow access to check Downloads and app data, or continue with the access already available.")
+                Text("CacheDrop can request access to Downloads and app data. macOS may ask you to allow access. Full Disk Access is optional.")
                     .font(CacheDropDesign.TypeStyle.note).foregroundStyle(.secondary)
                 FullDiskAccessLink(title: "Full Disk Access is optional · Learn more", model: access)
             case .scanning, .ready:
@@ -164,8 +164,8 @@ struct FirstRunWelcomeView: View {
                     case .welcome:
                         Button("Continue") { model.showAccess() }.keyboardShortcut(.defaultAction).accessibilityIdentifier("welcomeContinue")
                     case .access:
-                        Button("Continue with current access") { model.begin() }.disabled(model.requestingAccess).accessibilityIdentifier("welcomeCurrentAccess")
-                        Button(model.requestingAccess ? "Requesting access…" : "Continue") { Task { await model.requestAccess() } }
+                        Button("Scan with current access") { model.begin() }.disabled(model.requestingAccess).accessibilityIdentifier("welcomeCurrentAccess")
+                        Button(model.requestingAccess ? "Requesting access…" : "Request access…") { Task { await model.requestAccess() } }
                             .disabled(model.requestingAccess).keyboardShortcut(.defaultAction).accessibilityIdentifier("welcomeRequestAccess")
                     case .ready:
                         Button("View results") { model.finish() }.keyboardShortcut(.defaultAction).accessibilityIdentifier("welcomeDone")

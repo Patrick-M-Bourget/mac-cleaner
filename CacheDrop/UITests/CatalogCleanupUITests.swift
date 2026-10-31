@@ -1895,49 +1895,82 @@ extension CatalogCleanupUITests {
     /// are off, and a partly ticked category shows mixed. A dry run; nothing is cleaned.
     @MainActor func testClickingACategoryRowTogglesItOnSmartCleanAndThePlan() throws {
         continueAfterFailure = false
-        let app = XCUIApplication()
-        let state = try configureIsolatedState(app)
-        let home = try configureCatalogHome(app)
-        turnOnDryRun(app)
-        _ = try addDeveloperCaches(home, folders: ["Library/Caches/Yarn"])
-        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
-        app.launch()
-        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
-        waitForCatalogScan(app)
-        let title = "Developer caches and build files"
+        for appearance in ["Light", "Dark"] {
+            let app = XCUIApplication()
+            let state = try configureIsolatedState(app)
+            let home = try configureCatalogHome(app)
+            turnOnDryRun(app)
+            _ = try addDeveloperCaches(home, folders: ["Library/Caches/Yarn"])
+            defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+            let updater = home.appendingPathComponent("Library/Caches/com.example.CacheDropFixture/org.sparkle-project.Sparkle/Installation/a/Fixture.tar.xz")
+            try FileManager.default.createDirectory(at: updater.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data(repeating: 4, count: 60_000).write(to: updater)
+            try Data(appearance.utf8).write(to: state.appendingPathComponent("appearance-preference.txt"))
+            app.launch()
+            XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+            waitForCatalogScan(app)
+            let badge = app.buttons["Cleanup plan"]
+            XCTAssertEqual(badge.label, "Cleanup plan, 2 categories selected",
+                           "npm and Yarn count once, plus App update downloads (#531)")
+            let title = "Developer caches and build files"
 
-        app.typeKey("2", modifierFlags: .command)
-        let smart = app.checkBoxes["smartCleanCategory-developer"]
-        XCTAssertTrue(smart.waitForExistence(timeout: 10))
-        XCTAssertEqual(smart.value as? Int, 1)
-        XCTAssertTrue(smart.isEnabled)
-        revealAndClick(smart, in: app)
-        XCTAssertEqual(smart.value as? Int, 0, "The native checkbox unticks the category")
-        revealAndClick(smart, in: app)
-        XCTAssertEqual(smart.value as? Int, 1, "The native checkbox ticks the category again")
-        revealAndClick(app.staticTexts[title].firstMatch, in: app)
-        XCTAssertEqual(smart.value as? Int, 0, "The row's title unticks it")
-        openDisclosure(app.disclosureTriangles.matching(NSPredicate(format: "label BEGINSWITH 'Choose items'")).firstMatch, in: app)
-        let yarn = app.checkBoxes["smartCleanLine-yarn-cache|"]
-        XCTAssertTrue(yarn.waitForExistence(timeout: 5))
-        revealAndClick(yarn, in: app)
-        XCTAssertFalse([0, 1].contains(smart.value as? Int), "One of two ticked reads as mixed: \(String(describing: smart.value))")
-        revealAndClick(app.staticTexts[title].firstMatch, in: app)
-        XCTAssertEqual(smart.value as? Int, 1, "All on when any are off")
+            app.typeKey("2", modifierFlags: .command)
+            let smart = app.checkBoxes["smartCleanCategory-developer"]
+            XCTAssertTrue(smart.waitForExistence(timeout: 10))
+            XCTAssertEqual(smart.value as? Int, 1)
+            XCTAssertTrue(smart.isEnabled)
+            revealAndClick(smart, in: app)
+            XCTAssertEqual(smart.value as? Int, 0, "The native checkbox unticks the category")
+            XCTAssertEqual(badge.label, "Cleanup plan, 1 category selected")
+            revealAndClick(smart, in: app)
+            XCTAssertEqual(smart.value as? Int, 1, "The native checkbox ticks the category again")
+            revealAndClick(app.staticTexts[title].firstMatch, in: app)
+            XCTAssertEqual(smart.value as? Int, 0, "The row's title unticks it")
+            openDisclosure(app.disclosureTriangles.matching(NSPredicate(format: "label BEGINSWITH 'Choose items'")).firstMatch, in: app)
+            let yarn = app.checkBoxes["smartCleanLine-yarn-cache|"]
+            XCTAssertTrue(yarn.waitForExistence(timeout: 5))
+            revealAndClick(yarn, in: app)
+            XCTAssertFalse([0, 1].contains(smart.value as? Int), "One of two ticked reads as mixed: \(String(describing: smart.value))")
+            XCTAssertEqual(badge.label, "Cleanup plan, 2 categories selected", "Partial selection still counts the category once")
+            revealAndClick(app.staticTexts[title].firstMatch, in: app)
+            XCTAssertEqual(smart.value as? Int, 1, "All on when any are off")
 
-        app.typeKey("3", modifierFlags: .command)
-        let plan = app.checkBoxes["planCategory-developer"]
-        XCTAssertTrue(plan.waitForExistence(timeout: 10))
-        XCTAssertEqual(plan.value as? Int, 1)
-        XCTAssertTrue(plan.isEnabled)
-        revealAndClick(plan, in: app)
-        XCTAssertEqual(plan.value as? Int, 0, "The plan's native checkbox shares the same action")
-        revealAndClick(plan, in: app)
-        XCTAssertEqual(plan.value as? Int, 1)
-        revealAndClick(app.staticTexts[title].firstMatch, in: app)
-        XCTAssertEqual(plan.value as? Int, 0, "The same on the plan")
-        revealAndClick(app.staticTexts[title].firstMatch, in: app)
-        XCTAssertEqual(plan.value as? Int, 1)
+            app.typeKey("3", modifierFlags: .command)
+            let plan = app.checkBoxes["planCategory-developer"]
+            XCTAssertTrue(plan.waitForExistence(timeout: 10))
+            XCTAssertEqual(plan.value as? Int, 1)
+            XCTAssertTrue(plan.isEnabled)
+            revealAndClick(plan, in: app)
+            XCTAssertEqual(plan.value as? Int, 0, "The plan's native checkbox shares the same action")
+            revealAndClick(plan, in: app)
+            XCTAssertEqual(plan.value as? Int, 1)
+            revealAndClick(app.staticTexts[title].firstMatch, in: app)
+            XCTAssertEqual(plan.value as? Int, 0, "The same on the plan")
+            revealAndClick(app.staticTexts[title].firstMatch, in: app)
+            XCTAssertEqual(plan.value as? Int, 1)
+            XCTAssertEqual(badge.label, "Cleanup plan, 2 categories selected")
+            let downloads = app.checkBoxes["planCategory-downloads"]
+            revealAndClick(downloads, in: app)
+            XCTAssertEqual(badge.label, "Cleanup plan, 3 categories selected", "A newly selected category adds one")
+            let updates = app.checkBoxes["planCategory-updaters"]
+            revealAndClick(updates, in: app)
+            XCTAssertEqual(badge.label, "Cleanup plan, 2 categories selected")
+            app.typeKey("2", modifierFlags: .command)
+            let smartUpdates = app.checkBoxes["smartCleanCategory-updaters"]
+            XCTAssertTrue(smartUpdates.waitForExistence(timeout: 5))
+            XCTAssertEqual(smartUpdates.value as? Int, 0, "Updater selection is shared")
+            revealAndClick(smartUpdates, in: app)
+            XCTAssertEqual(badge.label, "Cleanup plan, 3 categories selected", "Restoring the updater restores the count")
+            app.typeKey("3", modifierFlags: .command)
+            revealAndClick(app.buttons["planSort-name"], in: app)
+            XCTAssertEqual(badge.label, "Cleanup plan, 3 categories selected", "Sorting preserves selection and its count")
+            revealAndClick(plan, in: app)
+            revealAndClick(downloads, in: app)
+            XCTAssertEqual(badge.label, "Cleanup plan, 1 category selected")
+            revealAndClick(updates, in: app)
+            XCTAssertEqual(badge.label, "Cleanup plan", "No selected categories omits the badge's count")
+        }
+
     }
 
     /// #349: one selection. What is unticked in Smart clean is unticked in the plan, the plan adds to it and cleans it, and
