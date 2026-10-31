@@ -944,7 +944,8 @@ private struct WorkspaceView: View {
         if let scan = selection.scans[URL(fileURLWithPath: scope.path)] {
             if selection.unavailableScopes.contains(scan.scope.standardizedFileURL) { return "Scan again to update" }
             let scanned = "Scanned " + scan.observedAt.formatted(date: .omitted, time: .shortened)
-            return scan.isComplete ? scanned : scanned + " · Not fully read"
+            // The same reason Overview's Scanned locations row gives (#548, Decision 121).
+            return scan.isComplete ? scanned : scanned + " · " + (ScannedLocation(scope: scan.scope, scan: scan).problem ?? "Not fully read")
         }
         return "Not scanned"
     }
