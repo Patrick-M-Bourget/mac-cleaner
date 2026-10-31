@@ -137,5 +137,9 @@ private struct CatalogResultRow: View {
 extension ScrollViewProxy {
     /// Brings a result row to the top of the page's scroll view (#374). A `ScrollViewReader` reaches only scroll views inside
     /// it, so each page that shows results reads its own and hands this down.
-    func revealRow(_ id: CleanupRecord.ID) { withAnimation { scrollTo(id, anchor: .top) } }
+    /// It jumps without scrolling motion when Reduce Motion is on (#547).
+    func revealRow(_ id: CleanupRecord.ID) {
+        if NSWorkspace.shared.accessibilityDisplayShouldReduceMotion { scrollTo(id, anchor: .top) }
+        else { withAnimation { scrollTo(id, anchor: .top) } }
+    }
 }
