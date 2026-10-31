@@ -42,7 +42,7 @@ struct RefreshRequest: Sendable {
     /// Categories with live, reviewable choices, for the sidebar badge.
     var actionableSelectedCategoryCount: Int {
         guard canReview else { return 0 }
-        return catalog.selectedRuleCount
+        return catalog.selectedCategoryCount
     }
     private var expectedProtectedItemsFingerprint = "none"
     func invalidateCoverage() {

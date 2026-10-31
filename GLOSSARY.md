@@ -52,6 +52,8 @@ The names CacheDrop shows, what they mean, and where they live in code. Copy fol
 | Remove local copies | Frees iCloud files' space on this Mac | action `evict` |
 | Check for Updates… | A requested update check through standard Sparkle dialogs | `ManualUpdater` |
 | Cancel update | Stop waiting for installation while current cleanup and maintenance keep running | `UpdateInstallation.cancel` |
+| Request access… | Request the existing basic access before initial preparation | `WelcomeModel.requestAccess` |
+| Scan with current access | Begin preparation without the explicit basic-access setup request | `WelcomeModel.begin` |
 | View results | Open Overview after initial preparation is ready | `WelcomeModel` |
 | Close (onboarding) | Dismiss the guide while preparation continues | `WelcomeModel.finish` |
 | Scan again | Any action that scans | `CatalogCleanupModel`, `ExploreStorage` |
