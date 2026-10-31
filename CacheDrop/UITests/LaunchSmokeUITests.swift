@@ -794,17 +794,24 @@ final class FirstRunWelcomeUITests: XCTestCase {
 /// `Applications` for ~/Applications. No disk image is ever mounted, and a move records its relaunch instead of opening a copy.
 final class MoveToApplicationsUITests: XCTestCase {
     private let title = "Move CacheDrop to your Applications folder?"
+    /// A Text's words are in `value` or `label` (docs/agents/ui-testing.md).
+    private func text(_ element: XCUIElement) -> String {
+        let value = element.value as? String ?? ""
+        return value.isEmpty ? element.label : value
+    }
 
     @MainActor func testNotNowKeepsThisCopyAndOnboardingFollowsAndOnlyADiskImageOrTranslocatedCopyIsAsked() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
         let state = try configureIsolatedState(app), home = try configureCatalogHome(app)
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        // The stand-in for /Applications, which always exists.
+        try FileManager.default.createDirectory(at: home.appendingPathComponent("cachedrop-test-Applications"), withIntermediateDirectories: false)
         app.launchEnvironment["CACHEDROP_TEST_SHOW_WELCOME"] = "1"
         app.launchEnvironment["CACHEDROP_TEST_APP_LOCATION"] = "disk-image"
         app.launch()
         XCTAssertTrue(app.sheets.staticTexts[title].waitForExistence(timeout: 10))
-        XCTAssertEqual(app.staticTexts["moveToApplicationsDetail"].label, "From the disk image, CacheDrop can’t install updates.")
+        XCTAssertEqual(text(app.staticTexts["moveToApplicationsDetail"]), "From the disk image, CacheDrop can’t install updates.")
         XCTAssertEqual(app.buttons["moveToApplicationsMove"].label, "Move to Applications")
         XCTAssertEqual(app.buttons["moveToApplicationsNotNow"].label, "Not now")
         XCTAssertFalse(app.staticTexts["Welcome to CacheDrop"].exists, "Onboarding waits for the answer")
@@ -843,8 +850,11 @@ final class MoveToApplicationsUITests: XCTestCase {
         app.launchEnvironment["CACHEDROP_TEST_APP_LOCATION"] = "disk-image"
         app.launch()
         XCTAssertTrue(app.sheets.staticTexts[title].waitForExistence(timeout: 10))
+        XCTAssertEqual(text(app.staticTexts["moveToApplicationsDetail"]), "From the disk image, CacheDrop can’t install updates.")
         app.typeKey(.return, modifierFlags: [])
-        XCTAssertTrue(app.wait(for: .notRunning, timeout: 60), "This copy quits once the moved one is in place")
+        let quit = app.wait(for: .notRunning, timeout: 60)
+        let failure = app.staticTexts["moveToApplicationsFailure"]
+        XCTAssertTrue(quit, "This copy quits once the moved one is in place; failure: \(quit || !failure.exists ? "none" : text(failure))")
         let moved = applications.appendingPathComponent("CacheDrop.app")
         XCTAssertTrue(FileManager.default.fileExists(atPath: moved.appendingPathComponent("Contents/MacOS/CacheDrop").path))
         XCTAssertEqual(try String(contentsOf: state.appendingPathComponent("moved-to-applications"), encoding: .utf8), moved.path,
@@ -865,14 +875,14 @@ final class MoveToApplicationsUITests: XCTestCase {
         app.launchEnvironment["CACHEDROP_TEST_APP_LOCATION"] = "translocated"
         app.launch()
         XCTAssertTrue(app.sheets.staticTexts[title].waitForExistence(timeout: 10))
-        XCTAssertEqual(app.staticTexts["moveToApplicationsDetail"].label, "It goes to the Applications folder in your home folder.")
+        XCTAssertEqual(text(app.staticTexts["moveToApplicationsDetail"]), "It goes to the Applications folder in your home folder.")
         // The home folder's Applications can't be written to either by the time Move is clicked: it decides again then.
         try FileManager.default.createDirectory(at: home.appendingPathComponent("Applications"), withIntermediateDirectories: false,
                                                 attributes: [.posixPermissions: 0o555])
         app.buttons["moveToApplicationsMove"].click()
         let failure = app.staticTexts["moveToApplicationsFailure"]
         XCTAssertTrue(failure.waitForExistence(timeout: 10))
-        XCTAssertEqual(failure.label, "CacheDrop can’t write to an Applications folder, so it stays where it is.")
+        XCTAssertEqual(text(failure), "CacheDrop can’t write to an Applications folder, so it stays where it is.")
         XCTAssertEqual(app.state, .runningForeground, "CacheDrop keeps running where it is")
         app.typeKey(.escape, modifierFlags: [])
         XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 5))

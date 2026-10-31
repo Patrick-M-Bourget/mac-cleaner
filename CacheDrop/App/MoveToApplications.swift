@@ -12,6 +12,9 @@ import CacheDropCore
     /// Decided once per launch, so "Not now" holds for this copy only and the next launch from a disk image asks again.
     var isShowing = false
     private(set) var moving = false
+    /// The moved copy is opening and this one is about to quit, so onboarding and the launch scan stay held.
+    private(set) var relaunching = false
+    var holdsOnboarding: Bool { isShowing || relaunching }
     private(set) var failure = ""
     private(set) var detail = ""
     private var location = AppBundleLocation.other
@@ -45,6 +48,12 @@ import CacheDropCore
         }
         do { try await relaunch(URL(fileURLWithPath: plan.destination)) }
         catch { failure = "CacheDrop is in Applications but couldn’t open from there."; return }
+        // AppKit ignores Quit while a window has a sheet attached, so close the sheet first.
+        relaunching = true; isShowing = false
+        var waits = 0
+        while NSApp.windows.contains(where: { $0.attachedSheet != nil }), waits < 40 {
+            try? await Task.sleep(for: .milliseconds(50)); waits += 1
+        }
         NSApp.terminate(nil)
     }
 

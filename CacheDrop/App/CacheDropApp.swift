@@ -299,15 +299,15 @@ private struct WorkspaceView: View {
         workspace
         // Moving to Applications comes first; onboarding and the launch scan wait until it's answered (#559).
         .sheet(isPresented: $moveOffer.isShowing) { MoveToApplicationsView(model: moveOffer) }
-        .onChange(of: moveOffer.isShowing) { _, showing in if !showing { welcome.launch(catalog: selection.catalog) } }
-        .modifier(OnboardingBackdrop(active: welcome.isShowing || moveOffer.isShowing))
+        .onChange(of: moveOffer.holdsOnboarding) { _, held in if !held { welcome.launch(catalog: selection.catalog) } }
+        .modifier(OnboardingBackdrop(active: welcome.isShowing || moveOffer.holdsOnboarding))
         .environment(\.cacheDropBackgroundWork, backgroundWorkStatus)
         .onChange(of: runningTasks, initial: true) { _, tasks in backgroundWork.update(running: tasks) }
         .onChange(of: selection.catalog.selectionRevisions) { _, _ in AppLifecycleController.shared.hasPendingPlan = selection.hasPendingChoicesOnAnyPage }
         // Launch stays on Overview; its banner opens Recovery, which checks against disk (#309).
         .task { _ = await recovery.loadOnce() }
         // The launch scan, whichever page opens first; later scans start in the model when something changes (#306).
-        .task { if !moveOffer.isShowing { welcome.launch(catalog: selection.catalog) } }
+        .task { if !moveOffer.holdsOnboarding { welcome.launch(catalog: selection.catalog) } }
         .task { locationsModel.load() }
         .onChange(of: locationsModel.scopes) { _, _ in
             explorerContext.allowedScopes = Set(locationsModel.included.map { URL(fileURLWithPath: $0.path).standardizedFileURL })
@@ -324,7 +324,7 @@ private struct WorkspaceView: View {
         .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didWakeNotification)) { _ in Task { await alerts.activated() } }
         .toolbar { contextToolbar }
         .onChange(of: welcome.isShowing) { _, showing in if !showing { navigate(.overview) } }
-        .sheet(isPresented: Binding(get: { welcome.isShowing && !moveOffer.isShowing }, set: { welcome.isShowing = $0 })) { FirstRunWelcomeView(model: welcome, catalog: selection.catalog) }
+        .sheet(isPresented: Binding(get: { welcome.isShowing && !moveOffer.holdsOnboarding }, set: { welcome.isShowing = $0 })) { FirstRunWelcomeView(model: welcome, catalog: selection.catalog) }
     }
 
     @ToolbarContentBuilder private var contextToolbar: some ToolbarContent {
