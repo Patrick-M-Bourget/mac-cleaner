@@ -57,6 +57,10 @@ struct CacheDropSettingsView: View {
             // #131: low-space alerts live here, not in the sidebar.
             LowSpaceAlertsSettings(controller: AppLifecycleController.shared.alerts)
             Section { DryRunToggle(model: AppLifecycleController.shared.selection.catalog) }
+            Section {
+                Button("Check for Updates…") { AppLifecycleController.shared.manualUpdater.checkForUpdates() }
+                    .buttonStyle(.link).accessibilityIdentifier("checkForUpdatesSettings")
+            }
         }.formStyle(.grouped).frame(width: CacheDropDesign.Size.sheetNarrow).fixedSize(horizontal: false, vertical: true)
             .cacheDropButtonRule()
     }

@@ -6,7 +6,7 @@ import CacheDropCore
 extension LocalStateLocation {
     static var isDisposableTest: Bool {
         #if DEBUG
-        let env = ProcessInfo.processInfo.environment
+        let env = fixtureEnvironment
         return env["CACHEDROP_TEST_STATE_ROOT"] != nil || env["CACHEDROP_TEST_STATE_ID"] != nil
         #else
         return false

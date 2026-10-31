@@ -19,7 +19,8 @@ import Foundation
         waiting.append((kind, rescan || earlier, work))
     }
     /// The lease was released: runs what waited, in the order asked, once.
-    public func released() {
+    public func released(allowingWork: Bool = true) {
+        guard allowingWork else { return }
         let due = waiting
         waiting = []
         for item in due { item.work(item.rescan) }

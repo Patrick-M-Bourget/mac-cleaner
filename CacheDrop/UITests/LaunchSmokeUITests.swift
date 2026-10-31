@@ -866,3 +866,154 @@ final class RecoveryReviewUITests: XCTestCase {
         XCTAssertEqual(try reader.completedHistory().completedRuns.first?.records.map(\.outcomeTitle), ["Not removed", "Moved to Trash", "Removed"])
     }
 }
+
+/// #515–516: both explicit update commands use the same cancellable waiting flow; fixtures never contact a feed.
+final class ManualUpdateUITests: XCTestCase {
+    @MainActor func testCancelUpdateKeepsRealCleanupRunningAndRetryWaitsForCompletion() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app), home = try configureCatalogHome(app)
+        let folders = ["Library/Caches/Yarn", ".yarn/berry/cache", "Library/Caches/pip",
+                       ".cargo/registry/cache", ".gradle/caches", "Library/Caches/CocoaPods"]
+        _ = try addDeveloperCaches(home, folders: folders)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        // Keep actual execution observable; the updater seam leaves the real lifecycle flags alone.
+        app.launchEnvironment["CACHEDROP_TEST_CLEANUP_PAUSE"] = "5"
+        app.launchEnvironment["CACHEDROP_TEST_UPDATE_WORK"] = "actual"
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        waitForCatalogScan(app)
+        app.typeKey("2", modifierFlags: .command)
+        app.buttons["smartCleanCleanUp"].click()
+        XCTAssertTrue(reviewLine(app, "permanentlyRemoved", "developer").waitForExistence(timeout: 10))
+        cleanUpFromReview(app)
+        XCTAssertTrue(app.buttons["Stop cleanup"].waitForExistence(timeout: 5))
+
+        app.menuBars.menuBarItems["CacheDrop"].click()
+        app.menuItems["Check for Updates…"].click()
+        let waiting = app.dialogs["CacheDrop Update"]
+        XCTAssertTrue(waiting.buttons["cancelUpdate"].waitForExistence(timeout: 5))
+        XCTAssertEqual(waiting.staticTexts["updateWaitingText"].value as? String ?? waiting.staticTexts["updateWaitingText"].label,
+                       "Waiting for cleanup to finish")
+        waiting.buttons["cancelUpdate"].click()
+        XCTAssertFalse(waiting.exists)
+        XCTAssertTrue(app.buttons["Stop cleanup"].exists, "Cancel update leaves the actual cleanup running")
+
+        app.menuBars.menuBarItems["CacheDrop"].click()
+        app.menuItems["Check for Updates…"].click()
+        XCTAssertTrue(waiting.buttons["cancelUpdate"].waitForExistence(timeout: 5))
+        XCTAssertTrue(waiting.waitForNonExistence(timeout: 90), "Natural completion hands off the second installation")
+        for folder in folders + [".npm/_cacache"] {
+            XCTAssertFalse(FileManager.default.fileExists(atPath: home.appendingPathComponent(folder).path), folder)
+        }
+
+        // A fresh process reads the outcomes saved before handoff.
+        app.terminate()
+        app.launchEnvironment.removeValue(forKey: "CACHEDROP_TEST_UPDATE_WORK")
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        app.typeKey("6", modifierFlags: .command)
+        let run = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH 'cleanupRun:'")).firstMatch
+        XCTAssertTrue(run.waitForExistence(timeout: 10))
+        revealAndClick(run, in: app)
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Deleted' OR value BEGINSWITH 'Deleted'")).firstMatch.waitForExistence(timeout: 5))
+    }
+
+    @MainActor func testSettingsAndMenuWaitForCleanupAndAllowCancelUpdate() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        app.launchEnvironment["CACHEDROP_TEST_UPDATE_WORK"] = "cleanup"
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        app.typeKey(",", modifierFlags: .command)
+        let settings = app.links["checkForUpdatesSettings"]
+        XCTAssertTrue(settings.waitForExistence(timeout: 5))
+        settings.click()
+        let waiting = app.dialogs["CacheDrop Update"]
+        XCTAssertTrue(waiting.staticTexts["updateWaitingText"].waitForExistence(timeout: 5))
+        XCTAssertEqual(waiting.staticTexts["updateWaitingText"].value as? String ?? waiting.staticTexts["updateWaitingText"].label, "Waiting for cleanup to finish")
+        waiting.buttons["cancelUpdate"].click()
+        XCTAssertFalse(waiting.exists)
+        app.menuBars.menuBarItems["CacheDrop"].click()
+        app.menuItems["Check for Updates…"].click()
+        XCTAssertTrue(waiting.staticTexts["updateWaitingText"].waitForExistence(timeout: 5))
+        XCTAssertEqual(waiting.staticTexts["updateWaitingText"].value as? String ?? waiting.staticTexts["updateWaitingText"].label, "Waiting for cleanup to finish")
+        waiting.buttons["cancelUpdate"].click()
+        XCTAssertFalse(waiting.exists)
+    }
+
+    @MainActor func testMaintenanceUpdateWaitSaysFinishingCurrentWorkAndCanCancel() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        app.launchEnvironment["CACHEDROP_TEST_UPDATE_WORK"] = "maintenance"
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        app.menuBars.menuBarItems["CacheDrop"].click()
+        app.menuItems["Check for Updates…"].click()
+        let waiting = app.dialogs["CacheDrop Update"]
+        XCTAssertTrue(waiting.staticTexts["updateWaitingText"].waitForExistence(timeout: 5))
+        XCTAssertEqual(waiting.staticTexts["updateWaitingText"].value as? String ?? waiting.staticTexts["updateWaitingText"].label, "Finishing current work")
+        waiting.buttons["cancelUpdate"].click()
+        XCTAssertFalse(waiting.exists)
+    }
+}
+
+extension RecoveryReviewUITests {
+    @MainActor func testPendingUpdateBlocksMaintenanceRecoveryAndTrashAndCancelRestoresActions() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app), home = try configureCatalogHome(app)
+        defer { app.terminate() }
+        let kept = home.appendingPathComponent("Downloads/Kept.dmg"), moved = home.appendingPathComponent("Downloads/Trashed.dmg")
+        for file in [kept, moved] { try Data([1, 2, 3]).write(to: file) }
+        let journal = try SQLiteCleanupJournal(url: state.appendingPathComponent("cleanup.sqlite"))
+        let interruptedBatch = UUID(), completedBatch = UUID()
+        XCTAssertTrue(try journal.claim(batchID: interruptedBatch, records: [record(kept, batch: interruptedBatch, state: "intent")]))
+        var completed = try record(moved, batch: completedBatch, state: "pending")
+        XCTAssertTrue(try journal.claim(batchID: completedBatch, records: [completed]))
+        let trash = home.appendingPathComponent(".Trash/Trashed.dmg")
+        try FileManager.default.createDirectory(at: trash.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try FileManager.default.moveItem(at: moved, to: trash)
+        completed.state = .succeeded; completed.trashURL = trash; completed.outcomeRecordedAt = Date()
+        try journal.outcome(completed)
+        app.launchEnvironment["CACHEDROP_TEST_UPDATE_WORK"] = "admission"
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        waitForCatalogScan(app)
+        func assertBlockedDuringUpdate(_ controls: [XCUIElement]) {
+            for control in controls { XCTAssertTrue(control.waitForExistence(timeout: 5)); XCTAssertTrue(control.isEnabled) }
+            app.menuBars.menuBarItems["CacheDrop"].click()
+            app.menuItems["Check for Updates…"].click()
+            let waiting = app.dialogs["CacheDrop Update"]
+            XCTAssertTrue(waiting.buttons["cancelUpdate"].waitForExistence(timeout: 5))
+            for control in controls { XCTAssertFalse(control.isEnabled) }
+            XCTAssertTrue(FileManager.default.fileExists(atPath: kept.path))
+            XCTAssertTrue(FileManager.default.fileExists(atPath: trash.path))
+            waiting.buttons["cancelUpdate"].click()
+            XCTAssertFalse(waiting.exists)
+            for control in controls { XCTAssertTrue(control.isEnabled) }
+        }
+        assertBlockedDuringUpdate([app.buttons["overviewScanAgain"], app.links["overviewTrashEmpty"]])
+        app.buttons["Review interrupted cleanup"].click()
+        assertBlockedDuringUpdate([app.buttons["recoveryMarkReviewed"]])
+        app.typeKey("6", modifierFlags: .command)
+        let run = app.buttons["cleanupRun:" + completedBatch.uuidString]
+        XCTAssertTrue(run.waitForExistence(timeout: 5)); revealAndClick(run, in: app)
+        assertBlockedDuringUpdate([app.links["putBack-Trashed.dmg"]])
+        app.typeKey("7", modifierFlags: .command)
+        revealAndClick(app.links["openProtectedItems"], in: app)
+        assertBlockedDuringUpdate([app.buttons["chooseExclusion"]])
+        app.buttons["Back to Locations & access"].click()
+        revealAndClick(app.links["manageLocalRecords"], in: app)
+        assertBlockedDuringUpdate([app.buttons["clearHistory"], app.buttons["resetCacheDrop"]])
+        let reader = try SQLiteCleanupJournal(url: state.appendingPathComponent("cleanup.sqlite"), readOnly: true)
+        XCTAssertEqual(try reader.records().count, 2)
+        XCTAssertEqual(try CleanupRecoverySnapshot(journal: reader).interruptedBatches.count, 1)
+    }
+}

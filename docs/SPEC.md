@@ -11,8 +11,9 @@ This spec covers behavior the prototype can't show. The screens, layout and copy
 - Scanning never writes. Choosing scan locations never means consent to clean.
 - Unknown is shown as unknown, never as 0. A location CacheDrop can't read is listed as not accessible, not left out of the picture.
 - Estimated space, space moved to Trash and measured freed space are three separate numbers, always labeled (section 6).
-- No account, server, telemetry or AI service. All scanning and cleanup happen on the Mac.
+- No account, telemetry or AI service. All scanning and cleanup happen on the Mac; only a requested update check contacts the update feed (Decision 102).
 - No automatic cleanup. CacheDrop only acts when the user confirms a reviewed plan.
+- Catalog and Explore storage expose lifecycle completion only after discovery and final History and Storage trends writes finish, including when stopped (Decision 98). Optional later cleanup measurements have separate completion: a lifecycle handoff skips sleeping checks and awaits running measurements and saved findings; ordinary cleanup and quit policy stay unchanged (Decision 99).
 
 ## 2. Safety rules
 
@@ -167,3 +168,10 @@ After M1 (#92), in rough order:
 ## Open questions
 
 None. The first six were answered on 2026-10-26 and are folded in above (RESET Decisions 16–22).
+
+
+## Manual updates
+
+Check for Updates… in Settings and the app menu uses the same Sparkle updater and its standard dialogs. Checks happen only on request; scheduled checks, automatic downloads/installations, the automatic-check permission prompt and system profiling stay off (Decision 102).
+
+An approved installation waits for cleanup and maintenance to finish naturally. While pending, new cleanup, maintenance, scans and deferred scans cannot start. Scan discovery stops and final saved writes finish; optional sleeping measurements are skipped and running measurements finish saving. Waiting for cleanup to finish or Finishing current work offers Cancel update until installation handoff. Cancel leaves active work running and restores normal availability without a stale installation callback. Installation never uses Stop and Quit; relaunch preserves saved state and restores no cleanup selections or operations (Decision 103).

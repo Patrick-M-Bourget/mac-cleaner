@@ -32,7 +32,7 @@ struct SavedDataView: View {
                     Button("Review interrupted cleanup", action: showRecovery).accessibilityIdentifier("localRecordsRecovery")
                 }
             }
-            SavedDataMaintenanceControls(enabled: !model.busy && !lifecycle.operationInProgress,
+            SavedDataMaintenanceControls(enabled: !model.busy && !lifecycle.operationInProgress && !lifecycle.updateInstallation.blocksNewWork,
                 clear: { confirmingClear = true }, reset: { confirmingReset = true })
         }
         .task { await model.load(maintainCompleted: false) }

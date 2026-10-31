@@ -15,6 +15,7 @@ final class ExploreStorage {
         scanner = FolderScanner()
         session = InspectionSession(scanner: scanner)
     }
+    private let scanLifecycle = ScanLifecycle()
     private var task: Task<Void, Never>?
     private var scanAgainTask: Task<Void, Never>?
     private var scanAgainGeneration = UUID()
@@ -56,7 +57,7 @@ final class ExploreStorage {
     }
 
     func scan(_ url: URL) {
-        guard !AppLifecycleController.shared.operationInProgress else { return }
+        guard !AppLifecycleController.shared.updateInstallation.blocksNewWork, !AppLifecycleController.shared.operationInProgress else { return }
         // A folder picked while History holds the maintenance lease is scanned once it lets go (#310).
         if AppLifecycleController.shared.maintenanceInProgress {
             AppLifecycleController.shared.afterMaintenance.waitFor(.folderScan) { [weak self] in self?.scan(url) }
@@ -69,7 +70,10 @@ final class ExploreStorage {
 
     /// Refresh the existing explicit scopes without replacing live choices or choosing a new scope.
     func scanAgain(scopes explicitScopes: [URL]? = nil, leases: [ScopeAccessLease] = [], unavailable: [URL] = []) {
-        guard !AppLifecycleController.shared.operationInProgress, !AppLifecycleController.shared.maintenanceInProgress, !selection.workspaceRunning, !isScanning else { return }
+        guard !AppLifecycleController.shared.updateInstallation.blocksNewWork, !AppLifecycleController.shared.operationInProgress, !AppLifecycleController.shared.maintenanceInProgress, !selection.workspaceRunning, !isScanning else {
+            for lease in leases { lease.close() }
+            return
+        }
         let focusedScope = scope?.standardizedFileURL
         let roots = Set((explicitScopes ?? (scopeReports.map { $0.current.scope } + selection.refreshScopes + [scope].compactMap { $0 })).map(\.standardizedFileURL)).sorted { $0.path < $1.path }
         guard !roots.isEmpty || !unavailable.isEmpty else { return }
@@ -77,7 +81,7 @@ final class ExploreStorage {
         let token = UUID()
         scanAgainGeneration = token
         batchRequests = selection.beginRefreshBatch(roots)
-        scanAgainTask = Task {
+        scanAgainTask = scanLifecycle.start { [self] in
             defer { for lease in leases { lease.close() } }
             let epoch = await ScanActivityHistory.shared.begin()
             guard !Task.isCancelled, token == scanAgainGeneration else { return }
@@ -125,7 +129,7 @@ final class ExploreStorage {
         if !sameScope { result = nil; selected = nil; lastComplete = nil }
         message = nil
         isScanningCurrent = true
-        task = Task {
+        task = scanLifecycle.start { [self] in
             if !grouped {
                 let epoch = await ScanActivityHistory.shared.begin()
                 guard !Task.isCancelled, token == generation else { return }
@@ -255,7 +259,7 @@ final class ExploreStorage {
             if isScanningCurrent { operation.stopped(scope, progress: progress) }
             let summary = operation.summary(stopped: true)
             activity = nil
-            Task { await ScanActivityHistory.shared.record(summary, epoch: operation.epoch) }
+            scanLifecycle.start { await ScanActivityHistory.shared.record(summary, epoch: operation.epoch) }
         }
         scanAgainGeneration = UUID()
         scanAgainTask?.cancel(); scanAgainTask = nil
@@ -264,6 +268,14 @@ final class ExploreStorage {
         cancelCurrentScan()
         if hadLogicalScan { AppLifecycleController.shared.capacity.request(.scanEnded) }
     }
+    /// A lifecycle caller must await the owned discovery and final History writes, even after Stop clears the bar.
+    func requestScanStop() { cancel() }
+    func stopScanningAndWait() async {
+        requestScanStop()
+        await scanLifecycle.waitForCompletion()
+    }
+    func waitForScanCompletion() async { await scanLifecycle.waitForCompletion() }
+
     private func cancelCurrentScan() {
         cancellation?.cancel()
         task?.cancel()

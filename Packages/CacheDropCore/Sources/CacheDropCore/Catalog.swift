@@ -454,7 +454,7 @@ public struct Catalog: Sendable {
     /// A rule that needs Full Disk Access CacheDrop doesn't have (`access`) is never read; it comes back in `notAccessible`.
     public func discovery(home: URL, userFolder: URL? = nil, exclusions: ProtectedItemsPolicy = ProtectedItemsPolicy(), inUse: any InUseChecking = SystemInUseChecker(), sizer: KnownLocationSizer = KnownLocationSizer(), now: Date = Date(), locateTool: (ToolCommand) -> URL? = ToolCommand.installed,
                           systemRoot: URL = URL(fileURLWithPath: "/"), cloud: any UbiquitousItemAccess = SystemUbiquitousItems(), access: FullDiskAccessStatus = .unknown,
-                          progress: (CatalogDiscoveryProgress) -> Void = { _ in }) -> CatalogDiscovery {
+                          cancellation: ScanCancellation? = nil, progress: (CatalogDiscoveryProgress) -> Void = { _ in }) -> CatalogDiscovery {
         // Guidance rules report their own access (`guidance(home:)`).
         let notAccessible = rules.filter { $0.action != .guidance && $0.access(given: access) == .needsFullDiskAccess }
         let homeBase = home.resolvingSymlinksInPath(), userBase = userFolder
@@ -588,6 +588,7 @@ public struct Catalog: Sendable {
         var candidates: [Candidate] = []
         // One rule at a time, in catalog order, so progress can report each as it finishes (#128).
         for (index, rule) in checked.enumerated() {
+            guard cancellation?.isCancellationRequested != true else { break }
             progress(.checking(ruleID: rule.id, title: rule.title, number: index + 1, total: checked.count))
             let kept = offered(by: rule).filter { candidate in
                 // Excluded items are never candidates (SPEC section 2); the check refuses them again just before acting.

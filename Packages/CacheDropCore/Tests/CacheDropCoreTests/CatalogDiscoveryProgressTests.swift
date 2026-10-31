@@ -63,3 +63,22 @@ private extension CatalogDiscoveryProgress {
         }
     }
 }
+
+@Test func stoppedCatalogDiscoveryDoesNotBeginAnotherLocationOrRecordItAsEmpty() throws {
+    let home = try progressHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    try write(4096, at: "a/f", in: home)
+    try write(8192, at: "b/f", in: home)
+    let catalog = Catalog(rules: [rule("a", title: "Alpha"), rule("b", title: "Beta")])
+    let cancellation = ScanCancellation()
+    var steps: [CatalogDiscoveryProgress] = []
+    let discovery = catalog.discovery(home: home, inUse: FixtureNothingInUse(), locateTool: { _ in nil }, systemRoot: home, cloud: FakeCloud(), access: .granted,
+                                      cancellation: cancellation) { step in
+        steps.append(step)
+        if case .finished = step { cancellation.cancel() }
+    }
+    #expect(discovery.scannedRuleIDs == ["a"])
+    #expect(discovery.candidates.map(\.ruleID) == ["a"])
+    #expect(steps.map(\.summary) == ["checking a Alpha 1/2", "finished a 1/2 found 1"])
+    #expect(StorageTrendsCatalog.groups(discovery, catalog: catalog, fullDiskAccess: .granted).map(\.ruleID) == ["a"])
+}

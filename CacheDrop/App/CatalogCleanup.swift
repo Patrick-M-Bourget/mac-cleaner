@@ -125,7 +125,7 @@ import SwiftUI
     static var home: URL? {
         #if DEBUG
         if LocalStateLocation.isDisposableTest {
-            guard let path = ProcessInfo.processInfo.environment["CACHEDROP_TEST_CATALOG_HOME"] else { return nil }
+            guard let path = LocalStateLocation.fixtureEnvironment["CACHEDROP_TEST_CATALOG_HOME"] else { return nil }
             let url = URL(fileURLWithPath: path).resolvingSymlinksInPath()
             let prefix = "CacheDropTestHome-"
             guard url.lastPathComponent.hasPrefix(prefix), UUID(uuidString: String(url.lastPathComponent.dropFirst(prefix.count))) != nil,
@@ -297,10 +297,11 @@ import SwiftUI
     var selectedCount: Int { selectedCandidates.count }
     /// The space the plan's chosen items would release: Trash-bound items free nothing until the Trash is emptied (#350, SPEC section 6).
     var estimatedBytes: Int64 { selectedCandidates.filter(\.releasesSpace).reduce(0) { $0 + $1.estimatedBytes } }
-    var canEdit: Bool { !isScanning && !isRunning && !AppLifecycleController.shared.operationInProgress && !AppLifecycleController.shared.maintenanceInProgress }
+    var canEdit: Bool { !AppLifecycleController.shared.updateInstallation.blocksNewWork && !isScanning && !isRunning && !AppLifecycleController.shared.operationInProgress && !AppLifecycleController.shared.maintenanceInProgress }
     var canReview: Bool { canEdit && selectedCount > 0 }
     /// Why choices and the dry run can't be changed now, for a disabled control's tooltip; nil when they can (#310).
     var editBlockedReason: String? {
+        if AppLifecycleController.shared.updateInstallation.blocksNewWork { return "Wait for the update to finish" }
         if isScanning { return "Wait for the scan to finish" }
         if isRunning || AppLifecycleController.shared.operationInProgress { return "Wait for the cleanup to finish" }
         if AppLifecycleController.shared.maintenanceInProgress { return "Wait while CacheDrop tidies its history" }
@@ -350,11 +351,14 @@ import SwiftUI
     var scanRememberedFolders: (() -> Void)?
     /// A rescan asked for while a scan ran; it starts once that scan ends (#306).
     private var rescanPending = false
+    private let scanLifecycle = ScanLifecycle()
+    private var scanCancellation: ScanCancellation?
     /// The launch scan: once, until a scan has finished.
     func scanIfNeeded() async { if !hasScanned { await rescan() } }
     /// CacheDrop scans again by itself (#306): at launch, when a run ends and after a Put back, whichever page is open.
     /// Asked while a scan runs, it scans again once that one ends. Each scan it starts rechecks the remembered folders once.
     func rescan() async {
+        guard !AppLifecycleController.shared.updateInstallation.blocksNewWork else { return }
         if isScanning { rescanPending = true; return }
         if await scan(rescan: true) { scanRememberedFolders?() }
     }
@@ -362,6 +366,7 @@ import SwiftUI
     @discardableResult func scan() async -> Bool { await scan(rescan: false) }
     private func scan(rescan: Bool) async -> Bool {
         let lifecycle = AppLifecycleController.shared
+        guard !lifecycle.updateInstallation.blocksNewWork else { return false }
         // History holds the maintenance lease for a moment: scan once it lets go, never not at all (#310). A rescan
         // waits as a rescan, so it still rechecks the remembered folders once when it runs (#332).
         if lifecycle.maintenanceInProgress, !isScanning, !isRunning, !lifecycle.operationInProgress {
@@ -371,12 +376,33 @@ import SwiftUI
             return false
         }
         guard canEdit else { return false }
-        await scanCatalog()
-        // Something changed on disk while it ran, such as a Put back: scan again, as its own rescan.
-        if rescanPending { rescanPending = false; Task { await self.rescan() } }
-        return true
+        let cancellation = ScanCancellation()
+        scanCancellation = cancellation
+        isScanning = true
+        let task = scanLifecycle.start(stop: { cancellation.cancel() }) {
+            await self.scanCatalog(cancellation: cancellation)
+            // A queued rescan belongs to this lifecycle too, including its final writes.
+            if self.rescanPending, !cancellation.isCancellationRequested {
+                self.rescanPending = false
+                await self.rescan()
+            }
+        }
+        await task.value
+        return !cancellation.isCancellationRequested
     }
-    private func scanCatalog() async {
+    /// Stops discovery without canceling the task responsible for saving its final outcomes.
+    func requestScanStop() {
+        rescanPending = false
+        scanCancellation?.cancel()
+        scanLifecycle.requestStop()
+    }
+    func stopScanningAndWait() async {
+        requestScanStop()
+        await scanLifecycle.waitForCompletion()
+    }
+    func waitForScanCompletion() async { await scanLifecycle.waitForCompletion() }
+
+    private func scanCatalog(cancellation: ScanCancellation) async {
         isScanning = true; message = nil; scanProgress = CatalogScanProgress()
         defer { isScanning = false; hasScanned = true; scanProgress = nil }
         guard let home = Self.home else { discovered = []; uninstallable = []; notes = []; overriddenRules = []; notAccessibleRules = []; setRunning([:], open: []); ownerNames = [:]; return }
@@ -385,6 +411,7 @@ import SwiftUI
             discovered = []; uninstallable = []; notes = []; overriddenRules = []; notAccessibleRules = []; setRunning([:], open: []); ownerNames = [:]
             settingsUnreadable = true; return
         }
+        guard !cancellation.isCancellationRequested else { return }
         settingsUnreadable = false
         let catalog = catalog
         let locate = Self.locateTool, system = Self.systemRoot
@@ -397,12 +424,12 @@ import SwiftUI
         let (steps, reporter) = AsyncStream.makeStream(of: CatalogScanStep.self)
         let progress = Task { for await step in steps { scanProgress?.apply(step) } }
         let presence = Self.appPresence.snapshot(), own = Bundle.main.bundleIdentifier
-        let scanned = await Task.detached(priority: .userInitiated) { () -> CatalogScanResult in
+        let (discovery, access, scanned) = await Task.detached(priority: .userInitiated) { () -> (CatalogDiscovery, FullDiskAccessStatus, CatalogScanResult?) in
             // Probed once per scan, at launch too, and shared with the guidance scan: it only opens a protected folder
             // and never prompts (#117).
             let access = FullDiskAccessProbe(home: home).status()
             let discovered = catalog.discovery(home: home, userFolder: userFolder, exclusions: exclusions, locateTool: locate, systemRoot: system, cloud: cloud,
-                                               access: access, progress: { step in
+                                               access: access, cancellation: cancellation, progress: { step in
                                                    reporter.yield(.discovery(step))
                                                    #if DEBUG
                                                    if case .finished = step { Self.pauseForTests() }
@@ -413,6 +440,10 @@ import SwiftUI
                 #if DEBUG
                 Self.pauseForTests()
                 #endif
+            }
+            guard !cancellation.isCancellationRequested else {
+                reporter.finish()
+                return (discovered, access, nil)
             }
             enter(.removedAppLeftovers)
             // Installer receipts, read once for leftovers, app uninstall, plug-ins and their guidance (#318). A debug test run reads the
@@ -440,14 +471,15 @@ import SwiftUI
             enter(.openApps)
             let running = Self.running(owners, quitter: quitter)
             reporter.finish()
-            return CatalogScanResult(discovery: discovered, overriddenRules: catalog.overriddenRules(home: home, systemRoot: system), owners: running.0, openOwners: running.1,
+            return (discovered, access, CatalogScanResult(discovery: discovered, overriddenRules: catalog.overriddenRules(home: home, systemRoot: system), owners: running.0, openOwners: running.1,
                                      ownerNames: names, access: access, leftovers: leftovers, uninstallable: apps + plugIns, plugIns: inventory,
-                                     receipts: listings)
+                                     receipts: listings))
         }.value
         await progress.value
         scanProgress?.phase = .storageTrends
-        await StorageTrendsHistoryModel.shared.completeCatalog(scanned.discovery, catalog: catalog, fullDiskAccess: scanned.access, token: growth, afterCleanup: rescanFollowsCleanup)
+        await StorageTrendsHistoryModel.shared.completeCatalog(discovery, catalog: catalog, fullDiskAccess: access, token: growth, afterCleanup: rescanFollowsCleanup)
         rescanFollowsCleanup = false
+        guard let scanned, !cancellation.isCancellationRequested else { return }
         fullDiskAccessRescan.scanned(scanned.access)
         discovered = scanned.discovery.candidates + scanned.leftovers; uninstallable = scanned.uninstallable; plugInInventory = scanned.plugIns
         notes = scanned.discovery.notes; notAccessibleRules = scanned.discovery.notAccessible; overriddenRules = scanned.overriddenRules
@@ -581,7 +613,7 @@ import SwiftUI
         return await Task.detached { check.refusals(of: items) }.value
     }
     func execute(_ approval: CatalogApproval, cancellation: CleanupCancellation) async {
-        guard !isRunning else { return }
+        guard !AppLifecycleController.shared.updateInstallation.blocksNewWork, !isRunning else { return }
         isRunning = true
         let reading = AppLifecycleController.shared.capacity.reading
         runCapacity = reading.flatMap { reading in
@@ -624,7 +656,7 @@ import SwiftUI
         #if DEBUG
         if let seconds = Self.laterWaitForTests() { wait = { _ in (try? await Task.sleep(for: .seconds(seconds))) != nil } }
         #endif
-        Task {
+        AppLifecycleController.shared.laterMeasurements.schedule(wait: wait) { [self] wait in
             defer { if settleCheck?.batchID == outcome.batchID { settleCheck?.finished = true } }
             let later = await run.measureAgainLater(outcome, of: approval, wait: wait, update: { [weak self] partial in await self?.showLaterMeasurement(partial) }) { candidates in
                 // Without the exclusions the scan used, nothing is measured: every item stays unmeasured.
