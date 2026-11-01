@@ -316,7 +316,7 @@ private struct WorkspaceView: View {
             AppLifecycleController.shared.openWorkspace = { openWindow(id: "workspace") }
             AppLifecycleController.shared.scanAgain = { if canScanAgain { scanAgain() } }
             AppLifecycleController.shared.openSmartClean = { navigate(.smartClean) }
-            selection.catalog.scanRememberedFolders = { scanRememberedFolders() }
+            selection.catalog.scanRememberedFolders = { run in scanRememberedFolders(after: run) }
         }
         .onReceive(NotificationCenter.default.publisher(for: .cacheDropAlertOpened)) { _ in destination = .overview; navigationState.savedDataVisible = false; navigationState.appManagedVisible = false; protectedItemsVisible = false; recoveryVisible = false; explorerVisible = false }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in Task { await alerts.activated() } }
@@ -560,10 +560,15 @@ private struct WorkspaceView: View {
         Task { await TrashModel.shared.refresh() }
         if !locationsModel.included.isEmpty { scanKnownLocations() }
     }
-    /// The remembered, included folders, scanned along with the catalog at launch and after a cleanup (#125).
-    private func scanRememberedFolders() {
+    /// The remembered, included folders, scanned along with the catalog at launch and after a cleanup (#125); after a run
+    /// that changed nothing Applications lists, only those it changed something in (Decision 133).
+    private func scanRememberedFolders(after run: CatalogExecutionResult?) {
         locationsModel.load()
-        if !locationsModel.included.isEmpty { scanKnownLocations() }
+        let included = locationsModel.included
+        guard let run else { if !included.isEmpty { scanKnownLocations() }; return }
+        let touched = Set(run.foldersTouched(among: included.map { URL(fileURLWithPath: $0.path) }))
+        let folders = included.filter { touched.contains(URL(fileURLWithPath: $0.path)) }
+        if !folders.isEmpty { scanLocations(folders) }
     }
     /// A location that can't be reached keeps its recovery row near the top, since it affects the results below it (#223, #231, #345).
     private var locationRecoveries: some View {
