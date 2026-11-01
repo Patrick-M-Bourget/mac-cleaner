@@ -38,7 +38,7 @@ extension CleanupRecord {
     init(emptying original: CleanupRecord, trashURL: URL, batchID: UUID, at date: Date, dryRun: Bool) {
         self.init(id: batchID.uuidString + "|emptyFromTrash|" + original.id, batchID: batchID, originalURL: trashURL, resourceID: original.resourceID,
                   logicalBytes: original.logicalBytes, allocatedBytes: original.allocatedBytes, state: .pending, trashURL: nil,
-                  message: "Approved; not started", observedAt: date, scopeURL: trashURL.deletingLastPathComponent(), scopeResourceID: "",
+                  message: "Not started", observedAt: date, scopeURL: trashURL.deletingLastPathComponent(), scopeResourceID: "",
                   volumeID: original.volumeID, downloadsURL: nil, downloadsResourceID: nil, modifiedSeconds: original.modifiedSeconds,
                   modifiedNanoseconds: original.modifiedNanoseconds, action: Self.emptyFromTrashAction, policyVersion: 2,
                   outcomeRecordedAt: nil, approvedAt: date, ruleID: original.ruleID, dryRun: dryRun, itemName: original.itemName)
@@ -148,7 +148,7 @@ public struct TrashEmptying: Sendable {
             if failure != nil {
                 record.state = .cancelled; record.message = "Not started"; done.append(record); continue
             }
-            record.state = .intent; record.message = "Started; outcome not yet recorded"
+            record.state = .intent; record.message = "Started · Outcome unknown"
             do { try journal.intent(record) }
             catch { record.state = .cancelled; record.message = "CacheDrop couldn’t save its progress, so it stopped. This item wasn’t changed."; failure = record.message; done.append(record); continue }
             perform(original, dryRun: dryRun, ledger: ledger, into: &record)

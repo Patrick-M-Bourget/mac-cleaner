@@ -86,12 +86,12 @@ private func cloudReport(_ names: [String]) async throws -> CloudInventoryReport
 
     let state = try await cloudReport(["current.bin", "a.bin", "b.bin", "c.bin"])
     #expect(state.totalIsUnknown)
-    #expect(state.unknownReason == "CacheDrop couldn't tell whether 3 files are downloaded.")
+    #expect(state.unknownReason == "CacheDrop couldn’t tell whether 3 files are downloaded.")
 
     let membership = try await cloudReport(["current.bin", "membership.bin"])
     #expect(membership.totalIsUnknown)
-    #expect(membership.unknownReason == "CacheDrop couldn't tell whether 1 file is in iCloud.")
+    #expect(membership.unknownReason == "CacheDrop couldn’t tell whether 1 file is in iCloud.")
 
     let both = try await cloudReport(["membership.bin", "a.bin"])
-    #expect(both.unknownReason == "CacheDrop couldn't tell whether 1 file is in iCloud, or whether 1 file is downloaded.")
+    #expect(both.unknownReason == "CacheDrop couldn’t tell whether 1 file is in iCloud, or whether 1 file is downloaded.")
 }

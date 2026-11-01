@@ -61,7 +61,7 @@ import SwiftUI
                 preparingInventory = false
                 if catalog.isScanning { await catalog.waitForScanCompletion() }
                 guard let scanID = catalog.preparedScan else {
-                    problem = catalog.settingsUnreadable ? CatalogCleanupModel.settingsUnreadableText : "The scan couldn't finish. Try again or continue with available results."
+                    problem = catalog.settingsUnreadable ? CatalogCleanupModel.settingsUnreadableText : "The scan couldn’t finish. Try again or continue with available results."
                     break
                 }
                 let apps = ApplicationsModel.shared
@@ -70,7 +70,7 @@ import SwiftUI
                 // Returning from System Settings can start another scan while inventory loads.
                 // Only inventory prepared for the current completed catalog can unlock the workspace.
                 if catalog.isScanning || catalog.preparedScan != scanID { continue }
-                if apps.appsUnreadable || !apps.hasLoaded { problem = "CacheDrop couldn't read the list of apps." }
+                if apps.appsUnreadable || !apps.hasLoaded { problem = "CacheDrop couldn’t read the list of apps." }
                 break
             }
             failure = problem ?? ""
@@ -190,7 +190,7 @@ struct FirstRunWelcomeView: View {
         case .access: "Choose access"
         case .scanning: "Preparing your results"
         case .ready: "Your results are ready"
-        case .failed: "Preparation couldn't finish"
+        case .failed: "Preparation couldn’t finish"
         }
     }
     private var progressText: String {

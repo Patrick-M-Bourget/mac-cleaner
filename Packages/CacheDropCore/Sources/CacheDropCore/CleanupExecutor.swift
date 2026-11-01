@@ -85,7 +85,7 @@ extension CleanupRecord {
     public init(batchID: UUID, approvedAt: Date, candidate: Candidate, dryRun: Bool) {
         id = Self.id(batchID: batchID, candidateID: candidate.id); self.batchID = batchID; originalURL = candidate.url
         resourceID = candidate.resourceID; logicalBytes = candidate.logicalBytes; allocatedBytes = candidate.allocatedBytes
-        state = .pending; trashURL = nil; message = "Approved; not started"; observedAt = candidate.observedAt
+        state = .pending; trashURL = nil; message = "Not started"; observedAt = candidate.observedAt
         let parent = candidate.url.deletingLastPathComponent()
         var info = stat()
         scopeURL = parent; scopeResourceID = lstat(parent.path, &info) == 0 ? info.resourceID : ""
@@ -143,7 +143,7 @@ public actor CleanupExecutor {
                 if failure == nil { do { try journal.outcome(record) } catch { failure = "CacheDrop couldn’t save that the cleanup stopped." } }
                 records.append(record); await progress(.init(resolved: records.count, total: total, last: record)); continue
             }
-            record.state = .intent; record.message = "Started; outcome not yet recorded"
+            record.state = .intent; record.message = "Started · Outcome unknown"
             do { try journal.intent(record) }
             catch { record.state = .cancelled; record.message = "CacheDrop couldn’t save its progress, so it stopped. This item wasn’t changed."; failure = record.message; records.append(record); await progress(.init(resolved: records.count, total: total, last: record)); continue }
             if self.check.needsInUseCheck(candidate), reading.map({ clock().timeIntervalSince($0.takenAt) > Self.inUseReadingMaxAge }) ?? true {

@@ -134,7 +134,7 @@ import CacheDropCore
     }
     func chooseLogin(_ enabled: Bool) {
         do { try registration.choose(enabled); loginError = nil }
-        catch { loginError = "Login registration could not be changed. You can continue using CacheDrop on demand." }
+        catch { loginError = "CacheDrop couldn’t change Start at Login. You can still open it yourself." }
         loginIntent = registration.intent; loginStatus = registration.status
         UserDefaults.standard.set(loginIntent, forKey: PreferenceKeys.startAtLogin)
     }

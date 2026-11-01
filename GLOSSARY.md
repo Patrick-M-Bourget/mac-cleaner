@@ -74,4 +74,4 @@ The names CacheDrop shows, what they mean, and where they live in code. Copy fol
 
 ## Not shown to users
 
-deletion remnant, observed, coverage, baseline, known locations, journal, approval, records, resource identity, metadata, directory, leftovers, available (for free space), Potential space released, Show in Finder, Rescan, Recheck, telemetry, install ID, Storage overview, Cleanup results, Permanently removed, Scan now, Couldn’t be measured, Not accessible, reclaimable.
+deletion remnant, observed, coverage, baseline, known locations, journal, approval, records, resource identity, metadata, directory, leftovers, available (for free space), Potential space released, Show in Finder, Rescan, Recheck, telemetry, install ID, Storage overview, Cleanup results, Permanently removed, Scan now, Couldn’t be measured, Not accessible, reclaimable, bundle ID, Rules version, File ID.

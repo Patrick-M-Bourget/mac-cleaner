@@ -1254,7 +1254,7 @@ extension CacheDropDesign {
     /// What a disabled Review cleanup or Clean up says while a scan runs (#308).
     static let waitForScanHelp = "Wait for the scan to finish"
     /// The tooltip on the Cleanup plan's and Smart clean's selection totals (#370).
-    static let selectionEstimateHelp = "Sizes are estimates from the scan, not guaranteed space freed. Linked files count once. Each item is checked again just before CacheDrop acts on it."
+    static let selectionEstimateHelp = "Sizes are estimates from the scan; each item is checked again just before it’s cleaned."
 }
 
 /// A bar's main action while its click-time checks run (#308): a small spinner beside it, and the action ignores more

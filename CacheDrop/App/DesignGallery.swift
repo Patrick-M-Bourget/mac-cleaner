@@ -75,7 +75,7 @@ struct DesignGallery: View {
                         Text("Why it’s listed").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
                         Text("Not opened since Mar 2, 2026.")
                         Text("Action").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
-                        Text("Move to Trash. The space stays used until you empty the Trash.")
+                        Text("Move to Trash")
                     }
                     ExplorerInspector(name: "Cloud file (example)", close: {}) {
                         Text("Example cloud file")

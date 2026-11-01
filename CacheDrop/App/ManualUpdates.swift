@@ -52,7 +52,7 @@ import SwiftUI
     }
     func updater(_ updater: SPUUpdater, mayPerform updateCheck: SPUUpdateCheck) throws {
         guard updateCheck == .updates, !lifecycle.updateInstallation.blocksNewWork else {
-            throw NSError(domain: "CacheDrop.Updates", code: 1, userInfo: [NSLocalizedDescriptionKey: "Updates are checked only when you choose Check for Updates…."])
+            throw NSError(domain: "CacheDrop.Updates", code: 1, userInfo: [NSLocalizedDescriptionKey: "Updates are checked only when you choose Check for Updates…"])
         }
     }
     private func approve(_ reply: @escaping (SPUUserUpdateChoice) -> Void) {

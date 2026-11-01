@@ -266,7 +266,7 @@ public enum BuiltInCatalog {
                     regen: .cache, action: .delete, locations: ["Library/Caches/CocoaPods"],
                     owner: RuleOwner(name: "CocoaPods", executables: ["pod"], scripts: ["pod"])),
         CleanupRule(id: "homebrew", category: .developer, title: "Homebrew cache",
-                    detail: "Downloads Homebrew kept, plus old versions `brew cleanup -s` removes.",
+                    detail: "Downloads Homebrew kept, and old versions it no longer needs.",
                     consequence: "Homebrew downloads again when you install or upgrade.",
                     regen: .cache, action: .tool, locations: ["Library/Caches/Homebrew"],
                     owner: RuleOwner(name: "Homebrew", executables: ["brew"], scripts: ["brew", "brew.sh", "brew.rb"]),

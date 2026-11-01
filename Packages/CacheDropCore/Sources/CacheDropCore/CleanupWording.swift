@@ -84,10 +84,16 @@ extension CleanupRecord {
     }
     /// Success messages that only restate the outcome, which History leaves out (#312).
     private static let restatesOutcome: Set<String> = ["Deleted", "Permanently removed", "Moved to Trash", "Put back from the Trash", "Deleted from the Trash"]
+    /// Progress messages journaled in words kept off screen ("approval", "records"), and how they read (#571). The journal
+    /// keeps what it stored; only what's drawn changes.
+    static let plainProgress = ["Approved; not started": "Not started", "Started; outcome not yet recorded": "Started · Outcome unknown"]
+    /// The record's message as every page draws it.
+    public var shownMessage: String { Self.plainProgress[message] ?? message }
     /// History's line for a record: its outcome, then its message when that adds something (#312).
     public var outcomeLine: String {
-        let restates = message == outcomeTitle || (state == .succeeded && Self.restatesOutcome.contains(message))
-        return restates ? outcomeTitle : outcomeTitle + " · " + message
+        let shown = shownMessage
+        let restates = shown == outcomeTitle || (state == .succeeded && Self.restatesOutcome.contains(shown))
+        return restates ? outcomeTitle : outcomeTitle + " · " + shown
     }
     public var recoveryStateText: String {
         switch state {

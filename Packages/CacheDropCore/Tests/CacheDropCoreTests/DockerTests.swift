@@ -771,9 +771,9 @@ private final class Counter: @unchecked Sendable {
 /// #419: one short line per plan row (Decision 25).
 @Test func dockerRowsHaveOneShortLineOfDetail() {
     let catalog = Catalog(rules: fixtureRules)
-    #expect(catalog.rule("docker-containers")?.detail == "Containers that aren’t running. Size is an estimate.")
-    #expect(catalog.rule("docker-images")?.detail == "Images no running container uses. Size is an estimate.")
-    #expect(catalog.rule("docker-build-cache")?.detail == "Layers Docker kept to speed up builds. Size is an estimate.")
+    #expect(catalog.rule("docker-containers")?.detail == "Containers that aren’t running.")
+    #expect(catalog.rule("docker-images")?.detail == "Images no running container uses.")
+    #expect(catalog.rule("docker-build-cache")?.detail == "Layers Docker kept to speed up builds.")
 }
 
 /// #420: `.docker` only anchors Docker's rules; the prunes work inside Docker's VM, so their rows show no location, path

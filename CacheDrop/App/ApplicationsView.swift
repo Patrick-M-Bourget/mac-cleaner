@@ -184,7 +184,6 @@ struct ApplicationsView: View {
         let value = items.isEmpty ? CacheDropDesign.noValue : catalog.sizeText(of: items) + " to Trash"
         return SelectionSummary(value: value, detail: CacheDropDesign.items(items.count) + " selected",
                                 identifier: "applicationsSummary", title: "Ready to clean")
-            .help("Space is freed when you empty the Trash.")
             .waitingForScan(catalog.isScanning)
     }
 
@@ -222,7 +221,7 @@ struct ApplicationsView: View {
             if listsLoading { loading(id) }
             else if model.listing.isSearching, !(id == "apps" && model.appsUnreadable) { noMatches(id) }
             else if id == "apps", model.appsUnreadable {
-                // Spotlight didn't answer: unknown, never "Only Apple's apps" (#310), as the one empty state (#321). Try again
+                // Spotlight didn't answer: unknown, never "Only Apple’s apps" (#310), as the one empty state (#321). Try again
                 // scans again, so uninstalls are read too.
                 EmptyState(title: "CacheDrop couldn’t read the list of apps", detail: "Spotlight didn’t answer.", symbol: "exclamationmark.triangle",
                            action: EmptyStateAction("Scan again") { Task { await catalog.rescan() } }, identifier: "applicationsUnreadable")

@@ -125,3 +125,19 @@ private func records(_ actions: [CleanupAction], dryRun: Bool = false) throws ->
     delete.state = .failed; delete.message = "Couldn’t remove it (Permission denied). Left unchanged."
     #expect(delete.outcomeLine == "Failed · Couldn’t remove it (Permission denied). Left unchanged.")
 }
+
+/// #571: messages journaled with words kept off screen ("approval", "records") read as plain words wherever they're drawn;
+/// what's stored stays as it was.
+@Test func storedProgressMessagesReadInPlainWords() throws {
+    let (home, made) = try records([.delete, .delete])
+    defer { try? FileManager.default.removeItem(at: home) }
+    var pending = made[0], started = made[1]
+    pending.message = "Approved; not started"
+    started.state = .intent; started.message = "Started; outcome not yet recorded"
+    #expect(pending.shownMessage == "Not started")
+    #expect(pending.outcomeLine == "Not started")
+    #expect(started.shownMessage == "Started · Outcome unknown")
+    #expect(started.message == "Started; outcome not yet recorded", "The stored text is unchanged")
+    pending.message = "Ran brew"
+    #expect(pending.shownMessage == "Ran brew")
+}

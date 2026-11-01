@@ -44,7 +44,7 @@ public struct CloudInventoryReport: Sendable {
         func files(_ count: Int) -> String { count == 1 ? "1 file is" : "\(count) files are" }
         let parts = [unknownMembershipCount > 0 ? "whether " + files(unknownMembershipCount) + " in iCloud" : nil,
                      unknownStateCount > 0 ? "whether " + files(unknownStateCount) + " downloaded" : nil].compactMap { $0 }
-        return parts.isEmpty ? nil : "CacheDrop couldn't tell " + parts.joined(separator: ", or ") + "."
+        return parts.isEmpty ? nil : "CacheDrop couldn’t tell " + parts.joined(separator: ", or ") + "."
     }
 }
 

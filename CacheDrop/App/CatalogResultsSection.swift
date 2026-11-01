@@ -117,14 +117,14 @@ private struct CatalogResultRow: View {
                 Text(SizeFormatter.text(record.recordedBytes)).font(CacheDropDesign.TypeStyle.note).monospacedDigit().foregroundStyle(.secondary)
             }
             VStack(alignment: .leading, spacing: CacheDropDesign.Space.xs) {
-                if record.needsAttention || record.finishedAfterStop { Text(record.message).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
+                if record.needsAttention || record.finishedAfterStop { Text(record.shownMessage).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
                 if let later = record.laterMeasurementText {
                     Text(later).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                         .accessibilityIdentifier("laterMeasurement-" + (record.ruleID ?? ""))
                 }
                 if showsDetails {
                     if showsFolder { Text(record.originalURL.path).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).textSelection(.enabled) }
-                    if !record.needsAttention && !record.finishedAfterStop { Text(record.message).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary) }
+                    if !record.needsAttention && !record.finishedAfterStop { Text(record.shownMessage).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary) }
                     if let output = record.toolOutput {
                         Text(output).font(CacheDropDesign.TypeStyle.code).foregroundStyle(.secondary).textSelection(.enabled)
                             .frame(maxWidth: .infinity, alignment: .leading).accessibilityIdentifier("toolOutput-" + (record.ruleID ?? ""))
