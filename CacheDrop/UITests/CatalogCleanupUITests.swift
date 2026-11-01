@@ -535,6 +535,11 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertTrue(freed.waitForExistence(timeout: 5))
         let freedText = freed.value as? String ?? freed.label
         XCTAssertFalse(freedText.contains("Unknown"), freed.debugDescription)
+        // #577: one headline. The estimate is said once, in the line under it, never as a second figure.
+        let estimateLine = app.staticTexts["resultsEstimate"]
+        XCTAssertTrue((estimateLine.value as? String ?? estimateLine.label).hasPrefix("Estimated before cleanup: "), estimateLine.debugDescription)
+        XCTAssertTrue((estimateLine.value as? String ?? estimateLine.label).hasSuffix(" · measured from the change in free space around each item"))
+        XCTAssertFalse(app.staticTexts["Estimated before cleanup"].exists, "No second figure for the estimate")
         app.typeKey("6", modifierFlags: .command)
         let run = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH 'cleanupRun:'")).firstMatch
         XCTAssertTrue(run.waitForExistence(timeout: 10))

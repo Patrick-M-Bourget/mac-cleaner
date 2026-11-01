@@ -35,7 +35,7 @@ extension Array where Element == CleanupRecord {
 }
 
 /// How a measured freed space is shown (#418): never below 0. Other activity can move free space the other way while an
-/// item's space hasn't reached macOS yet (Docker's, #411); the caption beside it says other activity can affect it.
+/// item's space hasn't reached macOS yet (Docker's, #411); Results' line under it says how it was measured (#577).
 public enum MeasuredFreedSpace {
     public static func shown(_ measured: Int64?) -> Int64? { measured.map { max(0, $0) } }
 }
