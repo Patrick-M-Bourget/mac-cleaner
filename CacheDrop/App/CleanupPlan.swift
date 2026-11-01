@@ -1,4 +1,5 @@
 import Foundation
+import os
 import Observation
 import CacheDropCore
 import SwiftUI
@@ -103,21 +104,62 @@ struct RefreshRequest: Sendable {
     func canReview(_ source: CleanupSelections.Source) -> Bool {
         switch source { case .plan: canReview; case .smartClean: canReviewSmartClean; case .applications: canReviewApplications }
     }
-    /// A page's Review cleanup or Clean up is running its click-time checks (#308): the button shows it is busy and
-    /// ignores more clicks until they end.
-    private(set) var isCheckingReview = false
-    /// Runs one page's click-time checks; nil when another page's are already running.
-    func checkingReview(_ prepare: () async throws -> WorkspaceCleanupReview) async throws -> WorkspaceCleanupReview? {
-        guard !isCheckingReview else { return nil }
-        isCheckingReview = true
-        defer { isCheckingReview = false }
-        return try await prepare()
+    /// The open review sheet, from the click to Clean up (Decision 126, #463): it opens at once with the click-time checks
+    /// running in it, and Clean up has nothing to run until they finish for the same choices.
+    private(set) var reviewOpening = ReviewOpening<WorkspaceCleanupReview>()
+    /// A page's click-time checks are running (#308): its button shows it is busy and ignores more clicks until they end.
+    var isCheckingReview: Bool { reviewOpening.isChecking }
+    private var reviewChecks: Task<WorkspaceCleanupReview, any Error>?
+    /// Opens `source`'s review sheet at once and runs its click-time checks in it. True once its review is ready; false when
+    /// another sheet is open or this one closed first. Throws why it closed: the checks' own error, or the choices changed.
+    func openReview(_ source: CleanupSelections.Source, checks prepare: @escaping @MainActor () async throws -> WorkspaceCleanupReview) async throws -> Bool {
+        guard let attempt = reviewOpening.open(source, revision: catalog.selectionRevision(for: source)) else { return false }
+        ReviewSignposts.clicked()
+        let checks = Task { @MainActor in
+            #if DEBUG
+            await Self.reviewPauseForTests()
+            #endif
+            try Task.checkCancellation()
+            return try await ReviewSignposts.interval("Review checks") { try await prepare() }
+        }
+        reviewChecks = checks
+        let result = await checks.result
+        if reviewChecks == checks { reviewChecks = nil }
+        let outcome = reviewOpening.finish(attempt, with: result, revision: catalog.selectionRevision(for: source))
+        if outcome != .ready, outcome != .dropped { ReviewSignposts.closed() }
+        switch outcome {
+        case .ready: return true
+        case .dropped: return false
+        case .choicesChanged: throw PlanReviewError.changed
+        case .failed: _ = try result.get(); throw PlanReviewError.changed
+        }
     }
+    /// Lets `reviewSheet(for:)` be shown and closed by the page; Cancel and Clean up close it too, and running checks stop.
+    func reviewSheet(for source: CleanupSelections.Source) -> Binding<Bool> {
+        Binding(get: { self.reviewOpening.isOpen(for: source) }, set: { if !$0 { self.closeReview() } })
+    }
+    func closeReview() { reviewOpening.close(); reviewChecks?.cancel(); reviewChecks = nil; ReviewSignposts.closed() }
+    /// `source`'s choices moved: its open sheet, checking or ready, closes, and true says the page should say so (Decision 54).
+    func reviewChoicesChanged(_ source: CleanupSelections.Source) -> Bool {
+        guard reviewOpening.choicesChanged(source, to: catalog.selectionRevision(for: source)) else { return false }
+        reviewChecks?.cancel(); reviewChecks = nil; ReviewSignposts.closed()
+        return true
+    }
+    #if DEBUG
+    /// A disposable test run can hold the review's click-time checks open (`CACHEDROP_TEST_REVIEW_PAUSE`, seconds, at most 10),
+    /// so a UI journey sees the sheet checking (#463). Closing the sheet ends the wait. Never set outside tests.
+    private static func reviewPauseForTests() async {
+        guard LocalStateLocation.isDisposableTest, let pause = ProcessInfo.processInfo.environment["CACHEDROP_TEST_REVIEW_PAUSE"].flatMap(Double.init), pause > 0 else { return }
+        try? await Task.sleep(for: .seconds(min(pause, 10)))
+    }
+    #endif
     /// Smart clean's review: the recommended part of the shared selection, checked now through the plan's review and executor (Decision 67).
     func prepareSmartCleanReview() async throws -> WorkspaceCleanupReview {
         guard canReviewSmartClean else { throw PlanReviewError.changed }
         let catalogVersion = catalog.selectionRevision(for: .smartClean)
         guard let checked = await catalog.smartCleanCheckedNow() else { throw failure }
+        // The sheet closed while Smart clean's items were checked: the review's own pass isn't needed (#463).
+        try Task.checkCancellation()
         guard !checked.items.isEmpty else { throw PlanReviewError.nothingToClean }
         return try await review(checked.items, from: .smartClean, catalogVersion: catalogVersion, check: checked.check)
     }
@@ -237,7 +279,6 @@ struct LiveCleanupPlanView: View {
     var exploreStorage: (() -> Void)? = nil
     /// Opens Applications, where files from deleted apps are chosen (#481).
     var openApplications: (() -> Void)? = nil
-    @State private var review: WorkspaceCleanupReview?
     @State private var approvalError: String?
     @State private var reviewFocusRequest = 0
     var body: some View {
@@ -273,14 +314,13 @@ struct LiveCleanupPlanView: View {
             }
         }
         }
-        .sheet(item: $review, onDismiss: { reviewFocusRequest += 1 }) { snapshot in
-            WorkspaceCleanupConfirmationView(review: snapshot, cancel: { review = nil }) {
-                review = nil
+        .sheet(isPresented: selection.reviewSheet(for: .plan), onDismiss: { reviewFocusRequest += 1 }) {
+            ReviewSheet(selection: selection) { snapshot in
                 Task { do { try await selection.executeWorkspace(snapshot) } catch { approvalError = PlanReviewError.changedMessage } }
             }
         }
         // The sheet closes only when the choices it was built from changed, and the page says so (#307).
-        .onChange(of: selection.catalog.selectionRevision(for: .plan)) { _, _ in if review != nil { review = nil; approvalError = PlanReviewError.changedMessage } }
+        .onChange(of: selection.catalog.selectionRevision(for: .plan)) { _, _ in if selection.reviewChoicesChanged(.plan) { approvalError = PlanReviewError.changedMessage } }
     }
     /// The shared selection's part on Applications, which the plan's count leaves out (#481): Smart clean counts it too.
     private var applicationsLink: (title: String, open: () -> Void)? {
@@ -290,8 +330,8 @@ struct LiveCleanupPlanView: View {
     }
     private func openReview() async {
         do {
-            guard let checked = try await selection.checkingReview(selection.prepareWorkspaceReview) else { return }
-            review = checked; approvalError = nil
+            guard try await selection.openReview(.plan, checks: selection.prepareWorkspaceReview) else { return }
+            approvalError = nil
         } catch { approvalError = PlanReviewError.message(for: error) }
     }
 }
@@ -439,10 +479,16 @@ struct WorkspaceCleanupConfirmationView: View {
     var body: some View {
         ReviewSheetFrame(title: "Review your cleanup", subtitle: "Clean up does exactly what’s listed here.") {
             if let items = review.catalog {
-                CatalogConfirmationSection(review: items, catalog: catalog, follow: follow, refusals: held?.refusals, quit: quitAction)
+                CatalogConfirmationSection(review: items, catalog: catalog, follow: follow, held: held, quit: quitAction)
             }
         } actions: {
             Button("Cancel", action: cancelled).keyboardShortcut(.cancelAction); Button("Clean up", action: approve).buttonStyle(.borderedProminent)
+        }
+        // Once at the start too: a holder may have quit while the checks ran, or held rows only through helpers that were closing.
+        .task {
+            let quits = CatalogCleanupModel.appTerminations()
+            await checkQuitAppsAgain()
+            for await _ in quits { await checkQuitAppsAgain() }
         }
     }
     /// The plan's running-owner lines catch up once the sheet is gone, never under it (#307).
@@ -450,11 +496,29 @@ struct WorkspaceCleanupConfirmationView: View {
         cancel()
         if quitAnApp, let model = review.model { Task { await model.checkRunningOwnersAgain() } }
     }
-    private func quitAction(_ item: Candidate) -> StatusAction? {
-        guard let held, let owner = held.holder(of: item), let title = held.quitTitle(for: item) else { return nil }
+    private func quitAction(_ line: ReviewHeldItems.Line) -> StatusAction? {
+        guard let owner = line.quitOwner, let title = line.quitTitle else { return nil }
         let busy = quitting.contains(owner)
-        // The candidate's id, which starts with its rule's: rows of one rule each get their own link (#384).
-        return StatusAction(title: busy ? "Quitting…" : title, identifier: "reviewQuit-" + item.id, isDisabled: busy) { quit(owner) }
+        // The line's first candidate id, which starts with its rule's: each line gets its own link (#384, #560).
+        return StatusAction(title: busy ? "Quitting…" : title, identifier: "reviewQuit-" + line.id, isDisabled: busy) { quit(owner) }
+    }
+    /// An app quit some other way while the sheet is open (#560): the rows of each holder no longer open are checked again,
+    /// and again for a few seconds while some stay held, as when its helpers are still closing. The sheet stays open (#307).
+    private func checkQuitAppsAgain() async {
+        let quitter = CatalogCleanupModel.quitter
+        for attempt in 0..<5 {
+            if attempt > 0 { try? await Task.sleep(for: .seconds(1)) }
+            let owners = held?.ownersToCheckAgain(isOpen: quitter.isOpen).filter { !quitting.contains($0) } ?? []
+            guard !owners.isEmpty else { return }
+            quitAnApp = true
+            // One check for every holder's rows: each pass reads the running processes once, not once per holder.
+            let rows = owners.flatMap { held?.candidates(heldBy: $0) ?? [] }
+            guard let checked = await review.model?.checkedAgain(rows) else { continue }
+            // A Quit clicked meanwhile checks its own rows again when its app has gone.
+            for owner in owners where !quitting.contains(owner) {
+                held?.quitEnded(owner, outcome: .quit, isOpen: quitter.isOpen) { checked[$0.id] }
+            }
+        }
     }
     /// A normal quit request, never a force quit; once the app is gone its rows are checked again, otherwise they keep their reason.
     private func quit(_ owner: RuleOwner) {
@@ -484,5 +548,75 @@ struct ReviewSheetFrame<Content: View, Actions: View>: View {
             Divider()
             SheetFooter(actions: actions)
         }.padding(CacheDropDesign.Space.xl).frame(width: CacheDropDesign.Size.sheetWide.width, height: CacheDropDesign.Size.sheetWide.height).background(CacheDropDesign.reading).cacheDropButtonRule()
+    }
+}
+
+/// The review sheet from the click (Decision 126, #463): its checks running, then the review once they finish. `run` gets
+/// the review Clean up was pressed on; nothing runs unless it is still the open sheet's.
+struct ReviewSheet: View {
+    let selection: CleanupPlan
+    /// Follows a staying line's link (#354).
+    var follow: ((AppUninstall.Staying.Link) -> Void)? = nil
+    let run: (WorkspaceCleanupReview) -> Void
+    /// The review last shown, kept while the sheet slides away so it never flips back to checking.
+    @State private var shown: WorkspaceCleanupReview?
+    var body: some View {
+        Group {
+            if let review = selection.reviewOpening.review ?? shown {
+                WorkspaceCleanupConfirmationView(review: review, cancel: selection.closeReview, approve: { approve(review) }, follow: follow).id(review.id)
+            } else {
+                ReviewChecksRunning(cancel: selection.closeReview)
+            }
+        }
+        .onAppear { ReviewSignposts.sheetShown(); if selection.reviewOpening.review != nil { ReviewSignposts.reviewShown() } }
+        .onChange(of: selection.reviewOpening.review?.id) { _, _ in
+            if let review = selection.reviewOpening.review { shown = review; ReviewSignposts.reviewShown() }
+        }
+    }
+    private func approve(_ review: WorkspaceCleanupReview) {
+        guard selection.reviewOpening.review?.id == review.id else { return }
+        selection.closeReview()
+        run(review)
+    }
+}
+
+/// The review sheet while its click-time checks run (Decision 126): what it is doing, and Clean up unavailable until they finish.
+struct ReviewChecksRunning: View {
+    let cancel: () -> Void
+    var body: some View {
+        ReviewSheetFrame(title: "Review your cleanup", subtitle: "Clean up does exactly what’s listed here.") {
+            HStack(spacing: CacheDropDesign.Space.sm) {
+                ProgressView().controlSize(.small)
+                Text("Checking selected items…")
+            }.font(CacheDropDesign.TypeStyle.note).foregroundStyle(.secondary)
+                .accessibilityElement(children: .combine).accessibilityIdentifier("reviewChecking")
+            SkeletonRows(.line, identifier: "reviewSkeleton")
+        } actions: {
+            Button("Cancel", action: cancel).keyboardShortcut(.cancelAction)
+            Button("Clean up") {}.buttonStyle(.borderedProminent).disabled(true).help("Available once every item is checked")
+        }
+    }
+}
+
+/// Signposts for the click to the review sheet (#463), read in Instruments' os_signpost or Points of Interest: subsystem
+/// `com.patrickbourget.CacheDrop`, category `ReviewLatency`. "Click to sheet" and "Click to review" start at the click;
+/// "Review checks" spans the click-time checks, and the steps inside them have their own intervals. Release-safe.
+@MainActor enum ReviewSignposts {
+    nonisolated static let signposter = OSSignposter(subsystem: "com.patrickbourget.CacheDrop", category: "ReviewLatency")
+    private static var toSheet: OSSignpostIntervalState?
+    private static var toReview: OSSignpostIntervalState?
+    static func clicked() {
+        closed()
+        toSheet = signposter.beginInterval("Click to sheet"); toReview = signposter.beginInterval("Click to review")
+    }
+    static func sheetShown() { toSheet.map { signposter.endInterval("Click to sheet", $0) }; toSheet = nil }
+    static func reviewShown() { toReview.map { signposter.endInterval("Click to review", $0) }; toReview = nil }
+    /// The sheet closed, or never got a review: whatever is still open ends here.
+    static func closed() { sheetShown(); reviewShown() }
+    /// One step of the checks, as its own interval.
+    static func interval<T>(_ name: StaticString, _ work: () async throws -> T) async rethrows -> T {
+        let state = signposter.beginInterval(name)
+        defer { signposter.endInterval(name, state) }
+        return try await work()
     }
 }

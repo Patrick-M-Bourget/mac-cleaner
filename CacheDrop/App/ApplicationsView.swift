@@ -85,7 +85,6 @@ struct ApplicationsView: View {
     var openPlan: (([CatalogCategory]) -> Void)? = nil
     @State private var expanded: Set<String> = []
     @State private var leftoversExpanded = false
-    @State private var review: WorkspaceCleanupReview?
     @State private var approvalError: String?
     @State private var reviewFocusRequest = 0
     private var catalog: CatalogCleanupModel { selection.catalog }
@@ -108,14 +107,13 @@ struct ApplicationsView: View {
                 }
             }
         }
-        .sheet(item: $review, onDismiss: { reviewFocusRequest += 1 }) { snapshot in
-            WorkspaceCleanupConfirmationView(review: snapshot, cancel: { review = nil }) {
-                review = nil
+        .sheet(isPresented: selection.reviewSheet(for: .applications), onDismiss: { reviewFocusRequest += 1 }) {
+            ReviewSheet(selection: selection, follow: { link in follow(link) }) { snapshot in
                 Task { do { try await selection.executeWorkspace(snapshot) } catch { approvalError = PlanReviewError.changedMessage } }
-            } follow: { link in follow(link) }
+            }
         }
         // The sheet closes only when the choices it was built from changed, and the page says so (#307).
-        .onChange(of: catalog.selectionRevision(for: .applications)) { _, _ in if review != nil { review = nil; approvalError = PlanReviewError.changedMessage } }
+        .onChange(of: catalog.selectionRevision(for: .applications)) { _, _ in if selection.reviewChoicesChanged(.applications) { approvalError = PlanReviewError.changedMessage } }
         // Read again after each catalog scan, so Scan again refreshes the lists too.
         .task(id: catalog.isScanning) { if !catalog.isScanning { await model.load(plugIns: catalog.plugInInventory, scanID: catalog.preparedScan) } }
         // A search opens Files from deleted apps, so its matching groups show.
@@ -128,7 +126,7 @@ struct ApplicationsView: View {
         case .cleanupPlan(let ruleIDs):
             var categories: [CatalogCategory] = []
             for id in ruleIDs { if let category = catalog.catalog.rule(id)?.category, catalog.plans(category), !categories.contains(category) { categories.append(category) } }
-            review = nil
+            selection.closeReview()
             openPlan?(categories)
         case .finder(let paths):
             model.reveal(paths.map { URL(fileURLWithPath: $0).lastPathComponent }.joined(separator: ", "), paths.map { URL(fileURLWithPath: $0) })
@@ -350,8 +348,8 @@ struct ApplicationsView: View {
 
     private func openReview() async {
         do {
-            guard let checked = try await selection.checkingReview(selection.prepareApplicationsReview) else { return }
-            review = checked; approvalError = nil
+            guard try await selection.openReview(.applications, checks: selection.prepareApplicationsReview) else { return }
+            approvalError = nil
         } catch { approvalError = PlanReviewError.message(for: error) }
     }
 }

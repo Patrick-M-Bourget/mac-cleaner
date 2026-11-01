@@ -75,3 +75,33 @@ private func fixture(_ rules: [CleanupRule]) throws -> (URL, Catalog, [Candidate
     #expect(short("Library/Mobile Documents/com~apple~CloudDocs/Report.pdf") == "iCloud Drive")
     #expect(short("Library/Mobile Documents/com~apple~CloudDocs/Taxes/Report.pdf") == "iCloud Drive › Taxes")
 }
+
+// #560, Decision 125: a group's lines count only what will be cleaned. Skipped items stay in the group's files; their size
+// shows once, on their skipped line.
+@Test func reviewLinesCountOnlyItemsThatWillBeCleaned() throws {
+    let rules = [rule("npm", .developer, .delete), rule("yarn", .developer, .delete), rule("chrome", .browser, .delete)]
+    let (home, catalog, candidates) = try fixture(rules)
+    defer { try? FileManager.default.removeItem(at: home) }
+    let skipped = Set(candidates.filter { $0.ruleID != "npm" }.map(\.id))
+    let removed = try #require(ReviewGroup.groups(catalog: catalog, candidates: candidates, skipped: skipped).first)
+    let npm = try #require(candidates.first { $0.ruleID == "npm" })
+    #expect(removed.lines.map(\.estimate) == [SizeEstimate(npm), .measured(0)])
+    #expect(removed.lines.map(\.candidates.count) == [2, 1], "Their files are still listed")
+    #expect(ReviewGroup.groups(catalog: catalog, candidates: candidates).first?.lines.first?.estimate
+            == SizeEstimate(sum: candidates.filter { $0.ruleID != "chrome" }.map(SizeEstimate.init)))
+}
+
+// #560, Decision 125: a line or group whose every item will be skipped cleans nothing, so it shows no size (not "Zero KB");
+// the skipped size is on the holder's line.
+@Test func aLineOrGroupWhoseItemsAreAllSkippedCleansNothing() throws {
+    let rules = [rule("npm", .developer, .delete), rule("chrome", .browser, .delete), rule("notes", .downloads, .trash)]
+    let (home, catalog, candidates) = try fixture(rules)
+    defer { try? FileManager.default.removeItem(at: home) }
+    let skipped = Set(candidates.filter { $0.ruleID != "npm" }.map(\.id))
+    let groups = ReviewGroup.groups(catalog: catalog, candidates: candidates, skipped: skipped)
+    let removed = try #require(groups.first), trashed = try #require(groups.last)
+    #expect(removed.lines.map(\.cleansNothing) == [false, true])
+    #expect(!removed.cleansNothing)
+    #expect(trashed.cleansNothing)
+    #expect(ReviewGroup.groups(catalog: catalog, candidates: candidates).allSatisfy { !$0.cleansNothing })
+}

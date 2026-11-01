@@ -58,6 +58,9 @@ import XCTest
     let sheet = app.sheets.firstMatch
     XCTAssertTrue(sheet.exists, "The review is a sheet", file: file, line: line)
     XCTAssertGreaterThan(cancel.frame.minX, sheet.frame.midX, "The footer's buttons are right-aligned", file: file, line: line)
+    // The sheet opens at the click; Clean up is available once its checks finish (#463).
+    let enabled = XCTNSPredicateExpectation(predicate: NSPredicate(format: "isEnabled == true"), object: cleanUp)
+    XCTAssertEqual(XCTWaiter.wait(for: [enabled], timeout: 15), .completed, "The review's checks finished", file: file, line: line)
     cleanUp.click()
 }
 
@@ -1911,6 +1914,48 @@ extension CatalogCleanupUITests {
         }
     }
 
+    /// #463, Decision 126: Clean up opens the review sheet at once with its checks running and its Clean up unavailable; the
+    /// review fills in when they finish. Cancel while they run closes it for good. Checks held 4 s; a dry run, nothing is cleaned.
+    @MainActor func testReviewSheetOpensAtOnceWhileItsChecksRun() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        turnOnDryRun(app)
+        _ = try addDeveloperCaches(home, folders: ["Library/Caches/Yarn"])
+        app.launchEnvironment["CACHEDROP_TEST_REVIEW_PAUSE"] = "4"
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        waitForCatalogScan(app)
+
+        app.typeKey("2", modifierFlags: .command)
+        let open = app.buttons["smartCleanCleanUp"]
+        XCTAssertTrue(open.waitForExistence(timeout: 10))
+        open.click()
+        let checking = app.descendants(matching: .any)["reviewChecking"]
+        XCTAssertTrue(checking.waitForExistence(timeout: 2), "The sheet shows its checks running")
+        let footer = app.descendants(matching: .any).matching(identifier: "sheetFooter").firstMatch
+        XCTAssertFalse(footer.buttons["Clean up"].isEnabled, "Clean up waits for the checks")
+        XCTAssertFalse(reviewLine(app, "permanentlyRemoved", "developer").exists)
+        XCTAssertTrue(reviewLine(app, "permanentlyRemoved", "developer").waitForExistence(timeout: 15), "Then the review")
+        XCTAssertFalse(checking.exists)
+        XCTAssertTrue(footer.buttons["Clean up"].isEnabled)
+        footer.buttons["Cancel"].click()
+        XCTAssertTrue(app.sheets.firstMatch.waitForNonExistence(timeout: 5))
+
+        // Cancelled while checking: the sheet stays closed when the held checks would have ended.
+        open.click()
+        XCTAssertTrue(checking.waitForExistence(timeout: 2))
+        footer.buttons["Cancel"].click()
+        XCTAssertTrue(app.sheets.firstMatch.waitForNonExistence(timeout: 5))
+        XCTAssertFalse(reviewLine(app, "permanentlyRemoved", "developer").waitForExistence(timeout: 6), "Its checks were dropped")
+        XCTAssertFalse(app.staticTexts["smartCleanError"].exists, "Cancel isn't a change of choices")
+        for kept in [".npm/_cacache/content-v2/sha512/ab/blob", "Library/Caches/Yarn/entry"] {
+            XCTAssertTrue(FileManager.default.fileExists(atPath: home.appendingPathComponent(kept).path), kept)
+        }
+    }
+
     /// #348: a click anywhere on a category row toggles it as its checkbox does, on Smart clean and the plan: all on when any
     /// are off, and a partly ticked category shows mixed. A dry run; nothing is cleaned.
     @MainActor func testClickingACategoryRowTogglesItOnSmartCleanAndThePlan() throws {
@@ -2106,7 +2151,7 @@ extension CatalogCleanupUITests {
         app.buttons["smartCleanCleanUp"].click()
         let skipped = app.staticTexts["reviewSkipped-npm-cache"]
         XCTAssertTrue(skipped.waitForExistence(timeout: 10), "The review says the npm cache will be skipped")
-        XCTAssertTrue((skipped.value as? String ?? skipped.label).contains("will be skipped: "), skipped.debugDescription)
+        XCTAssertTrue((skipped.value as? String ?? skipped.label).hasPrefix("npm is open, so its caches will be skipped · "), skipped.debugDescription)
         XCTAssertFalse(app.links.matching(NSPredicate(format: "identifier BEGINSWITH %@", "reviewQuit-npm-cache|")).firstMatch.exists,
                        "A command-line tool isn't an app: no Quit, only the reason (#377)")
         app.buttons["Cancel"].click()
