@@ -136,7 +136,8 @@ struct ApplicationsView: View {
     private var page: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
             header
-            summary
+            // Nothing on the page can be ticked: no card reading "—" and "0 items selected" (#575, Decision 130).
+            if listsLoading || hasTickable || !catalog.applicationsSelected.isEmpty { summary }
             SettingsUnreadableNotice(model: catalog)
             if let approvalError { StatusRow(text: approvalError, symbol: "exclamationmark.circle", role: .caution) }
             if let status = model.status { StatusRow(text: status, identifier: "applicationsStatus") }
@@ -178,13 +179,16 @@ struct ApplicationsView: View {
             .accessibilityElement(children: .contain).accessibilityIdentifier("applicationsHeader")
             .padding(.bottom, CacheDropDesign.Space.sm)
     }
+    /// Whether any section lists something with a checkbox: an app or plug-in CacheDrop can uninstall, or files from deleted apps.
+    private var hasTickable: Bool {
+        catalog.leftoversRow != nil || (model.apps + model.plugIns).contains { !catalog.uninstallItems(ofRow: $0.id).isEmpty }
+    }
     /// The same selected candidates as the footer and review, including choices hidden by search (#525).
     private var summary: some View {
         let items = catalog.applicationsSelected
         let value = items.isEmpty ? CacheDropDesign.noValue : catalog.sizeText(of: items) + " to Trash"
         return SelectionSummary(value: value, detail: CacheDropDesign.items(items.count) + " selected",
                                 identifier: "applicationsSummary", title: "Ready to clean")
-            .help("Space is freed when you empty the Trash.")
             .waitingForScan(catalog.isScanning)
     }
 
@@ -222,10 +226,10 @@ struct ApplicationsView: View {
             if listsLoading { loading(id) }
             else if model.listing.isSearching, !(id == "apps" && model.appsUnreadable) { noMatches(id) }
             else if id == "apps", model.appsUnreadable {
-                // Spotlight didn't answer: unknown, never "Only Apple's apps" (#310), as the one empty state (#321). Try again
+                // Spotlight didn't answer: unknown, never "Only Apple’s apps" (#310), as the one empty state (#321). Scan again
                 // scans again, so uninstalls are read too.
                 EmptyState(title: "CacheDrop couldn’t read the list of apps", detail: "Spotlight didn’t answer.", symbol: "exclamationmark.triangle",
-                           action: EmptyStateAction("Try again") { Task { await catalog.rescan() } }, identifier: "applicationsUnreadable")
+                           action: EmptyStateAction("Scan again") { Task { await catalog.rescan() } }, identifier: "applicationsUnreadable")
             } else { state(empty.title, empty.detail, symbol: "tray", id: "applicationsEmpty-" + id) }
         } else if shown.isEmpty {
             noMatches(id)

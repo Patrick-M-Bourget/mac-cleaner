@@ -354,7 +354,7 @@ struct CleanupRunSection: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var body: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
-            PageHeader(title: selection.workspaceRunning ? "Cleaning up…" : "Cleanup results")
+            PageHeader(title: selection.workspaceRunning ? "Cleaning up…" : "Results")
             if selection.catalog.isRunning {
                 if let progress = selection.catalog.runProgress { running(progress) }
                 else { ProgressView(selection.catalog.dryRun ? "Checking selected items…" : "Cleaning selected items…") }
@@ -534,20 +534,34 @@ struct WorkspaceCleanupConfirmationView: View {
     }
 }
 /// The review sheet's frame: its header, the scrolling list, then its footer. Emptying from the Trash reuses it (#359).
+/// It fits its content (#574), from `sheetWideMinHeight` up to `sheetWide`'s height, where the list scrolls.
 struct ReviewSheetFrame<Content: View, Actions: View>: View {
     let title: String
     var subtitle: String? = nil
     @ViewBuilder var content: () -> Content
     @ViewBuilder var actions: () -> Actions
+    /// The list's own height, so the scroll view asks for no more than it shows.
+    @State private var contentHeight: CGFloat = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var body: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
             PageHeader(title: title, subtitle: subtitle)
             ScrollView {
                 VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) { content() }.frame(maxWidth: .infinity, alignment: .leading)
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
             }
+            .frame(idealHeight: contentHeight, maxHeight: contentHeight > 0 ? contentHeight : nil)
+            // Checking turning into the review, Show files and a Quit re-check change the height smoothly, or at once
+            // under Reduce Motion (#574).
+            .animation(reduceMotion ? nil : .easeInOut(duration: CacheDropDesign.Motion.waiting), value: contentHeight)
+            // Room the minimum height leaves over goes under the list, with no second gap above the footer's line.
+            .frame(maxHeight: .infinity, alignment: .top)
             Divider()
             SheetFooter(actions: actions)
-        }.padding(CacheDropDesign.Space.xl).frame(width: CacheDropDesign.Size.sheetWide.width, height: CacheDropDesign.Size.sheetWide.height).background(CacheDropDesign.reading).cacheDropButtonRule()
+        }.padding(CacheDropDesign.Space.xl)
+            .frame(width: CacheDropDesign.Size.sheetWide.width)
+            .frame(minHeight: CacheDropDesign.Size.sheetWideMinHeight, maxHeight: CacheDropDesign.Size.sheetWide.height)
+            .background(CacheDropDesign.reading).cacheDropButtonRule()
     }
 }
 

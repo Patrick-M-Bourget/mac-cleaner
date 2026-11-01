@@ -61,12 +61,17 @@ The names CacheDrop shows, what they mean, and where they live in code. Copy fol
 | Close (onboarding) | Dismiss the guide while preparation continues | `WelcomeModel.finish` |
 | Scan again | Any action that scans | `CatalogCleanupModel`, `ExploreStorage` |
 | Dry run | Runs the whole flow; nothing changes | `dryRun` |
-| Measured freed space | Free space measured around each item, not the estimate | `MeasuredFreedSpace` |
+| Measured freed space, Freed | Free space measured around each item, not the estimate; History rows note it **Freed** | `MeasuredFreedSpace`, `CleanupHistoryRun.headline` |
 | Up to, About | A size that's an upper bound or an estimate | `SizeEstimate` |
+| Unknown | A size CacheDrop couldn't read, never shown as zero or empty | `SizeEstimate.unknown`, `SizeFormatter` |
+| Needs Full Disk Access | Something macOS keeps from CacheDrop without Full Disk Access | `GuidanceSize.notAccessible`, `CatalogOverview.Row.needsAccess` |
+| Rebuildable | Deleted, and its app or tool makes it again (an Overview row's note) | `CleanupAction.delete` |
+| Can be cleaned, Other you can clean | The storage bar's found space, and its fold of smaller categories | `StorageMeter`, `StorageBreakdown` |
+| Guidance only | Shown with its size and where to manage it; CacheDrop never changes it | action `guidance` |
 | free | Disk space you can use | `CapacitySample`, `SidebarCapacityText` |
 | Reveal in Finder, Reveal in Trash | Shows the item where it is | — |
 | Share setup progress | The opt-in toggle on Welcome and in Settings that sends setup progress | — |
 
 ## Not shown to users
 
-deletion remnant, observed, coverage, baseline, known locations, journal, approval, records, resource identity, metadata, directory, leftovers, available (for free space), Potential space released, Show in Finder, Rescan, Recheck, telemetry, install ID.
+deletion remnant, observed, coverage, baseline, known locations, journal, approval, records, resource identity, metadata, directory, leftovers, available (for free space), Potential space released, Show in Finder, Rescan, Recheck, telemetry, install ID, Storage overview, Cleanup results, Permanently removed, Scan now, Couldn’t be measured, Not accessible, reclaimable, bundle ID, Rules version, File ID.

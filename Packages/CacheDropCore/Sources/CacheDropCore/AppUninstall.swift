@@ -13,7 +13,7 @@ public enum AppUninstall {
     static let appRule = CleanupRule(id: appRuleID, category: .apps, title: "App", detail: "The app itself.", consequence: consequence, regen: .userFile,
         action: .trash, locations: [], owner: nil, unprotectedExtensions: ["app"], family: .appUninstall)
     static let filesRule = CleanupRule(id: filesRuleID, category: .apps, title: "Its files",
-        detail: "Settings, caches and data tied to the app by its bundle ID or installer receipt.",
+        detail: "Settings, caches and data tied to the app for sure.",
         consequence: consequence, regen: .userFile, action: .trash, locations: [], owner: nil, protectedDepth: AppCaches.liveWorkDepth, family: .appUninstall)
     static let possiblyRelatedRule = CleanupRule(id: possiblyRelatedRuleID, category: .apps, title: "Possibly related",
         detail: "Folders named like the app or its maker. Nothing ties them to it for sure, so check each one.",

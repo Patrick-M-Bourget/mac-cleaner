@@ -108,6 +108,8 @@ private func trashedInstallers(_ names: [String] = ["Setup.dmg", "Other.pkg"], d
     let run = try #require(history.completedRuns.first { $0.isEmptyFromTrash })
     #expect(run.title == "Emptied from the Trash · 2 items")
     #expect(run.measuredFreedBytes == Int64(2 * 4_096))
+    // #569: its History row leads with that freed space, as a cleanup's does.
+    #expect(run.headline == CleanupHistoryRun.Headline(bytes: Int64(2 * 4_096), note: "Freed"))
     #expect(history.emptiedIDs == Set(fixture.records.map(\.id)))
     let trashRun = try #require(history.completedRuns.first { $0.records.contains { $0.id == fixture.records[0].id } })
     #expect(trashRun.trashHeldAllocatedBytes == 0, "What was emptied is no longer held in the Trash")

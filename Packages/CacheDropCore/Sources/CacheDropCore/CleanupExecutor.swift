@@ -85,7 +85,7 @@ extension CleanupRecord {
     public init(batchID: UUID, approvedAt: Date, candidate: Candidate, dryRun: Bool) {
         id = Self.id(batchID: batchID, candidateID: candidate.id); self.batchID = batchID; originalURL = candidate.url
         resourceID = candidate.resourceID; logicalBytes = candidate.logicalBytes; allocatedBytes = candidate.allocatedBytes
-        state = .pending; trashURL = nil; message = "Approved; not started"; observedAt = candidate.observedAt
+        state = .pending; trashURL = nil; message = "Not started"; observedAt = candidate.observedAt
         let parent = candidate.url.deletingLastPathComponent()
         var info = stat()
         scopeURL = parent; scopeResourceID = lstat(parent.path, &info) == 0 ? info.resourceID : ""
@@ -143,7 +143,7 @@ public actor CleanupExecutor {
                 if failure == nil { do { try journal.outcome(record) } catch { failure = "CacheDrop couldn’t save that the cleanup stopped." } }
                 records.append(record); await progress(.init(resolved: records.count, total: total, last: record)); continue
             }
-            record.state = .intent; record.message = "Started; outcome not yet recorded"
+            record.state = .intent; record.message = "Started · Outcome unknown"
             do { try journal.intent(record) }
             catch { record.state = .cancelled; record.message = "CacheDrop couldn’t save its progress, so it stopped. This item wasn’t changed."; failure = record.message; records.append(record); await progress(.init(resolved: records.count, total: total, last: record)); continue }
             if self.check.needsInUseCheck(candidate), reading.map({ clock().timeIntervalSince($0.takenAt) > Self.inUseReadingMaxAge }) ?? true {
@@ -316,7 +316,7 @@ public actor CleanupExecutor {
             var info = stat()
             if lstat(candidate.url.path, &info) != 0, errno == ENOENT { record.state = .succeeded; record.message = "Ran \(name); it removed the folder itself"; return }
             delete(candidate, into: &record)
-            if record.state == .succeeded { record.message = "Ran \(name) and permanently removed the folder" }
+            if record.state == .succeeded { record.message = "Ran \(name) and deleted the folder" }
             else { record.message = "Ran \(name). " + record.message }
         case .failure(let error as ToolTimeout):
             Self.recordStopped(.timeLimit(seconds: Int(command.timeout.rounded(.up))), output: error.output, command: command, name: name, candidate: candidate, into: &record)
@@ -392,7 +392,7 @@ public actor CleanupExecutor {
         }
         do {
             try FileManager.default.removeItem(at: aside)
-            record.state = .succeeded; record.message = "Permanently removed"
+            record.state = .succeeded; record.message = "Deleted"
         } catch {
             // Never "not changed": part of it is gone. The rest is offered again on the next scan, under the same rule.
             record.state = .failed; record.partlyRemoved = true

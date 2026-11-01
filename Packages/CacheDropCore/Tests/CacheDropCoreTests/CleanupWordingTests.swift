@@ -102,9 +102,9 @@ private func records(_ actions: [CleanupAction], dryRun: Bool = false) throws ->
     var delete = made[0], tool = made[1]
     delete.state = .failed; delete.partlyRemoved = true
     tool.state = .failed; tool.partlyRemoved = true
-    #expect(delete.outcomeTitle == "Partly removed")
+    #expect(delete.outcomeTitle == "Partly deleted")
     #expect(delete.recoveryStateText == "Failed · It may be partly deleted")
-    #expect(tool.outcomeTitle == "Partly removed")
+    #expect(tool.outcomeTitle == "Partly deleted")
     #expect(tool.recoveryStateText == "Failed · It may be partly deleted")
     #expect(CleanupHistorySnapshot(records: [delete, tool]).completedRuns.first?.title == "Cleanup · Partly deleted")
     delete.partlyRemoved = nil
@@ -124,4 +124,33 @@ private func records(_ actions: [CleanupAction], dryRun: Bool = false) throws ->
     #expect(tool.outcomeLine == "Deleted · Ran brew")
     delete.state = .failed; delete.message = "Couldn’t remove it (Permission denied). Left unchanged."
     #expect(delete.outcomeLine == "Failed · Couldn’t remove it (Permission denied). Left unchanged.")
+}
+
+/// #571: messages journaled with words kept off screen ("approval", "records") read as plain words wherever they're drawn;
+/// what's stored stays as it was.
+@Test func storedProgressMessagesReadInPlainWords() throws {
+    let (home, made) = try records([.delete, .delete])
+    defer { try? FileManager.default.removeItem(at: home) }
+    var pending = made[0], started = made[1]
+    pending.message = "Approved; not started"
+    started.state = .intent; started.message = "Started; outcome not yet recorded"
+    #expect(pending.shownMessage == "Not started")
+    #expect(pending.outcomeLine == "Not started")
+    #expect(started.shownMessage == "Started · Outcome unknown")
+    #expect(started.message == "Started; outcome not yet recorded", "The stored text is unchanged")
+    pending.message = "Ran brew"
+    #expect(pending.shownMessage == "Ran brew")
+}
+
+/// Review: Recovery's detail line says a state once ("Not started · Nothing was changed", never "… · Not started").
+@Test func recoveryDetailSaysTheStateOnce() throws {
+    let (home, made) = try records([.delete, .delete])
+    defer { try? FileManager.default.removeItem(at: home) }
+    var pending = made[0], failed = made[1]
+    pending.message = "Approved; not started"
+    #expect(pending.recoveryLine == "Not started · Nothing was changed")
+    pending.message = "Not started"
+    #expect(pending.recoveryLine == "Not started · Nothing was changed")
+    failed.state = .failed; failed.message = "Couldn’t remove it (Permission denied). Left unchanged."
+    #expect(failed.recoveryLine == "Failed · Not changed · Couldn’t remove it (Permission denied). Left unchanged.")
 }

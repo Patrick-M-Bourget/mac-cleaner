@@ -149,10 +149,9 @@ struct CleanupRecoveryView: View {
             }
             DisclosureGroup("Details") {
                 VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
-                    Text(record.recoveryStateText + " · " + record.message)
+                    Text(record.recoveryLine)
                     Text("Location: " + record.scopeURL.path)
-                    Text("Action: " + record.actionTitle + (record.dryRun == true ? " · Dry run" : "") + " · Rules version \(record.policyVersion)")
-                    Text("File ID when chosen: " + record.resourceID)
+                    Text("Action: " + record.actionTitle + (record.dryRun == true ? " · Dry run" : ""))
                 }.font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).textSelection(.enabled)
             }
         }

@@ -32,7 +32,7 @@ public enum AITools {
     static let agentWorkspaces = CleanupRule(
         id: "agent-workspaces", category: .managed, title: "AI agent workspaces",
         detail: "Checkouts and build scratch AI coding agents keep in their own folders. Review them before removing any; work there may not be pushed.",
-        consequence: "Guidance only: CacheDrop shows the size and where they are, and never changes them.",
+        consequence: "Guidance only: CacheDrop shows the size and where to manage it, and never changes it.",
         regen: .userFile, action: .guidance,
         locations: [".codex/worktrees", "Library/Caches/Codex", "/private/tmp/claude-\(getuid())"], owner: nil,
         guidance: Guidance(sizing: .agentWorkspaces, place: .folder, placeName: "in Finder"))

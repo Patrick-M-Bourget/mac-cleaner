@@ -61,7 +61,7 @@ import SwiftUI
                 preparingInventory = false
                 if catalog.isScanning { await catalog.waitForScanCompletion() }
                 guard let scanID = catalog.preparedScan else {
-                    problem = catalog.settingsUnreadable ? CatalogCleanupModel.settingsUnreadableText : "The scan couldn't finish. Try again or continue with available results."
+                    problem = catalog.settingsUnreadable ? CatalogCleanupModel.settingsUnreadableText : "The scan couldn’t finish. Try again or continue with available results."
                     break
                 }
                 let apps = ApplicationsModel.shared
@@ -70,7 +70,7 @@ import SwiftUI
                 // Returning from System Settings can start another scan while inventory loads.
                 // Only inventory prepared for the current completed catalog can unlock the workspace.
                 if catalog.isScanning || catalog.preparedScan != scanID { continue }
-                if apps.appsUnreadable || !apps.hasLoaded { problem = "CacheDrop couldn't read the list of apps." }
+                if apps.appsUnreadable || !apps.hasLoaded { problem = "CacheDrop couldn’t read the list of apps." }
                 break
             }
             failure = problem ?? ""
@@ -137,19 +137,22 @@ struct FirstRunWelcomeView: View {
             VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
                 Text(title).font(CacheDropDesign.TypeStyle.sheet).fontWeight(.semibold).accessibilityAddTraits(.isHeader)
                     .accessibilityIdentifier(model.step == .failed ? "welcomeFailure" : "welcomeStepTitle")
-                Text("Nothing is cleaned until you review it.")
-                    .font(CacheDropDesign.TypeStyle.note).foregroundStyle(.secondary)
+                // Said once, on the first step (#573).
+                if model.step == .welcome {
+                    Text("Nothing is cleaned until you review it.")
+                        .font(CacheDropDesign.TypeStyle.note).foregroundStyle(.secondary).accessibilityIdentifier("welcomeSubtitle")
+                }
             }
             switch model.step {
             case .welcome:
                 Text("CacheDrop finds space you can safely get back, and cleans only what you choose.")
                     .font(CacheDropDesign.TypeStyle.note).foregroundStyle(.secondary)
-                StatusRow(text: "It never touches your files without asking, your logins, or Photos, Mail and Messages data.",
+                StatusRow(text: "It never touches your logins or your Photos, Mail and Messages data, and changes your files only when you ask.",
                           symbol: "hand.raised", identifier: "welcomeNeverTouches")
             case .access:
                 Text("CacheDrop can request access to Downloads and app data. macOS may ask you to allow access. Full Disk Access is optional.")
                     .font(CacheDropDesign.TypeStyle.note).foregroundStyle(.secondary)
-                FullDiskAccessLink(title: "Full Disk Access is optional · Learn more", model: access)
+                FullDiskAccessLink(title: "Learn more about Full Disk Access", model: access)
             case .scanning, .ready:
                 ScanPreparationProgress(text: progressText, fraction: model.step == .ready ? 1 : furthestProgress, identifier: "welcomeScanProgress",
                                         showsText: model.step != .ready) // The heading says it once (#546).
@@ -190,7 +193,7 @@ struct FirstRunWelcomeView: View {
         case .access: "Choose access"
         case .scanning: "Preparing your results"
         case .ready: "Your results are ready"
-        case .failed: "Preparation couldn't finish"
+        case .failed: "Preparation couldn’t finish"
         }
     }
     private var progressText: String {

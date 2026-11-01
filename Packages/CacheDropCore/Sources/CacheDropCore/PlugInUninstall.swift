@@ -10,7 +10,7 @@ public enum PlugInUninstall {
     static let formatsRuleID = "uninstall-plugin"
     static let filesRuleID = "uninstall-plugin-files"
     static let sharedRuleID = "uninstall-plugin-shared"
-    static let formatsRule = CleanupRule(id: formatsRuleID, category: .apps, title: "Formats", detail: "The product's plug-in formats.",
+    static let formatsRule = CleanupRule(id: formatsRuleID, category: .apps, title: "Formats", detail: "The product’s plug-in formats.",
         consequence: AppUninstall.consequence, regen: .userFile, action: .trash, locations: [], owner: nil, family: .plugInUninstall)
     static let filesRule = CleanupRule(id: filesRuleID, category: .apps, title: "Its support files", detail: "Presets and support files its own installer lists.",
         consequence: AppUninstall.consequence, regen: .userFile, action: .trash, locations: [], owner: nil, protectedDepth: AppCaches.liveWorkDepth,

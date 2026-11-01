@@ -202,7 +202,7 @@ struct CleanupHistoryView: View {
     }
     private func cleanup(_ run: CleanupHistoryRun) -> some View {
         HistoryRow(symbol: run.isPreview ? "eye" : run.isPutBack ? "arrow.uturn.backward" : run.isEmptyFromTrash ? "xmark.bin" : "checklist", title: run.title, date: run.date,
-                   size: SizeFormatter.text(run.plannedBytes), sizeNote: run.isPutBack || run.isEmptyFromTrash ? "From Trash" : "Estimated",
+                   size: SizeFormatter.text(run.headline.bytes), sizeNote: run.headline.note,
                    expanded: Binding(get: { expandedRuns.contains(run.id) }, set: { if $0 { expandedRuns.insert(run.id) } else { expandedRuns.remove(run.id) } }),
                    identifier: "cleanupRun:" + run.id.uuidString) {
             if run.usesApprovalDate { note("Shows when you started the cleanup; this version of CacheDrop didn’t record when it finished.") }
@@ -212,9 +212,9 @@ struct CleanupHistoryView: View {
                 if run.records.contains(where: { $0.cleanupAction == .trash }) {
                     note("In Trash until you empty it: " + SizeFormatter.text(run.trashHeldAllocatedBytes))
                 }
-                // Measured around each item, as Results shows it, for a cleanup and an emptying of the Trash alike (#359, #433).
+                // The row leads with the measured freed space (#569); the estimate it's measured against is here, once.
                 if !run.records.movedOnlyToTrash {
-                    note("Measured freed space: " + SizeFormatter.text(MeasuredFreedSpace.shown(run.measuredFreedBytes)) + " · Other activity can affect it.")
+                    note("Estimated before cleanup: " + SizeFormatter.text(run.plannedBytes))
                 }
             }
             ForEach(run.records) { record in

@@ -394,7 +394,7 @@ private struct WorkspaceView: View {
 
     private var overview: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
-            PageHeader(title: "Storage overview", subtitle: "A clearer picture of what’s on your Mac.")
+            PageHeader(title: "Overview", subtitle: "What takes up space, and what can be cleaned.", titleIdentifier: "overviewTitle")
             ScanHistoryRecordingNotice()
             if let context = alerts.openedAlertContext {
                 SummarySurface {
@@ -498,7 +498,7 @@ private struct WorkspaceView: View {
             // Found nothing: "Empty", muted, with no Review link (#372); "Needs access" when it couldn't be read (62); "—" while a
             // scan may still find something.
             StorageReviewRow(category: row.category.storageCategory, title: row.category.overviewTitle, detail: row.category.overviewDetail,
-                             value: selection.catalog.isScanning ? CacheDropDesign.noValue : row.needsAccess ? "Needs access" : "Empty",
+                             value: selection.catalog.isScanning ? CacheDropDesign.noValue : row.needsAccess ? "Needs Full Disk Access" : "Empty",
                              identifier: "overviewCategory-" + row.id, mutedValue: true)
         } else {
             foundCatalogRow(row)
@@ -510,7 +510,7 @@ private struct WorkspaceView: View {
         let selected = selection.catalog.selectionDiffersFromRecommended(row.rules)
         return StorageReviewRow(category: row.category.storageCategory, title: row.category.overviewTitle, detail: row.category.overviewDetail,
             value: row.valueText,
-            meaning: row.estimate == .unknown ? "Couldn’t be measured" : selected ? "Selected"
+            meaning: row.estimate == .unknown ? "" : selected ? "Selected"
                 : row.rules.allSatisfy { $0.action == .delete } ? "Rebuildable" : row.rules.allSatisfy { $0.action == .evict } ? "Local copies" : "Review files",
             actionTitle: "Review " + StorageTrendsPresentation.inSentence(row.category) + (onApplications ? " in Applications" : " in the Cleanup plan"),
             // Files from deleted apps are on the Applications page (Decision 51).
@@ -531,6 +531,8 @@ private struct WorkspaceView: View {
     }
     /// SPEC section 6: an estimate, and an upper bound because clones share blocks.
     private func recommendedText(_ estimate: SizeEstimate) -> String {
+        // Nothing recommended reads as the rows do, "Empty", never "Up to Zero KB" (#568, Decision 131).
+        if estimate == .measured(0) { return "Empty" }
         let size = SizeFormatter.text(estimate, upperBound: true)
         if case .atLeast = estimate { return size + " · Some sizes unknown" }
         return size

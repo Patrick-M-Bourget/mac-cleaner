@@ -75,7 +75,7 @@ struct DesignGallery: View {
                         Text("Why it’s listed").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
                         Text("Not opened since Mar 2, 2026.")
                         Text("Action").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
-                        Text("Move to Trash. The space stays used until you empty the Trash.")
+                        Text("Move to Trash")
                     }
                     ExplorerInspector(name: "Cloud file (example)", close: {}) {
                         Text("Example cloud file")
@@ -125,6 +125,8 @@ struct DesignGallery: View {
                             StatusRow(text: "Scanned 10:42 · Not fully read", symbol: "exclamationmark.circle", role: .caution)
                             StatusRow(text: "Access unavailable · Choose the folder again", symbol: "lock", role: .failure)
                             ScanPreparationProgress(text: "Reading files…", fraction: 0.4)
+                            // A heading already says it: the line under the bar takes no room (#573).
+                            ScanPreparationProgress(text: "Your results are ready", fraction: 1, showsText: false)
                             Text("Workspace behind onboarding").frame(maxWidth: .infinity, minHeight: CacheDropDesign.Space.page)
                                 .modifier(OnboardingBackdrop(active: true))
                         }

@@ -303,7 +303,7 @@ struct StorageExplorerView: View {
                 inspectorField("On disk", entry.item.kind == .folder ? folderAllocation(entry.item.url) : SizeFormatter.text(entry.item.allocatedBytes))
                 if let offered = offered(entry.item) {
                     inspectorField("Why it’s listed", whyListed(offered))
-                    inspectorField("Action", "Move to Trash. The space stays used until you empty the Trash.")
+                    inspectorField("Action", "Move to Trash")
                     Toggle("Add to cleanup plan", isOn: Binding(get: { selection.catalog.isSelected(offered) }, set: { selection.catalog.setSelected(offered, $0) }))
                         .toggleStyle(.checkbox).disabled(!selection.catalog.canEdit).accessibilityIdentifier("explorerInspectorChoose")
                 }

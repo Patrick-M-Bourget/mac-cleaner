@@ -30,6 +30,8 @@ enum CacheDropDesign {
         static let hairline: CGFloat = 1
         /// The cleanup confirmation sheet (#334).
         static let sheetWide = CGSize(width: 640, height: 520)
+        /// The shortest a sheet that fits its content (#574) gets, so a one-line review doesn't look like an alert.
+        static let sheetWideMinHeight: CGFloat = 280
         /// The storage explorer's inspector: its width beside the list once the page is at least `explorerWide` wide, and
         /// below the list otherwise, at most `inspectorStacked` tall or `inspectorStackedShare` of the page (#320).
         static let explorerWide: CGFloat = 800; static let inspector: CGFloat = 280; static let inspectorStacked: CGFloat = 220
@@ -244,11 +246,13 @@ struct PageHeader: View {
     /// A page's one search, on the right of the title and level with its description, so the header is one band and the
     /// page keeps one left edge (Applications).
     var search: PageSearchField? = nil
+    /// Tells a page's title apart from its sidebar name when both read the same ("Overview", #570).
+    var titleIdentifier: String? = nil
     var body: some View {
         HStack(alignment: .bottom, spacing: CacheDropDesign.Space.lg) {
             VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
                 if let back { back }
-                Text(title).font(CacheDropDesign.TypeStyle.page).tracking(-0.6)
+                Text(title).font(CacheDropDesign.TypeStyle.page).tracking(-0.6).accessibilityIdentifier(titleIdentifier ?? "")
                 if let subtitle { Text(subtitle).font(CacheDropDesign.TypeStyle.note).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
             }.frame(maxWidth: .infinity, alignment: .leading)
             if let search { search }
@@ -1252,7 +1256,7 @@ extension CacheDropDesign {
     /// What a disabled Review cleanup or Clean up says while a scan runs (#308).
     static let waitForScanHelp = "Wait for the scan to finish"
     /// The tooltip on the Cleanup plan's and Smart clean's selection totals (#370).
-    static let selectionEstimateHelp = "Sizes are estimates from the scan, not guaranteed space freed. Linked files count once. Each item is checked again just before CacheDrop acts on it."
+    static let selectionEstimateHelp = "Sizes are estimates from the scan; each item is checked again just before it’s cleaned."
 }
 
 /// A bar's main action while its click-time checks run (#308): a small spinner beside it, and the action ignores more
@@ -1320,16 +1324,17 @@ struct ScanPreparationProgress: View {
     let text: String
     var fraction: Double? = nil
     var identifier = ""
-    /// False keeps the line's height but shows nothing under the bar, when a heading already says the same (#546).
+    /// False shows nothing under the bar, and takes no room for it, when a heading already says the same (#546, #573).
     var showsText = true
     var body: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
             ProgressView(value: fraction).progressViewStyle(.linear).controlSize(.small)
                 .accessibilityLabel(text).accessibilityValue(text).accessibilityIdentifier(identifier)
                 .animation(reduceMotion ? nil : .easeInOut(duration: CacheDropDesign.Motion.waiting), value: fraction)
-            Text(text).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
-                .lineLimit(2).frame(minHeight: CacheDropDesign.Space.xl, alignment: .topLeading)
-                .opacity(showsText ? 1 : 0).accessibilityHidden(!showsText)
+            if showsText {
+                Text(text).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                    .lineLimit(2).frame(minHeight: CacheDropDesign.Space.xl, alignment: .topLeading)
+            }
         }
     }
 }

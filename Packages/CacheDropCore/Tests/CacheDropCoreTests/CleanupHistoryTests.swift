@@ -196,3 +196,38 @@ private func historyApproval(_ root: URL, names: [String]) async throws -> Fixtu
     #expect(try journal.retainCompletedRuns(maximumBytes: 0).removedRecords == 1)
     #expect(try journal.claim(batchID: approval.id, records: approval.records) == false)
 }
+/// #569: a History row leads with the figure Results leads with, the measured freed space, noted "Freed"; a run that only
+/// moved items to the Trash leads with what went there, noted "In Trash"; a dry run with what it would affect.
+@Test func aHistoryRowLeadsWithTheMeasuredFreedSpaceResultsLeadsWith() throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropHistory-" + UUID().uuidString)
+    let caches = root.appendingPathComponent("caches"), downloads = root.appendingPathComponent("downloads")
+    try FileManager.default.createDirectory(at: caches, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: downloads, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    try Data(repeating: 7, count: 5_000).write(to: caches.appendingPathComponent("cache.bin"))
+    try Data(repeating: 7, count: 5_000).write(to: downloads.appendingPathComponent("setup.dmg"))
+    let id = UUID()
+    func succeeded(_ candidates: [Candidate], freed: Int64?, dryRun: Bool = false) -> [CleanupRecord] {
+        candidates.map {
+            var record = CleanupRecord(batchID: id, approvedAt: Date(), candidate: $0, dryRun: dryRun)
+            record.state = .succeeded
+            if let freed {
+                record.itemCapacity = CleanupCapacityObservation(from: CapacitySample(available: 1_000, total: 100_000, volumeID: "v", metric: .important, date: Date(timeIntervalSince1970: 1)),
+                                                                to: CapacitySample(available: 1_000 + freed, total: 100_000, volumeID: "v", metric: .important, date: Date(timeIntervalSince1970: 2)))
+            }
+            return record
+        }
+    }
+    let cleaned = CleanupHistoryRun(id: id, records: succeeded(fixtureCandidates(caches, action: .delete), freed: 3_000))
+    #expect(cleaned.plannedBytes > 3_000, "The estimate differs from what was measured")
+    #expect(cleaned.headline == CleanupHistoryRun.Headline(bytes: 3_000, note: "Freed"))
+
+    let unmeasured = CleanupHistoryRun(id: id, records: succeeded(fixtureCandidates(caches, action: .delete), freed: nil))
+    #expect(unmeasured.headline == CleanupHistoryRun.Headline(bytes: nil, note: "Freed"))
+
+    let trashed = CleanupHistoryRun(id: id, records: succeeded(fixtureCandidates(downloads, action: .trash), freed: nil))
+    #expect(trashed.headline == CleanupHistoryRun.Headline(bytes: trashed.plannedBytes, note: "In Trash"))
+
+    let preview = CleanupHistoryRun(id: id, records: succeeded(fixtureCandidates(caches, action: .delete), freed: nil, dryRun: true))
+    #expect(preview.headline == CleanupHistoryRun.Headline(bytes: preview.plannedBytes, note: "Dry run"))
+}

@@ -44,7 +44,7 @@ public enum CheckRefusal: Sendable, Hashable {
         case .conflicted: "Has an iCloud conflict to resolve. Its local copy stays."
         case .notDownloaded: "No local copy to remove."
         case .cloudUnknown: "Couldn’t read its iCloud status. Its local copy stays."
-        case .guidanceOnly: "Guidance only. CacheDrop never changes it; manage it in its own app."
+        case .guidanceOnly: "Guidance only: CacheDrop shows the size and where to manage it, and never changes it."
         case .projectOpen: "Its project is open in an app or tool. It is kept."
         case .projectUnchecked: "Couldn’t check whether its project is in use, so it is kept."
         case .recentlyEdited: "Its project changed in the last \(ProjectBuilds.recentDays) days. It is kept."

@@ -502,18 +502,21 @@ final class ApplicationsUITests: XCTestCase {
         app.launchEnvironment["CACHEDROP_TEST_DISCOVERY_PAUSE"] = "0.5"
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
         app.launch()
-        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["overviewTitle"].waitForExistence(timeout: 10))
         app.typeKey("4", modifierFlags: .command)
         XCTAssertTrue(app.descendants(matching: .any)["applicationsLoading-apps"].waitForExistence(timeout: 5), "Apps say they are loading")
         XCTAssertTrue(app.descendants(matching: .any)["applicationsLoading-leftovers"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["applicationsSummary"].exists, "While the lists load, the summary waits with them")
         for section in ["apps", "plugIns", "leftovers"] {
             XCTAssertTrue(app.descendants(matching: .any)["applicationsEmpty-" + section].waitForExistence(timeout: 120), "\(section) says nothing was found")
         }
         XCTAssertFalse(app.descendants(matching: .any)["applicationsLoading-apps"].exists)
+        // #575: nothing on the page can be ticked, so no card reading "—" and "0 items selected".
+        XCTAssertFalse(app.descendants(matching: .any)["applicationsSummary"].exists)
     }
 
-    /// #310: when the list of apps can't be read (Spotlight didn't answer), Apps says so with Try again, never "no apps";
-    /// once it can be read, Try again lists them.
+    /// #310: when the list of apps can't be read (Spotlight didn't answer), Apps says so with Scan again, never "no apps";
+    /// once it can be read, Scan again lists them.
     @MainActor func testAppsSayTheListCouldntBeReadAndTryAgainListsThem() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
@@ -524,7 +527,7 @@ final class ApplicationsUITests: XCTestCase {
         try Data().write(to: unreadable)
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
         app.launch()
-        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["overviewTitle"].waitForExistence(timeout: 10))
         app.typeKey("4", modifierFlags: .command)
         let notice = element(app, "applicationsUnreadable")
         XCTAssertTrue(notice.waitForExistence(timeout: 60), "Apps say the list couldn't be read")
@@ -532,7 +535,7 @@ final class ApplicationsUITests: XCTestCase {
 
         try FileManager.default.removeItem(at: unreadable)
         element(app, "applicationsUnreadableAction", .button).click()
-        XCTAssertTrue(element(app, "applicationsApp-" + pad.path).waitForExistence(timeout: 60), "Try again listed the app")
+        XCTAssertTrue(element(app, "applicationsApp-" + pad.path).waitForExistence(timeout: 60), "Scan again listed the app")
         XCTAssertFalse(notice.exists)
     }
 

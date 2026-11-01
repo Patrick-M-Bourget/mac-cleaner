@@ -9,7 +9,7 @@ struct AppManagedStorageView: View {
     var body: some View {
         let protected = model.appManaged.filter { $0.size == .notAccessible }
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
-            PageHeader(title: "App-managed storage", subtitle: "Review protected data in the app that owns it.",
+            PageHeader(title: "App-managed storage", subtitle: "Space only its own app can clear, and where to clear it.",
                        back: BackButton(destination: Destination.overview.rawValue, identifier: "appManagedBack", action: back))
             if !protected.isEmpty {
                 FullDiskAccessNote(places: protected.compactMap { model.appManagedRule($0)?.title }).accessibilityIdentifier("guidanceAccess")
@@ -29,7 +29,7 @@ struct AppManagedStorageView: View {
                             StorageReviewRow(category: rule.managedCategory, title: rule.title,
                                              detail: finding.libraries.map { FoundLibrary.summary($0, nouns: rule.libraryNouns, notSearched: finding.notSearched) } ?? finding.plugIns.map(\.summary) ?? finding.workspaces?.summary
                                                  ?? rule.detail.firstSentence,
-                                             value: needsAccess ? "Needs access" : finding.size.text,
+                                             value: needsAccess ? "Needs Full Disk Access" : finding.size.text,
                                              actionTitle: guidance.openTitle, action: { Task { await model.open(finding) } },
                                              identifier: "guidance-" + finding.id, mutedValue: needsAccess)
                                 .help(rule.detail)
@@ -100,8 +100,8 @@ extension GuidanceSize {
     var text: String {
         switch self {
         case .estimate(let estimate): estimate.text
-        case .notAccessible: "Not accessible"
-        case .unavailable: "Not available"
+        case .notAccessible: "Needs Full Disk Access"
+        case .unavailable: SizeFormatter.text(SizeEstimate.unknown)
         case .snapshots(let count): (count == 1 ? "1 snapshot" : "\(count) snapshots") + " · " + SizeFormatter.text(SizeEstimate.unknown)
         }
     }
