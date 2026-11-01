@@ -2491,6 +2491,9 @@ final class EmptyStateUITests: XCTestCase {
         let empty = app.descendants(matching: .any)["overviewEmpty"]
         XCTAssertTrue(empty.waitForExistence(timeout: 10), "Overview says nothing was found")
         XCTAssertTrue(empty.staticTexts["Nothing to clean up right now"].exists)
+        // #568: nothing recommended reads "Empty", never "Up to Zero KB".
+        let total = app.staticTexts["overviewRecommendedTotal"]
+        XCTAssertEqual(total.value as? String ?? total.label, "Empty")
         let developer = app.descendants(matching: .any)["overviewCategory-developer"]
         XCTAssertTrue(developer.exists, "The list stays")
         XCTAssertFalse(app.buttons["overviewCategory-developer"].exists, "An empty category has no Review link")

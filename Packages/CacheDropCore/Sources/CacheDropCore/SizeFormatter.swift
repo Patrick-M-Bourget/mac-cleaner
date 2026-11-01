@@ -11,7 +11,8 @@ public enum SizeFormatter {
 
     public static func text(_ estimate: SizeEstimate, upperBound: Bool = false) -> String {
         switch estimate {
-        case .measured(let value): (upperBound ? "Up to " : "") + bytes(value)
+        // Nothing to free is never hedged (#568).
+        case .measured(let value): (upperBound && value > 0 ? "Up to " : "") + bytes(value)
         case .about(let value): "About " + bytes(value)
         case .atLeast(let value): value > 0 ? "At least " + bytes(value) : "Unknown"
         case .unknown: "Unknown"

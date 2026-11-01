@@ -531,6 +531,8 @@ private struct WorkspaceView: View {
     }
     /// SPEC section 6: an estimate, and an upper bound because clones share blocks.
     private func recommendedText(_ estimate: SizeEstimate) -> String {
+        // Nothing recommended reads as the rows do, "Empty", never "Up to Zero KB" (#568, Decision 76).
+        if estimate == .measured(0) { return "Empty" }
         let size = SizeFormatter.text(estimate, upperBound: true)
         if case .atLeast = estimate { return size + " · Some sizes unknown" }
         return size
