@@ -407,8 +407,8 @@ final class ApplicationsUITests: XCTestCase {
         let home = try configureCatalogHome(app)
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
         let synth = try addApp("Synth", id: "com.maker.synth", bytes: 90_000, in: home)
-        // Each scan step holds as long as the seam allows, so the rescan is still running when the review opens.
-        app.launchEnvironment["CACHEDROP_TEST_DISCOVERY_PAUSE"] = "2"
+        // The rescan after the run holds, so it is still running when the review opens.
+        app.launchEnvironment["CACHEDROP_TEST_RESCAN_PAUSE"] = "20"
         app.launch()
         waitForCatalogScan(app)
         app.typeKey("2", modifierFlags: .command)

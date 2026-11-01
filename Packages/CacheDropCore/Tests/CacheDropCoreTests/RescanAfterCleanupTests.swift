@@ -25,6 +25,8 @@ import CacheDropCore
     let result = await CleanupExecutor(journal: journal, check: CandidateCheck(catalog: catalog, running: OnlyBusyOpen()), measure: { _ in nil }, trash: TrashNeverUsed())
         .execute(CatalogApproval(candidates: [cleaned, skipped], dryRun: false))
     #expect(result.cleanedCandidateIDs == [cleaned.id])
+    // Decision 133: the rescan reads again the rules of every item the run had, the refused one's too.
+    #expect(result.ruleIDs == ["cleaned", "skipped"])
     #expect(result.keptDuringRescan(shown).map(\.ruleID).sorted() == ["skipped", "unchosen"])
     #expect(result.keptDuringRescan([unchosen]) == [unchosen])
     // Decision 123 (#556): nothing an app or plug-in owns went, so Applications doesn't wait for the rescan.

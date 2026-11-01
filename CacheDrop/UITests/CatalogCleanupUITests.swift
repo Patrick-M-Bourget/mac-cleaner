@@ -2257,6 +2257,8 @@ extension CatalogCleanupUITests {
         try Data(repeating: 4, count: 60_000).write(to: log)
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
         app.launchEnvironment["CACHEDROP_TEST_DISCOVERY_PAUSE"] = "0.5"
+        // The rescan after the run reads only the Yarn cache's rule (Decision 133): hold it, so its waiting state shows.
+        app.launchEnvironment["CACHEDROP_TEST_RESCAN_PAUSE"] = "10"
         app.launch()
         XCTAssertTrue(app.staticTexts["overviewTitle"].waitForExistence(timeout: 10))
         waitForCatalogScan(app)

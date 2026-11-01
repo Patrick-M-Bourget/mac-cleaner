@@ -458,11 +458,14 @@ public struct Catalog: Sendable {
 
     /// `discover`, plus notes on rules that kept items back, such as copies kept because their use couldn't be checked.
     /// A rule that needs Full Disk Access CacheDrop doesn't have (`access`) is never read; it comes back in `notAccessible`.
+    /// `only` reads just those rules, for the rescan after a run (Decision 133); every rule still yields to the others as in
+    /// a full scan, and `merging` puts what it found among the rows shown.
     public func discovery(home: URL, userFolder: URL? = nil, exclusions: ProtectedItemsPolicy = ProtectedItemsPolicy(), inUse: any InUseChecking = SystemInUseChecker(), sizer: KnownLocationSizer = KnownLocationSizer(), now: Date = Date(), locateTool: (ToolCommand) -> URL? = ToolCommand.installed,
                           systemRoot: URL = URL(fileURLWithPath: "/"), cloud: any UbiquitousItemAccess = SystemUbiquitousItems(), access: FullDiskAccessStatus = .unknown,
-                          cancellation: ScanCancellation? = nil, progress: (CatalogDiscoveryProgress) -> Void = { _ in }) -> CatalogDiscovery {
+                          only: Set<String>? = nil, cancellation: ScanCancellation? = nil, progress: (CatalogDiscoveryProgress) -> Void = { _ in }) -> CatalogDiscovery {
+        let rulesToRead = only.map { only in rules.filter { only.contains($0.id) } } ?? rules
         // Guidance rules report their own access (`guidance(home:)`).
-        let notAccessible = rules.filter { $0.action != .guidance && $0.access(given: access) == .needsFullDiskAccess }
+        let notAccessible = rulesToRead.filter { $0.action != .guidance && $0.access(given: access) == .needsFullDiskAccess }
         let homeBase = home.resolvingSymlinksInPath(), userBase = userFolder
         // One reading of the process table for every rule that asks what is in use.
         let inUse = inUse.snapshot()
@@ -477,7 +480,7 @@ public struct Catalog: Sendable {
         var simulators: [String: Result<SimulatorInventory, ToolDryRunError>] = [:]
         let overridden = Set(overriddenRules(home: home, systemRoot: systemRoot).map(\.id))
         // Guidance rules are sized by `guidance(home:)` and never become candidates.
-        let checked = rules.filter { $0.action != .guidance && !overridden.contains($0.id) && ($0.base == .home || userBase != nil) }
+        let checked = rulesToRead.filter { $0.action != .guidance && !overridden.contains($0.id) && ($0.base == .home || userBase != nil) }
         func offered(by rule: CleanupRule) -> [Candidate] {
             guard let base = rule.base == .home ? homeBase : userBase else { return [] }
             // Looked at but not read: What grew records it as not measured, so access granted later is coverage, not growth.
