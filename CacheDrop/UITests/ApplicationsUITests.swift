@@ -281,7 +281,7 @@ final class ApplicationsUITests: XCTestCase {
 
     /// #560: the holder quits outside the sheet (here the journey stops it, as ⌘Q in the app would). Its line goes away by
     /// itself and the sheet stays open. Sizes count only what will be cleaned: while Synth holds every row, the group and its
-    /// line read Zero KB and the skipped size shows once, on Synth's line; once Synth is gone, that size is the group's.
+    /// line show no size (never Zero KB) and the skipped size shows once, on Synth's line; once Synth is gone, it is the group's.
     @MainActor func testTheReviewDropsAHoldersLineWhenItQuitsOutsideTheSheet() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
@@ -300,7 +300,7 @@ final class ApplicationsUITests: XCTestCase {
         XCTAssertNotEqual(size, "Zero KB", text)
         // The page behind the sheet shows Synth's size too, so sizes are looked for in the sheet only.
         let sheet = app.sheets.firstMatch
-        XCTAssertTrue(sheet.staticTexts["Zero KB"].exists, "Skipped items count in no total")
+        XCTAssertFalse(sheet.staticTexts["Zero KB"].exists, "A group that cleans nothing shows no size")
         XCTAssertFalse(sheet.staticTexts[size].exists, "The skipped size shows only on Synth's line")
 
         running.terminate()

@@ -37,8 +37,11 @@ struct CatalogConfirmationSection: View {
                         group.consequence.badge
                         Text(group.consequence.title).font(CacheDropDesign.TypeStyle.section)
                         Spacer()
-                        Text(SizeEstimate(sum: group.lines.map(\.estimate)).text(upperBound: group.lines.contains(where: \.isUpperBound)))
-                            .font(CacheDropDesign.TypeStyle.section).monospacedDigit()
+                        // Nothing in it will be cleaned: no size, not Zero KB; the holder's line carries it (Decision 125).
+                        if !group.cleansNothing {
+                            Text(SizeEstimate(sum: group.lines.map(\.estimate)).text(upperBound: group.lines.contains(where: \.isUpperBound)))
+                                .font(CacheDropDesign.TypeStyle.section).monospacedDigit()
+                        }
                     }
                     VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
                         Text(group.consequence.consequence).font(CacheDropDesign.TypeStyle.note).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
@@ -46,7 +49,7 @@ struct CatalogConfirmationSection: View {
                             HStack {
                                 Text(line.category.overviewTitle)
                                 Spacer()
-                                Text(line.estimate.text(upperBound: line.isUpperBound)).monospacedDigit()
+                                if !line.cleansNothing { Text(line.estimate.text(upperBound: line.isUpperBound)).monospacedDigit() }
                             }.font(CacheDropDesign.TypeStyle.note).accessibilityElement(children: .combine).accessibilityIdentifier("reviewLine-\(group.consequence)-\(line.id)")
                         }
                         // One line per holder, its skipped size once on it (#560, Decision 125).

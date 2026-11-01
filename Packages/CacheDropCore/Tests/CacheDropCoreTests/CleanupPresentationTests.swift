@@ -90,3 +90,18 @@ private func fixture(_ rules: [CleanupRule]) throws -> (URL, Catalog, [Candidate
     #expect(ReviewGroup.groups(catalog: catalog, candidates: candidates).first?.lines.first?.estimate
             == SizeEstimate(sum: candidates.filter { $0.ruleID != "chrome" }.map(SizeEstimate.init)))
 }
+
+// #560, Decision 125: a line or group whose every item will be skipped cleans nothing, so it shows no size (not "Zero KB");
+// the skipped size is on the holder's line.
+@Test func aLineOrGroupWhoseItemsAreAllSkippedCleansNothing() throws {
+    let rules = [rule("npm", .developer, .delete), rule("chrome", .browser, .delete), rule("notes", .downloads, .trash)]
+    let (home, catalog, candidates) = try fixture(rules)
+    defer { try? FileManager.default.removeItem(at: home) }
+    let skipped = Set(candidates.filter { $0.ruleID != "npm" }.map(\.id))
+    let groups = ReviewGroup.groups(catalog: catalog, candidates: candidates, skipped: skipped)
+    let removed = try #require(groups.first), trashed = try #require(groups.last)
+    #expect(removed.lines.map(\.cleansNothing) == [false, true])
+    #expect(!removed.cleansNothing)
+    #expect(trashed.cleansNothing)
+    #expect(ReviewGroup.groups(catalog: catalog, candidates: candidates).allSatisfy { !$0.cleansNothing })
+}
