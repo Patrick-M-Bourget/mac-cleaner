@@ -354,7 +354,7 @@ struct CleanupRunSection: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var body: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
-            PageHeader(title: selection.workspaceRunning ? "Cleaning up…" : "Cleanup results")
+            PageHeader(title: selection.workspaceRunning ? "Cleaning up…" : "Results")
             if selection.catalog.isRunning {
                 if let progress = selection.catalog.runProgress { running(progress) }
                 else { ProgressView(selection.catalog.dryRun ? "Checking selected items…" : "Cleaning selected items…") }

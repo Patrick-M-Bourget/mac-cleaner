@@ -1,2 +1,7 @@
 # term<TAB>literal: strings that use a term GLOSSARY.md keeps off screen and wait on their ticket. None remain (#491).
 # Add a line only with a ticket that fixes it; scripts/check-copy.sh fails on a line that no longer matches any string.
+# Stored, never drawn: older journal messages History matches (CleanupWording.restatesOutcome), Docker's JSON key and a
+# saved Storage trends label.
+Permanently removed	Permanently removed
+reclaimable	Reclaimable
+known locations	Known locations

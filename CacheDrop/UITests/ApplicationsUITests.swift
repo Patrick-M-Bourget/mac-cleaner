@@ -502,7 +502,7 @@ final class ApplicationsUITests: XCTestCase {
         app.launchEnvironment["CACHEDROP_TEST_DISCOVERY_PAUSE"] = "0.5"
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
         app.launch()
-        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["overviewTitle"].waitForExistence(timeout: 10))
         app.typeKey("4", modifierFlags: .command)
         XCTAssertTrue(app.descendants(matching: .any)["applicationsLoading-apps"].waitForExistence(timeout: 5), "Apps say they are loading")
         XCTAssertTrue(app.descendants(matching: .any)["applicationsLoading-leftovers"].exists)
@@ -524,7 +524,7 @@ final class ApplicationsUITests: XCTestCase {
         try Data().write(to: unreadable)
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
         app.launch()
-        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["overviewTitle"].waitForExistence(timeout: 10))
         app.typeKey("4", modifierFlags: .command)
         let notice = element(app, "applicationsUnreadable")
         XCTAssertTrue(notice.waitForExistence(timeout: 60), "Apps say the list couldn't be read")

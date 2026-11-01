@@ -36,7 +36,7 @@ private func trashedInstaller(named name: String = "Setup.dmg") async throws -> 
     // Recorded in History: its own run, and the trashed item reads as put back.
     let history = try journal.completedHistory()
     let putBackRun = try #require(history.completedRuns.first { $0.isPutBack })
-    #expect(putBackRun.title == "Put back from Trash")
+    #expect(putBackRun.title == "Put back from the Trash")
     #expect(putBackRun.records.first?.outcomeTitle == "Put back")
     #expect(putBackRun.records.first?.putBackOf == record.id)
     #expect(history.putBackIDs == [record.id])

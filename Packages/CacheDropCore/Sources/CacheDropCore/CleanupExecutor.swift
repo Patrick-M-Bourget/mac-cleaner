@@ -316,7 +316,7 @@ public actor CleanupExecutor {
             var info = stat()
             if lstat(candidate.url.path, &info) != 0, errno == ENOENT { record.state = .succeeded; record.message = "Ran \(name); it removed the folder itself"; return }
             delete(candidate, into: &record)
-            if record.state == .succeeded { record.message = "Ran \(name) and permanently removed the folder" }
+            if record.state == .succeeded { record.message = "Ran \(name) and deleted the folder" }
             else { record.message = "Ran \(name). " + record.message }
         case .failure(let error as ToolTimeout):
             Self.recordStopped(.timeLimit(seconds: Int(command.timeout.rounded(.up))), output: error.output, command: command, name: name, candidate: candidate, into: &record)
@@ -392,7 +392,7 @@ public actor CleanupExecutor {
         }
         do {
             try FileManager.default.removeItem(at: aside)
-            record.state = .succeeded; record.message = "Permanently removed"
+            record.state = .succeeded; record.message = "Deleted"
         } catch {
             // Never "not changed": part of it is gone. The rest is offered again on the next scan, under the same rule.
             record.state = .failed; record.partlyRemoved = true

@@ -244,11 +244,13 @@ struct PageHeader: View {
     /// A page's one search, on the right of the title and level with its description, so the header is one band and the
     /// page keeps one left edge (Applications).
     var search: PageSearchField? = nil
+    /// Tells a page's title apart from its sidebar name when both read the same ("Overview", #570).
+    var titleIdentifier: String? = nil
     var body: some View {
         HStack(alignment: .bottom, spacing: CacheDropDesign.Space.lg) {
             VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
                 if let back { back }
-                Text(title).font(CacheDropDesign.TypeStyle.page).tracking(-0.6)
+                Text(title).font(CacheDropDesign.TypeStyle.page).tracking(-0.6).accessibilityIdentifier(titleIdentifier ?? "")
                 if let subtitle { Text(subtitle).font(CacheDropDesign.TypeStyle.note).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
             }.frame(maxWidth: .infinity, alignment: .leading)
             if let search { search }

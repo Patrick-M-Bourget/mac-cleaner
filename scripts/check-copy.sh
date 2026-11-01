@@ -3,7 +3,8 @@
 #
 # The terms are read from GLOSSARY.md's "Not shown to users" line, so the glossary stays the one list. A literal counts
 # as copy when it holds a space or is one capitalized word; identifiers ("leftovers", "local-records") and environment
-# names don't. "available" is checked only as a word for free space ("available space"). The Design gallery is skipped.
+# names don't. "available" is checked only as a word for free space ("available space"). It reads the app and CacheDropCore;
+# the Design gallery and the journal's SQL files are skipped.
 # Strings that already break a term and wait on their ticket are listed in scripts/check-copy-allow.txt as
 # `term<TAB>literal`; remove a line when its string is fixed.
 #
@@ -22,8 +23,9 @@ for entry in open('scripts/check-copy-allow.txt', encoding='utf-8'):
 literal = re.compile(r'"((?:[^"\\]|\\.)*)"')
 found = False
 seen = set()
-for path in subprocess.check_output(['git', 'ls-files', 'CacheDrop/App/*.swift']).decode().split():
-    if path.endswith('DesignGallery.swift'): continue
+for path in subprocess.check_output(['git', 'ls-files', 'CacheDrop/App/*.swift', 'Packages/CacheDropCore/Sources/*.swift']).decode().split():
+    # The Design gallery is synthetic; the journal's files hold SQL, not copy.
+    if path.endswith(('DesignGallery.swift', 'SQLiteCleanupJournal.swift', 'LegacyStillMigration.swift')): continue
     for number, text in enumerate(open(path, encoding='utf-8'), 1):
         if text.lstrip().startswith('//'): continue
         for value in literal.findall(text):

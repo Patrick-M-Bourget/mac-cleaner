@@ -227,9 +227,9 @@ public enum BuiltInCatalog {
                     owner: pnpmOwner,
                     tool: ToolCommand(executables: ["/opt/homebrew/bin/pnpm", "/usr/local/bin/pnpm", NSHomeDirectory() + "/Library/pnpm/pnpm"], arguments: ["store", "prune"], timeout: 300,
                                       locationQuery: LocationQuery(["store", "path"], whenUnanswered: .defaultLocations))),
-        CleanupRule(id: "pnpm-cache", category: .developer, title: "pnpm metadata cache",
-                    detail: "Package metadata pnpm downloaded.",
-                    consequence: "pnpm downloads metadata again as needed.",
+        CleanupRule(id: "pnpm-cache", category: .developer, title: "pnpm package index cache",
+                    detail: "Package information pnpm downloaded.",
+                    consequence: "pnpm downloads it again as needed.",
                     regen: .cache, action: .delete, locations: ["Library/Caches/pnpm"],
                     owner: pnpmOwner),
         // Decision 44: uv's docs say to change its cache only through uv, so uv names the folder and prunes it.

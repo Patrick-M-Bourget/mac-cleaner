@@ -23,7 +23,7 @@ struct MeterSegments: View {
         if reclaimableOnly {
             let bytes = breakdown.reclaimableBytes
             guard bytes > 0 else { return [] }
-            return [Drawn(id: "reclaimable", title: "Reclaimable", help: "Reclaimable · " + SizeFormatter.text(bytes, upperBound: true),
+            return [Drawn(id: "reclaimable", title: "Can be cleaned", help: "Can be cleaned · " + SizeFormatter.text(bytes, upperBound: true),
                           color: CacheDropDesign.meterReclaimable, bytes: bytes, part: nil)]
         }
         return breakdown.segments.filter { $0.bytes > 0 }.map { segment in
@@ -73,7 +73,7 @@ extension StorageBreakdown.Part {
     var title: String {
         switch self {
         case .category(let category): category.overviewTitle
-        case .other: "Other reclaimable"
+        case .other: "Other you can clean"
         case .goingToTrash: "Goes to the Trash"
         case .trash: "In Trash"
         }

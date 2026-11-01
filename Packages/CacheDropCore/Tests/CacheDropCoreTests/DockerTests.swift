@@ -505,7 +505,7 @@ private func dockerRunning(_ home: URL, docker: URL, choose ruleIDs: Set<String>
     #expect(images.state == .succeeded && images.partlyRemoved == nil && images.outcomeTitle == "Removed")
     #expect(images.message == "Finished after you stopped it.")
     #expect(!images.needsAttention)
-    #expect(containers.state == .failed && containers.partlyRemoved == true && containers.outcomeTitle == "Partly removed")
+    #expect(containers.state == .failed && containers.partlyRemoved == true && containers.outcomeTitle == "Partly deleted")
     #expect(containers.message.contains("may still be finishing"))
     // The measured freed space stays what was measured during the run.
     #expect(later.measuredFreedBytes == done.result.measuredFreedBytes)
@@ -627,7 +627,7 @@ private func dockerRunning(_ home: URL, docker: URL, choose ruleIDs: Set<String>
     // measures it on the next launch.
     let kept = try #require(try stopped.journal.records().first { $0.ruleID == "docker-build-cache" })
     #expect(kept.laterMeasurement == nil && kept.mayStillBeFinishing == true)
-    #expect(kept.state == .failed && kept.outcomeTitle == "Partly removed" && kept.message.contains("may still be finishing"))
+    #expect(kept.state == .failed && kept.outcomeTitle == "Partly deleted" && kept.message.contains("may still be finishing"))
 }
 /// Durations collected from any thread, in order.
 private final class Delays: @unchecked Sendable {

@@ -254,7 +254,7 @@ private func cancellableRun(_ home: URL, brewScript: String, cancellation: Clean
     let tool = try #require(result.records.first), next = try #require(result.records.last)
     #expect(tool.state == .failed)
     #expect(tool.partlyRemoved == true)
-    #expect(tool.outcomeTitle == "Partly removed")
+    #expect(tool.outcomeTitle == "Partly deleted")
     #expect(tool.message == "Stopped when you canceled. brew cleanup -s may have cleaned part of it; the folder was left in place.")
     #expect(tool.toolOutput == "cleaning")
     #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent("Library/Caches/Homebrew/entry").path))

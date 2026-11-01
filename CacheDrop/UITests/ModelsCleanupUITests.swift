@@ -25,7 +25,7 @@ final class ModelsCleanupUITests: XCTestCase {
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
         app.launch()
 
-        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["overviewTitle"].waitForExistence(timeout: 10))
         waitForCatalogScan(app)
         let row = app.buttons["overviewCategory-models"]
         XCTAssertTrue(row.waitForExistence(timeout: 10))

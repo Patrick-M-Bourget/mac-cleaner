@@ -102,9 +102,9 @@ private func records(_ actions: [CleanupAction], dryRun: Bool = false) throws ->
     var delete = made[0], tool = made[1]
     delete.state = .failed; delete.partlyRemoved = true
     tool.state = .failed; tool.partlyRemoved = true
-    #expect(delete.outcomeTitle == "Partly removed")
+    #expect(delete.outcomeTitle == "Partly deleted")
     #expect(delete.recoveryStateText == "Failed · It may be partly deleted")
-    #expect(tool.outcomeTitle == "Partly removed")
+    #expect(tool.outcomeTitle == "Partly deleted")
     #expect(tool.recoveryStateText == "Failed · It may be partly deleted")
     #expect(CleanupHistorySnapshot(records: [delete, tool]).completedRuns.first?.title == "Cleanup · Partly deleted")
     delete.partlyRemoved = nil

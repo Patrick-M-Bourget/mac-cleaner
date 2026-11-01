@@ -236,7 +236,7 @@ private func snapshot(_ root: URL) throws -> [String: Data] {
     let (run, _) = try executor(home, running: FakeRunning(running: ["Tool C"]), catalog: catalog)
     let result = await run.execute(CatalogApproval(candidates: candidates, dryRun: false))
     #expect(result.records.map(\.state) == [.skipped, .succeeded, .skipped])
-    #expect(result.records.map(\.message) == ["Changed since the scan.", "Permanently removed", "Tool C is running. Quit it, then scan again."])
+    #expect(result.records.map(\.message) == ["Changed since the scan.", "Deleted", "Tool C is running. Quit it, then scan again."])
     #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent("a/cache").path))
     #expect(!FileManager.default.fileExists(atPath: home.appendingPathComponent("b/cache").path))
     #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent("c/cache/file").path))

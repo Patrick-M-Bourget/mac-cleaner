@@ -225,7 +225,7 @@ struct ApplicationsView: View {
                 // Spotlight didn't answer: unknown, never "Only Apple's apps" (#310), as the one empty state (#321). Try again
                 // scans again, so uninstalls are read too.
                 EmptyState(title: "CacheDrop couldn’t read the list of apps", detail: "Spotlight didn’t answer.", symbol: "exclamationmark.triangle",
-                           action: EmptyStateAction("Try again") { Task { await catalog.rescan() } }, identifier: "applicationsUnreadable")
+                           action: EmptyStateAction("Scan again") { Task { await catalog.rescan() } }, identifier: "applicationsUnreadable")
             } else { state(empty.title, empty.detail, symbol: "tray", id: "applicationsEmpty-" + id) }
         } else if shown.isEmpty {
             noMatches(id)
