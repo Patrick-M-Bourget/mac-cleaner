@@ -108,6 +108,20 @@ extension CleanupHistoryRun {
     public var isPutBack: Bool { !records.isEmpty && records.allSatisfy(\.isPutBack) }
     /// A deletion of CacheDrop's own items from the Trash (#359), recorded as its own run.
     public var isEmptyFromTrash: Bool { !records.isEmpty && records.allSatisfy(\.isEmptyFromTrash) }
+    /// The figure a History row leads with (#569, Decision 127). A cleanup leads with the measured freed space Results leads
+    /// with (Decision 93), "Unknown" when a reading is missing, and so does Empty from Trash, which frees space too; a run
+    /// that only moved items to the Trash, with what went there; a Put back, with what it returned; a dry run, with what it
+    /// would affect.
+    public struct Headline: Sendable, Equatable {
+        public let bytes: Int64?
+        public let note: String
+    }
+    public var headline: Headline {
+        if isPreview { return Headline(bytes: plannedBytes, note: "Dry run") }
+        if isPutBack { return Headline(bytes: plannedBytes, note: "From Trash") }
+        if records.movedOnlyToTrash { return Headline(bytes: plannedBytes, note: "In Trash") }
+        return Headline(bytes: MeasuredFreedSpace.shown(measuredFreedBytes), note: "Freed")
+    }
     /// "A", "A and B", "A, B and C".
     private static func list(_ items: [String]) -> String {
         items.count < 2 ? items.joined() : items.dropLast().joined(separator: ", ") + " and " + items[items.count - 1]

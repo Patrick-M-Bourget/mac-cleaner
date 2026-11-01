@@ -523,14 +523,21 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts["catalogPreviewNotice"].exists)
         XCTAssertFalse(FileManager.default.fileExists(atPath: home.appendingPathComponent(".npm/_cacache").path))
 
-        // #433: History shows the run's measured freed space, as Results does, never an unknown "Free space change".
+        // #433, #569: History's row leads with the run's measured freed space, the figure Results leads with, never an
+        // unknown "Free space change"; the estimate is inside the row.
+        let freed = app.staticTexts["resultsMeasuredFreed"]
+        XCTAssertTrue(freed.waitForExistence(timeout: 5))
+        let freedText = freed.value as? String ?? freed.label
+        XCTAssertFalse(freedText.contains("Unknown"), freed.debugDescription)
         app.typeKey("6", modifierFlags: .command)
         let run = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH 'cleanupRun:'")).firstMatch
         XCTAssertTrue(run.waitForExistence(timeout: 10))
+        XCTAssertTrue(run.label.contains(freedText) && run.label.contains("Freed"), run.debugDescription)
+        XCTAssertFalse(run.label.contains("Estimated"), "The row leads with what was freed, not the estimate")
         revealAndClick(run, in: app)
-        let measured = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Measured freed space: ' OR value BEGINSWITH 'Measured freed space: '")).firstMatch
-        XCTAssertTrue(measured.waitForExistence(timeout: 5))
-        XCTAssertFalse((measured.value as? String ?? measured.label).contains("Unknown"), measured.debugDescription)
+        let estimate = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Estimated before cleanup: ' OR value BEGINSWITH 'Estimated before cleanup: '")).firstMatch
+        XCTAssertTrue(estimate.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Measured freed space: '")).firstMatch.exists, "Said once, on the row")
         XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Free space change'")).firstMatch.exists)
     }
 

@@ -29,7 +29,8 @@ struct CatalogResultsSection: View {
                 SummarySurface {
                     HStack(alignment: .top, spacing: CacheDropDesign.Space.xl) {
                         if !onlyTrashed {
-                            metric(MeasuredFreedSpace.shown(result.measuredFreedBytes).map { SizeFormatter.text($0) } ?? SizeEstimate.unknown.text, "Measured freed space", followUp: settledLine)
+                            metric(MeasuredFreedSpace.shown(result.measuredFreedBytes).map { SizeFormatter.text($0) } ?? SizeEstimate.unknown.text, "Measured freed space", followUp: settledLine,
+                                   identifier: "resultsMeasuredFreed")
                         }
                         let upperBound = upperBound(result.records)
                         metric(SizeFormatter.text(result.estimatedBytes, upperBound: upperBound), upperBound ? "Estimated before cleanup · Upper bound" : "Estimated before cleanup")
@@ -75,9 +76,9 @@ struct CatalogResultsSection: View {
     }
     private func upperBound(_ records: [CleanupRecord]) -> Bool { records.contains { $0.ruleID.flatMap { catalog.rule($0)?.estimateIsUpperBound } == true } }
     /// A figure and its label; `followUp` adds a later finding below it, never into the figure (#411).
-    private func metric(_ value: String, _ label: String, followUp: String? = nil) -> some View {
+    private func metric(_ value: String, _ label: String, followUp: String? = nil, identifier: String? = nil) -> some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.xs) {
-            Text(value).font(CacheDropDesign.TypeStyle.value).monospacedDigit()
+            Text(value).font(CacheDropDesign.TypeStyle.value).monospacedDigit().accessibilityIdentifier(identifier ?? "")
             Text(label).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
             if let followUp { Text(followUp).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).monospacedDigit().accessibilityIdentifier("resultsSettled") }
         }

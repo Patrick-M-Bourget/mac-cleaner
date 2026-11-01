@@ -61,7 +61,7 @@ The names CacheDrop shows, what they mean, and where they live in code. Copy fol
 | Close (onboarding) | Dismiss the guide while preparation continues | `WelcomeModel.finish` |
 | Scan again | Any action that scans | `CatalogCleanupModel`, `ExploreStorage` |
 | Dry run | Runs the whole flow; nothing changes | `dryRun` |
-| Measured freed space | Free space measured around each item, not the estimate | `MeasuredFreedSpace` |
+| Measured freed space, Freed | Free space measured around each item, not the estimate; History rows note it **Freed** | `MeasuredFreedSpace`, `CleanupHistoryRun.headline` |
 | Up to, About | A size that's an upper bound or an estimate | `SizeEstimate` |
 | free | Disk space you can use | `CapacitySample`, `SidebarCapacityText` |
 | Reveal in Finder, Reveal in Trash | Shows the item where it is | — |
