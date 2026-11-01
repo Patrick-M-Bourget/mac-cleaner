@@ -94,15 +94,16 @@ struct RefreshRequest: Sendable {
         guard !workspaceRunning, !catalog.isRunning else { return }
         endSession(); workspaceFinished = false; workspaceStopRequested = false; workspaceCancellation = nil; unavailableScopes.removeAll()
     }
-    /// Nothing blocks a review: no maintenance, no cleanup running, and the catalog can be edited.
-    private var canStartReview: Bool { !AppLifecycleController.shared.maintenanceInProgress && !workspaceRunning && catalog.canEdit }
-    /// Whether a Smart clean can be reviewed: nothing else is running and the catalog can be edited.
-    var canReviewSmartClean: Bool { canStartReview && !catalog.smartCleanCandidates.isEmpty }
-    /// Whether the Applications page's chosen leftovers can be reviewed (Decision 51).
-    /// During a rescan that keeps its apps and plug-ins too (Decision 123); Clean up still waits for the scan.
-    var canReviewApplications: Bool {
-        !AppLifecycleController.shared.maintenanceInProgress && !workspaceRunning && catalog.canEditApplications && !catalog.applicationsSelected.isEmpty
+    /// Nothing blocks a review: no maintenance, no cleanup running, and the catalog can be edited, or `items` chosen (Decision 123).
+    private func canStartReview(_ items: [Candidate]? = nil) -> Bool {
+        !AppLifecycleController.shared.maintenanceInProgress && !workspaceRunning && (items.map(catalog.canChoose) ?? catalog.canEdit)
     }
+    /// Whether a Smart clean can be reviewed: nothing else is running and the catalog can be edited.
+    var canReviewSmartClean: Bool { canStartReview() && !catalog.smartCleanCandidates.isEmpty }
+    /// Whether the Applications page's chosen leftovers can be reviewed (Decision 51).
+    /// During a rescan that keeps its apps and plug-ins too, unless files from deleted apps are ticked (Decision 123); Clean up
+    /// still waits for the scan.
+    var canReviewApplications: Bool { let items = catalog.applicationsSelected; return !items.isEmpty && canStartReview(items) }
     /// Whether the page `source` can be reviewed and cleaned now.
     func canReview(_ source: CleanupSelections.Source) -> Bool {
         switch source { case .plan: canReview; case .smartClean: canReviewSmartClean; case .applications: canReviewApplications }

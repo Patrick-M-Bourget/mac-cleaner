@@ -25,11 +25,11 @@ struct CatalogItemRows: View {
                 // Clicking the row ticks the item, as its checkbox does; Finder is its own Reveal link (#356, #367, Decision 72).
                 InspectableItemRow(name: item.displayName, detail: detail(item), size: SizeEstimate(item).text,
                                    symbol: item.isDirectory ? "folder" : "doc", inspected: false,
-                                   inspect: rule.itemRowClick == .tick ? { if model.canEdit(item) { model.setSelected(item, !model.isSelected(item)) } } : nil,
+                                   inspect: rule.itemRowClick == .tick ? { if model.canChoose([item]) { model.setSelected(item, !model.isSelected(item)) } } : nil,
                                    detailLineLimit: 1, actionLabel: "Select " + item.displayName,
                                    reveal: { Finder.reveal([item.url]) }, revealIdentifier: "planItemReveal-" + item.displayName) {
                     Toggle("Select " + item.displayName, isOn: Binding(get: { model.isSelected(item) }, set: { model.setSelected(item, $0) }))
-                        .labelsHidden().disabled(!model.canEdit(item)).accessibilityIdentifier("planItem-" + item.displayName)
+                        .labelsHidden().disabled(!model.canChoose([item])).accessibilityIdentifier("planItem-" + item.displayName)
                 }.help(item.url.path)
             }
         }

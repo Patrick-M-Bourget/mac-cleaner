@@ -376,9 +376,9 @@ private func twoApps() throws -> (home: URL, synth: InstalledApp, pad: Installed
 
     let refused = try await run(check(home, running: Running(names: ["Synth"])), dryRun: false)
     #expect(refused.records.allSatisfy { $0.state == .skipped })
-    #expect(!refused.changesApplications, "Refused: nothing left")
-    #expect(!(try await run(check(home), dryRun: true)).changesApplications, "A dry run changes nothing")
+    #expect(!refused.changesApplications(listing: []), "Refused: nothing left")
+    #expect(!(try await run(check(home), dryRun: true)).changesApplications(listing: chosen.map(\.url)), "A dry run changes nothing")
     let uninstalled = try await run(check(home), dryRun: false)
     #expect(uninstalled.records.allSatisfy { $0.state == .succeeded })
-    #expect(uninstalled.changesApplications)
+    #expect(uninstalled.changesApplications(listing: []))
 }

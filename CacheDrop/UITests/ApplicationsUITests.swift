@@ -407,8 +407,8 @@ final class ApplicationsUITests: XCTestCase {
         let home = try configureCatalogHome(app)
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
         let synth = try addApp("Synth", id: "com.maker.synth", bytes: 90_000, in: home)
-        // Each scan step holds a moment, so the rescan is still running when Applications opens.
-        app.launchEnvironment["CACHEDROP_TEST_DISCOVERY_PAUSE"] = "1"
+        // Each scan step holds as long as the seam allows, so the rescan is still running when the review opens.
+        app.launchEnvironment["CACHEDROP_TEST_DISCOVERY_PAUSE"] = "2"
         app.launch()
         waitForCatalogScan(app)
         app.typeKey("2", modifierFlags: .command)
@@ -435,7 +435,8 @@ final class ApplicationsUITests: XCTestCase {
         review.click()
         XCTAssertTrue(reviewLine(app, "movedToTrash", "apps").waitForExistence(timeout: 10))
         let footer = app.descendants(matching: .any).matching(identifier: "sheetFooter").firstMatch
-        if progress.exists { XCTAssertFalse(footer.buttons["Clean up"].isEnabled, "Clean up waits for the scan") }
+        XCTAssertTrue(progress.exists, "Still rescanning")
+        XCTAssertFalse(footer.buttons["Clean up"].isEnabled, "Clean up waits for the scan")
         XCTAssertTrue(progress.waitForNonExistence(timeout: 120))
         let enabled = XCTNSPredicateExpectation(predicate: NSPredicate(format: "isEnabled == true"), object: footer.buttons["Clean up"])
         XCTAssertEqual(XCTWaiter.wait(for: [enabled], timeout: 10), .completed, "The scan kept the choices: the review stays open and can run")

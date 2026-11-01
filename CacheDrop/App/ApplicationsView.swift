@@ -103,7 +103,7 @@ struct ApplicationsView: View {
             } idle: {
                 BusyAction(busy: selection.isCheckingReview) {
                     ReviewCleanupButton(enabled: selection.canReviewApplications && !selection.isCheckingReview, focusRequest: reviewFocusRequest,
-                                        tooltip: appsWaitForScan ? CacheDropDesign.waitForScanHelp : nil) { Task { await openReview() } }.fixedSize()
+                                        tooltip: catalog.isScanning && !selection.canReviewApplications ? CacheDropDesign.waitForScanHelp : nil) { Task { await openReview() } }.fixedSize()
                 }
             }
         }
@@ -192,7 +192,8 @@ struct ApplicationsView: View {
         let value = items.isEmpty ? CacheDropDesign.noValue : catalog.sizeText(of: items) + " to Trash"
         return SelectionSummary(value: value, detail: CacheDropDesign.items(items.count) + " selected",
                                 identifier: "applicationsSummary", title: "Ready to clean")
-            .waitingForScan(appsWaitForScan)
+            // Ticked files from deleted apps wait for the scan, so a total that counts them does too (Decision 123).
+            .waitingForScan(catalog.isScanning && !catalog.canChoose(items))
     }
 
     /// The list's quiet table header, one sort for every section (#295, #352): "Name" over the names, "Size" over the sizes.
@@ -220,9 +221,9 @@ struct ApplicationsView: View {
 
     /// A section's lists come after the catalog scan; until then, and while they are read, it shows skeleton rows (#270, #308).
     private var listsLoading: Bool { !model.hasLoaded || model.isLoading || appsWaitForScan }
-    /// Apps and Plug-ins wait for a running scan, unless it is the rescan after a run that changed none of them (Decision 123).
-    /// Files from deleted apps always wait for it.
-    private var appsWaitForScan: Bool { catalog.isScanning && !catalog.rescanKeepsApplications }
+    /// Apps and Plug-ins wait for a running scan, except the rescan after a run that changed none of them; Files from deleted
+    /// apps always does (Decision 123).
+    private var appsWaitForScan: Bool { catalog.applicationsWaitForScan }
 
     @ViewBuilder private func section(_ title: String, id: String, entries: [InventoryEntry], category: StorageCategory, identifier: String,
                                       empty: (title: String, detail: String)) -> some View {
@@ -281,7 +282,7 @@ struct ApplicationsView: View {
         return CategoryRow(category: category, state: uninstall.isEmpty ? nil : catalog.selectionState(ofRow: entry.id), title: entry.name,
                            detail: [entry.maker, entry.volume].compactMap { $0 }.joined(separator: " · "),
                            size: size(of: entry).text,
-                           enabled: uninstall.isEmpty || catalog.canEditApplications, identifier: identifier,
+                           enabled: uninstall.isEmpty || catalog.canChoose(uninstall), identifier: identifier,
                            // An app alone is its only item: no "Choose items · 1" (#270).
                            itemCount: count > 1 || !staying.isEmpty ? count : nil, staying: staying.count,
                            icon: category == .apps ? AppIcon.of(entry.id) : nil, expanded: isExpanded,
