@@ -30,6 +30,8 @@ enum CacheDropDesign {
         static let hairline: CGFloat = 1
         /// The cleanup confirmation sheet (#334).
         static let sheetWide = CGSize(width: 640, height: 520)
+        /// The shortest a sheet that fits its content (#574) gets, so a one-line review doesn't look like an alert.
+        static let sheetWideMinHeight: CGFloat = 280
         /// The storage explorer's inspector: its width beside the list once the page is at least `explorerWide` wide, and
         /// below the list otherwise, at most `inspectorStacked` tall or `inspectorStackedShare` of the page (#320).
         static let explorerWide: CGFloat = 800; static let inspector: CGFloat = 280; static let inspectorStacked: CGFloat = 220

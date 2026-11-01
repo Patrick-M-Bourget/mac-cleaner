@@ -517,6 +517,12 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertTrue(reviewLine(app, "permanentlyRemoved", "developer").waitForExistence(timeout: 5))
         XCTAssertFalse(reviewLine(app, "commandsRun", "developer").exists)
         XCTAssertFalse(app.staticTexts["reviewPreviewNotice"].exists)
+        // #574: one group, so the sheet fits it rather than standing at its full 520-point height (after its resize settles).
+        Thread.sleep(forTimeInterval: 1)
+        let sheet = app.sheets.firstMatch
+        XCTAssertLessThan(sheet.frame.height, 480, sheet.debugDescription)
+        let footer = sheet.descendants(matching: .any)["sheetFooter"]
+        XCTAssertLessThan(footer.frame.minY - reviewLine(app, "permanentlyRemoved", "developer").frame.maxY, 200, "The footer sits close under the list")
         cleanUpFromReview(app)
 
         XCTAssertTrue(app.staticTexts["Deleted"].waitForExistence(timeout: 10))
