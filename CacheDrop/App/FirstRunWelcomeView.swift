@@ -137,8 +137,11 @@ struct FirstRunWelcomeView: View {
             VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
                 Text(title).font(CacheDropDesign.TypeStyle.sheet).fontWeight(.semibold).accessibilityAddTraits(.isHeader)
                     .accessibilityIdentifier(model.step == .failed ? "welcomeFailure" : "welcomeStepTitle")
-                Text("Nothing is cleaned until you review it.")
-                    .font(CacheDropDesign.TypeStyle.note).foregroundStyle(.secondary)
+                // Said once, on the first step (#573).
+                if model.step == .welcome {
+                    Text("Nothing is cleaned until you review it.")
+                        .font(CacheDropDesign.TypeStyle.note).foregroundStyle(.secondary).accessibilityIdentifier("welcomeSubtitle")
+                }
             }
             switch model.step {
             case .welcome:
@@ -149,7 +152,7 @@ struct FirstRunWelcomeView: View {
             case .access:
                 Text("CacheDrop can request access to Downloads and app data. macOS may ask you to allow access. Full Disk Access is optional.")
                     .font(CacheDropDesign.TypeStyle.note).foregroundStyle(.secondary)
-                FullDiskAccessLink(title: "Full Disk Access is optional · Learn more", model: access)
+                FullDiskAccessLink(title: "Learn more about Full Disk Access", model: access)
             case .scanning, .ready:
                 ScanPreparationProgress(text: progressText, fraction: model.step == .ready ? 1 : furthestProgress, identifier: "welcomeScanProgress",
                                         showsText: model.step != .ready) // The heading says it once (#546).

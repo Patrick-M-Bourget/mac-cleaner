@@ -683,8 +683,12 @@ final class FirstRunWelcomeUITests: XCTestCase {
         XCTAssertLessThan(close.frame.maxY, title.frame.minY, "The close control is above the title")
         XCTAssertGreaterThan(close.frame.midX, app.sheets.firstMatch.frame.midX, "The close control is top-right")
         XCTAssertFalse(app.buttons["Cancel onboarding"].exists)
+        XCTAssertTrue(app.staticTexts["welcomeSubtitle"].exists, "The first step says nothing is cleaned until you review it")
         app.buttons["welcomeContinue"].click()
         XCTAssertTrue(app.buttons["welcomeRequestAccess"].waitForExistence(timeout: 5))
+        // #573: each thing once. The subtitle stays on the first step; the link doesn't repeat "optional".
+        XCTAssertFalse(app.staticTexts["welcomeSubtitle"].exists)
+        XCTAssertEqual(app.sheets.links["fullDiskAccessLink"].firstMatch.label, "Learn more about Full Disk Access")
         XCTAssertEqual(app.buttons["welcomeRequestAccess"].label, "Request access…")
         XCTAssertEqual(app.buttons["welcomeCurrentAccess"].label, "Scan with current access")
         XCTAssertTrue(app.sheets.staticTexts["CacheDrop can request access to Downloads and app data. macOS may ask you to allow access. Full Disk Access is optional."].exists)
