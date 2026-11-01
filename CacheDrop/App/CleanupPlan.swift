@@ -542,6 +542,7 @@ struct ReviewSheetFrame<Content: View, Actions: View>: View {
     @ViewBuilder var actions: () -> Actions
     /// The list's own height, so the scroll view asks for no more than it shows.
     @State private var contentHeight: CGFloat = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var body: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
             PageHeader(title: title, subtitle: subtitle)
@@ -550,6 +551,9 @@ struct ReviewSheetFrame<Content: View, Actions: View>: View {
                     .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
             }
             .frame(idealHeight: contentHeight, maxHeight: contentHeight > 0 ? contentHeight : nil)
+            // Checking turning into the review, Show files and a Quit re-check change the height smoothly, or at once
+            // under Reduce Motion (#574).
+            .animation(reduceMotion ? nil : .easeInOut(duration: CacheDropDesign.Motion.waiting), value: contentHeight)
             // Room the minimum height leaves over goes under the list, with no second gap above the footer's line.
             .frame(maxHeight: .infinity, alignment: .top)
             Divider()
