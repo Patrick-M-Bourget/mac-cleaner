@@ -439,22 +439,38 @@ struct WorkspaceCleanupConfirmationView: View {
     var body: some View {
         ReviewSheetFrame(title: "Review your cleanup", subtitle: "Clean up does exactly what’s listed here.") {
             if let items = review.catalog {
-                CatalogConfirmationSection(review: items, catalog: catalog, follow: follow, refusals: held?.refusals, quit: quitAction)
+                CatalogConfirmationSection(review: items, catalog: catalog, follow: follow, held: held, quit: quitAction)
             }
         } actions: {
             Button("Cancel", action: cancelled).keyboardShortcut(.cancelAction); Button("Clean up", action: approve).buttonStyle(.borderedProminent)
         }
+        .task { for await _ in CatalogCleanupModel.appTerminations() { await checkQuitAppsAgain() } }
     }
     /// The plan's running-owner lines catch up once the sheet is gone, never under it (#307).
     private func cancelled() {
         cancel()
         if quitAnApp, let model = review.model { Task { await model.checkRunningOwnersAgain() } }
     }
-    private func quitAction(_ item: Candidate) -> StatusAction? {
-        guard let held, let owner = held.holder(of: item), let title = held.quitTitle(for: item) else { return nil }
+    private func quitAction(_ line: ReviewHeldItems.Line) -> StatusAction? {
+        guard let owner = line.quitOwner, let title = line.quitTitle else { return nil }
         let busy = quitting.contains(owner)
-        // The candidate's id, which starts with its rule's: rows of one rule each get their own link (#384).
-        return StatusAction(title: busy ? "Quitting…" : title, identifier: "reviewQuit-" + item.id, isDisabled: busy) { quit(owner) }
+        // The line's first candidate id, which starts with its rule's: each line gets its own link (#384, #560).
+        return StatusAction(title: busy ? "Quitting…" : title, identifier: "reviewQuit-" + line.id, isDisabled: busy) { quit(owner) }
+    }
+    /// An app quit some other way while the sheet is open (#560): the rows of each holder no longer open are checked again,
+    /// and again for a few seconds while some stay held, as when its helpers are still closing. The sheet stays open (#307).
+    private func checkQuitAppsAgain() async {
+        let quitter = CatalogCleanupModel.quitter
+        for attempt in 0..<5 {
+            if attempt > 0 { try? await Task.sleep(for: .seconds(1)) }
+            let owners = held?.ownersToCheckAgain(isOpen: quitter.isOpen).filter { !quitting.contains($0) } ?? []
+            guard !owners.isEmpty else { return }
+            quitAnApp = true
+            for owner in owners {
+                guard let rows = held?.candidates(heldBy: owner), let checked = await review.model?.checkedAgain(rows) else { continue }
+                held?.quitEnded(owner, outcome: .quit, isOpen: quitter.isOpen) { checked[$0.id] }
+            }
+        }
     }
     /// A normal quit request, never a force quit; once the app is gone its rows are checked again, otherwise they keep their reason.
     private func quit(_ owner: RuleOwner) {
