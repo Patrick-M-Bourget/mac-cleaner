@@ -100,6 +100,7 @@ import CacheDropCore
         self.registration = registration
         loginIntent = registration.intent; loginStatus = registration.status
         capacity.request(.launch)
+        SetupProgressSharing.shared.sendPending()
         // Keeps the menu bar item's free space current. Capacity metadata only; never a folder scan (#131).
         capacityTimer = Timer.scheduledTimer(withTimeInterval: 300, repeats: true) { [capacity] _ in Task { @MainActor in capacity.request(.foreground) } }
         capacityTimer?.tolerance = 60
