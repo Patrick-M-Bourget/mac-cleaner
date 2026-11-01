@@ -26,18 +26,28 @@ struct CatalogResultsSection: View {
                 // SPEC section 6: measured and estimated, reported separately; Trash is never counted as freed.
                 // Everything went to the Trash (#312): nothing is freed yet, so no "Zero KB · Measured freed space".
                 let onlyTrashed = result.records.movedOnlyToTrash
+                let upperBound = upperBound(result.records)
+                let estimate = SizeFormatter.text(result.estimatedBytes, upperBound: upperBound)
+                // One headline (#577, Decision 132): what was measured is the result; the estimate it's measured against is
+                // said once, in the line below, so a cleanup that worked never reads as falling short. A run that only
+                // moved items to the Trash has no measured figure and keeps the estimate as its figure.
                 SummarySurface {
                     HStack(alignment: .top, spacing: CacheDropDesign.Space.xl) {
                         if !onlyTrashed {
                             metric(MeasuredFreedSpace.shown(result.measuredFreedBytes).map { SizeFormatter.text($0) } ?? SizeEstimate.unknown.text, "Measured freed space", followUp: settledLine,
                                    identifier: "resultsMeasuredFreed")
+                        } else {
+                            metric(estimate, upperBound ? "Estimated before cleanup · Upper bound" : "Estimated before cleanup")
                         }
-                        let upperBound = upperBound(result.records)
-                        metric(SizeFormatter.text(result.estimatedBytes, upperBound: upperBound), upperBound ? "Estimated before cleanup · Upper bound" : "Estimated before cleanup")
                         if result.movedToTrashBytes > 0 { metric(SizeFormatter.text(result.movedToTrashBytes), "In the Trash · Freed when you empty it") }
                     }
                 }
                 notCleaned
+                if !onlyTrashed {
+                    // The size already says "Up to" when it's an upper bound (Decision 92 rule 4: no double hedge).
+                    Text("Estimated before cleanup: " + estimate + (settling ? "" : " · measured from the change in free space around each item"))
+                        .font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).monospacedDigit().accessibilityIdentifier("resultsEstimate")
+                }
                 // One explanation (Decision 25): while Docker hands space back, the note says a check is coming instead (#411).
                 if settling {
                     HStack(spacing: CacheDropDesign.Space.sm) {
@@ -45,9 +55,6 @@ struct CatalogResultsSection: View {
                         Text("Docker returns space to macOS over the next minute. CacheDrop will check again.")
                             .font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).accessibilityIdentifier("resultsSettling")
                     }
-                } else if !onlyTrashed {
-                    Text("Measured from the change in free space around each item, so other activity on this Mac can affect it.")
-                        .font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
                 }
                 if result.movedToTrashBytes > 0 { TrashEmptyHint() }
             }
