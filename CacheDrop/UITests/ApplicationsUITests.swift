@@ -397,6 +397,53 @@ final class ApplicationsUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["catalogScanProgress"].waitForNonExistence(timeout: 120))
     }
 
+    /// #556, Decision 123: a Smart clean that uninstalled nothing leaves Apps and Plug-ins readable and clickable during the
+    /// rescan that follows, even on a first visit: an app can be ticked and reviewed without waiting. Clean up waits for the
+    /// scan, and the review stays open when it ends without changing the choices (Decision 54).
+    @MainActor func testApplicationsDontWaitForTheRescanAfterASmartCleanThatUninstalledNothing() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        let synth = try addApp("Synth", id: "com.maker.synth", bytes: 90_000, in: home)
+        // Each scan step holds as long as the seam allows, so the rescan is still running when the review opens.
+        app.launchEnvironment["CACHEDROP_TEST_DISCOVERY_PAUSE"] = "2"
+        app.launch()
+        waitForCatalogScan(app)
+        app.typeKey("2", modifierFlags: .command)
+        let cleanUp = app.buttons["smartCleanCleanUp"]
+        XCTAssertTrue(cleanUp.waitForExistence(timeout: 10))
+        cleanUp.click()
+        XCTAssertTrue(reviewLine(app, "permanentlyRemoved", "developer").waitForExistence(timeout: 10))
+        cleanUpFromReview(app)
+        let done = app.buttons["smartCleanDone"]
+        XCTAssertTrue(done.waitForExistence(timeout: 20))
+        done.click()
+        let progress = app.staticTexts["catalogScanProgress"]
+        XCTAssertTrue(progress.waitForExistence(timeout: 10), "The run rescans")
+
+        app.typeKey("4", modifierFlags: .command)
+        let row = element(app, "applicationsApp-" + synth.path, .checkBox)
+        XCTAssertTrue(row.waitForExistence(timeout: 10), "The apps are listed during the rescan")
+        XCTAssertTrue(progress.exists, "Still rescanning")
+        XCTAssertTrue(row.isEnabled, "Not dimmed: the run changed no app")
+        revealAndClick(row, in: app)
+        XCTAssertEqual(row.value as? Int, 1, "Ticked during the rescan")
+        let review = app.buttons["Review cleanup"]
+        XCTAssertTrue(review.isEnabled, "Review cleanup doesn't wait for the rescan")
+        review.click()
+        XCTAssertTrue(reviewLine(app, "movedToTrash", "apps").waitForExistence(timeout: 10))
+        let footer = app.descendants(matching: .any).matching(identifier: "sheetFooter").firstMatch
+        XCTAssertTrue(progress.exists, "Still rescanning")
+        XCTAssertFalse(footer.buttons["Clean up"].isEnabled, "Clean up waits for the scan")
+        XCTAssertTrue(progress.waitForNonExistence(timeout: 120))
+        let enabled = XCTNSPredicateExpectation(predicate: NSPredicate(format: "isEnabled == true"), object: footer.buttons["Clean up"])
+        XCTAssertEqual(XCTWaiter.wait(for: [enabled], timeout: 10), .completed, "The scan kept the choices: the review stays open and can run")
+        footer.buttons["Cancel"].click()
+        XCTAssertTrue(FileManager.default.fileExists(atPath: synth.path), "Nothing was uninstalled")
+    }
+
     /// #306: Put back from History rescans, so the app it returned is listed on Applications again without Scan again.
     @MainActor func testPutBackFromHistoryListsTheAppOnApplicationsAgain() throws {
         continueAfterFailure = false
