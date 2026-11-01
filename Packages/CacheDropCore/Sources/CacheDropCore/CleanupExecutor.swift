@@ -69,6 +69,12 @@ public struct CatalogExecutionResult: Sendable {
         let cleaned = Set(cleanedCandidateIDs)
         return shown.filter { !cleaned.contains($0.id) }
     }
+    /// Whether the run may have changed what the Applications page lists (Decision 123, #556): an app, plug-in or file from a
+    /// deleted app that it may have acted on. Only an item the checks refused, or one never started, is known to be as it was;
+    /// a dry run changed nothing.
+    public var changesApplications: Bool {
+        !dryRun && records.contains { $0.ruleID.flatMap(AppRuleFamily.of(ruleID:)) != nil && $0.state != .skipped && $0.state != .pending }
+    }
     /// Space held in Trash, never counted as freed.
     public var movedToTrashBytes: Int64 {
         records.filter { $0.state == .succeeded && $0.cleanupAction == .trash }.reduce(0) { $0 + ($1.allocatedBytes ?? $1.logicalBytes) }

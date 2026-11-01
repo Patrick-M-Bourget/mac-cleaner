@@ -361,3 +361,24 @@ private func twoApps() throws -> (home: URL, synth: InstalledApp, pad: Installed
     #expect(stale.allSatisfy { check(home, apps: apps).check($0) == .changed })
     #expect(stale.allSatisfy { check(home, apps: Apps(installed: [pad])).check($0) == .changed }, "Also once Synth is gone")
 }
+
+/// Decision 123 (#556): a run that uninstalled an app may have changed what Applications lists, so the page waits for the
+/// rescan and reads its lists again; one the checks refused, or a dry run, changed nothing there.
+@Test func onlyARunThatUninstalledSomethingChangesWhatApplicationsLists() async throws {
+    let (home, synth, apps) = try fixture()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let chosen = scan(home, synth, apps).filter { $0.ruleID != AppUninstall.possiblyRelatedRuleID }
+    func run(_ check: CandidateCheck, dryRun: Bool) async throws -> CatalogExecutionResult {
+        let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal-\(UUID()).sqlite"))
+        return await CleanupExecutor(journal: journal, check: check, measure: { _ in nil }, trash: FixtureHomeTrash(home: home))
+            .execute(CatalogApproval(candidates: chosen, dryRun: dryRun))
+    }
+
+    let refused = try await run(check(home, running: Running(names: ["Synth"])), dryRun: false)
+    #expect(refused.records.allSatisfy { $0.state == .skipped })
+    #expect(!refused.changesApplications, "Refused: nothing left")
+    #expect(!(try await run(check(home), dryRun: true)).changesApplications, "A dry run changes nothing")
+    let uninstalled = try await run(check(home), dryRun: false)
+    #expect(uninstalled.records.allSatisfy { $0.state == .succeeded })
+    #expect(uninstalled.changesApplications)
+}

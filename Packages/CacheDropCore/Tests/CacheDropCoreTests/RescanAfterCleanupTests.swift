@@ -27,6 +27,8 @@ import CacheDropCore
     #expect(result.cleanedCandidateIDs == [cleaned.id])
     #expect(result.keptDuringRescan(shown).map(\.ruleID).sorted() == ["skipped", "unchosen"])
     #expect(result.keptDuringRescan([unchosen]) == [unchosen])
+    // Decision 123 (#556): nothing an app or plug-in owns went, so Applications doesn't wait for the rescan.
+    #expect(!result.changesApplications)
 }
 
 /// A dry run changed nothing on disk, so every row stays while its rescan runs, though its items leave the selection (#349).
