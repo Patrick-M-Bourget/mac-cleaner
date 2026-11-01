@@ -41,6 +41,9 @@ The names CacheDrop shows, what they mean, and where they live in code. Copy fol
 | local copies | iCloud files kept on this Mac; removing them keeps them in iCloud | `ICloudCopies`, action `evict` |
 | "X is open" | An app or tool is using an item, so it's skipped; **Quit X** may free it | `CandidateHold` |
 | skipped | Left alone at the click, with a reason | `CandidateCheck` |
+| license | What a purchase gives: up to 3 Macs, honour-based, checked on the Mac only (Decision 135) | `License`, `LicenseState` |
+| license key | The one copy-pasteable string a license comes as, starting `CD1-` | `LicenseKey`, `LicenseVerifier` |
+| trial | Clean up and uninstall, free until they have freed 2 GB on this Mac (Decision 135, #595) | — |
 | setup progress | The setup events CacheDrop sends only when the user opts in (Decision 127) | — |
 
 ## Actions and outcomes
@@ -70,6 +73,8 @@ The names CacheDrop shows, what they mean, and where they live in code. Copy fol
 | Guidance only | Shown with its size and where to manage it; CacheDrop never changes it | action `guidance` |
 | free | Disk space you can use | `CapacitySample`, `SidebarCapacityText` |
 | Reveal in Finder, Reveal in Trash | Shows the item where it is | — |
+| Activate → Licensed | Checks a pasted license key on this Mac and keeps it in the Keychain; Settings then reads **Licensed, up to 3 Macs** | `LicenseController.activate` |
+| Remove from this Mac | Forgets the license key on this Mac; the license itself is unchanged | `LicenseController.remove` |
 | Share setup progress | The opt-in toggle on Welcome and in Settings that sends setup progress | — |
 
 ## Not shown to users
