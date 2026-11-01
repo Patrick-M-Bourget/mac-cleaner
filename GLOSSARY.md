@@ -41,6 +41,7 @@ The names CacheDrop shows, what they mean, and where they live in code. Copy fol
 | local copies | iCloud files kept on this Mac; removing them keeps them in iCloud | `ICloudCopies`, action `evict` |
 | "X is open" | An app or tool is using an item, so it's skipped; **Quit X** may free it | `CandidateHold` |
 | skipped | Left alone at the click, with a reason | `CandidateCheck` |
+| setup progress | The setup events CacheDrop sends only when the user opts in (Decision 127) | — |
 
 ## Actions and outcomes
 
@@ -64,7 +65,8 @@ The names CacheDrop shows, what they mean, and where they live in code. Copy fol
 | Up to, About | A size that's an upper bound or an estimate | `SizeEstimate` |
 | free | Disk space you can use | `CapacitySample`, `SidebarCapacityText` |
 | Reveal in Finder, Reveal in Trash | Shows the item where it is | — |
+| Share setup progress | The opt-in toggle on Welcome and in Settings that sends setup progress | — |
 
 ## Not shown to users
 
-deletion remnant, observed, coverage, baseline, known locations, journal, approval, records, resource identity, metadata, directory, leftovers, available (for free space), Potential space released, Show in Finder, Rescan, Recheck.
+deletion remnant, observed, coverage, baseline, known locations, journal, approval, records, resource identity, metadata, directory, leftovers, available (for free space), Potential space released, Show in Finder, Rescan, Recheck, telemetry, install ID.
