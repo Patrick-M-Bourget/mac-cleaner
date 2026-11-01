@@ -515,8 +515,8 @@ final class ApplicationsUITests: XCTestCase {
         XCTAssertFalse(app.descendants(matching: .any)["applicationsSummary"].exists)
     }
 
-    /// #310: when the list of apps can't be read (Spotlight didn't answer), Apps says so with Try again, never "no apps";
-    /// once it can be read, Try again lists them.
+    /// #310: when the list of apps can't be read (Spotlight didn't answer), Apps says so with Scan again, never "no apps";
+    /// once it can be read, Scan again lists them.
     @MainActor func testAppsSayTheListCouldntBeReadAndTryAgainListsThem() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
@@ -535,7 +535,7 @@ final class ApplicationsUITests: XCTestCase {
 
         try FileManager.default.removeItem(at: unreadable)
         element(app, "applicationsUnreadableAction", .button).click()
-        XCTAssertTrue(element(app, "applicationsApp-" + pad.path).waitForExistence(timeout: 60), "Try again listed the app")
+        XCTAssertTrue(element(app, "applicationsApp-" + pad.path).waitForExistence(timeout: 60), "Scan again listed the app")
         XCTAssertFalse(notice.exists)
     }
 
