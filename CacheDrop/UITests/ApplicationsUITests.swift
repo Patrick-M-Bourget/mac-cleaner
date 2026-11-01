@@ -506,10 +506,13 @@ final class ApplicationsUITests: XCTestCase {
         app.typeKey("4", modifierFlags: .command)
         XCTAssertTrue(app.descendants(matching: .any)["applicationsLoading-apps"].waitForExistence(timeout: 5), "Apps say they are loading")
         XCTAssertTrue(app.descendants(matching: .any)["applicationsLoading-leftovers"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["applicationsSummary"].exists, "While the lists load, the summary waits with them")
         for section in ["apps", "plugIns", "leftovers"] {
             XCTAssertTrue(app.descendants(matching: .any)["applicationsEmpty-" + section].waitForExistence(timeout: 120), "\(section) says nothing was found")
         }
         XCTAssertFalse(app.descendants(matching: .any)["applicationsLoading-apps"].exists)
+        // #575: nothing on the page can be ticked, so no card reading "—" and "0 items selected".
+        XCTAssertFalse(app.descendants(matching: .any)["applicationsSummary"].exists)
     }
 
     /// #310: when the list of apps can't be read (Spotlight didn't answer), Apps says so with Try again, never "no apps";
