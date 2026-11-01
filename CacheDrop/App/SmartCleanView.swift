@@ -14,7 +14,6 @@ struct SmartCleanView: View {
     @Bindable var presentation: SmartCleanPresentation
     /// The workspace's Scan again, for the state that says nothing here can be cleaned (#321).
     var scanAgain: () -> Void = {}
-    @State private var review: WorkspaceCleanupReview?
     @State private var approvalError: String?
     /// Clean up found nothing it can clean since the scan: the page says so, with Scan again (#321).
     @State private var nothingToClean = false
@@ -36,14 +35,13 @@ struct SmartCleanView: View {
                 }.help(model.isScanning ? CacheDropDesign.waitForScanHelp : "")
             }
         }
-        .sheet(item: $review) { snapshot in
-            WorkspaceCleanupConfirmationView(review: snapshot, cancel: { review = nil }) {
-                review = nil
+        .sheet(isPresented: selection.reviewSheet(for: .smartClean)) {
+            ReviewSheet(selection: selection) { snapshot in
                 Task { do { try await selection.executeWorkspace(snapshot) } catch { approvalError = PlanReviewError.changedMessage } }
             }
         }
         // The sheet closes only when the choices it was built from changed, and the page says so (#307).
-        .onChange(of: model.selectionRevision(for: .smartClean)) { _, _ in if review != nil { review = nil; approvalError = PlanReviewError.changedMessage } }
+        .onChange(of: model.selectionRevision(for: .smartClean)) { _, _ in if selection.reviewChoicesChanged(.smartClean) { approvalError = PlanReviewError.changedMessage } }
         .onChange(of: model.isScanning) { _, scanning in if scanning { nothingToClean = false } }
     }
 
@@ -176,8 +174,8 @@ struct SmartCleanView: View {
 
     private func openReview() async {
         do {
-            guard let checked = try await selection.checkingReview(selection.prepareSmartCleanReview) else { return }
-            review = checked; approvalError = nil; nothingToClean = false
+            guard try await selection.openReview(.smartClean, checks: selection.prepareSmartCleanReview) else { return }
+            approvalError = nil; nothingToClean = false
         }
         catch PlanReviewError.nothingToClean { approvalError = nil; nothingToClean = true }
         catch { approvalError = PlanReviewError.message(for: error); nothingToClean = false }

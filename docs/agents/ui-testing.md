@@ -19,7 +19,7 @@ Query an element the way the view exposes it. Check the view's modifiers before 
 - **The test runner is sandboxed.** Every file it writes is quarantined, and it can't clear that, so it can't launch an executable it wrote (EPERM, #383). Start fixture processes from system binaries (`/bin/sh` with a script under `.cachedrop-test-*`), as the fake npm does.
 - **Verify fixture app signatures before launch.** A system executable copied inside an app bundle needs a new local bundle signature; its original signature is invalid there. Core fixtures sign and verify their generated bundles. A UI journey without a launchable fixture skips before trying to open it (#383), so tests never provoke a damaged-app dialog.
 - **Remembered folders are in memory only.** At launch, no folder is scanned yet, so Explore storage leads to Locations until the launch recheck ends. To test a recheck with the explorer open, scan a folder first, then press ⌘R.
-- Debug seams that slow a scan down: `CACHEDROP_TEST_FOLDER_SCAN_PAUSE` (seconds, up to 10, or `hold` until Stop scan) and `CACHEDROP_TEST_CLEANUP_PAUSE` (5 s per item). Each XCUITest existence check costs about a second.
+- Debug seams that slow work down: `CACHEDROP_TEST_FOLDER_SCAN_PAUSE` (seconds, up to 10, or `hold` until Stop scan), `CACHEDROP_TEST_CLEANUP_PAUSE` (5 s per item) and `CACHEDROP_TEST_REVIEW_PAUSE` (seconds, up to 10, holding the review sheet's checks; Cancel ends it). With the review sheet opening at the click (Decision 126), wait for its Clean up to be enabled, as `cleanUpFromReview` does, before clicking it. Each XCUITest existence check costs about a second.
 
 ## Visual comparisons
 
