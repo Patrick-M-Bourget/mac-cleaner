@@ -604,10 +604,12 @@ import SwiftUI
     /// Smart clean's items checked now, with the check that read them, so its review reuses the same snapshot of what's open
     /// instead of reading every process again (#463).
     func smartCleanCheckedNow() async -> (items: [Candidate], check: CandidateCheck)? {
-        guard canEdit, let check = await currentCheck()?.snapshotted() else { return nil }
+        guard canEdit, let check = await ReviewSignposts.interval("Check setup", { await currentCheck()?.snapshotted() }) else { return nil }
         // What the page listed stays in when the check now refuses it, so the review says why it will be skipped (#310).
         let catalog = catalog, found = discovered, selections = selections, listed = smartCleanCandidates
-        let items = await Task.detached { selections.smartClean(catalog: catalog, found: found, listed: listed, check: check.check) }.value
+        let items = await ReviewSignposts.interval("Smart clean items") {
+            await Task.detached { selections.smartClean(catalog: catalog, found: found, listed: listed, check: check.check) }.value
+        }
         guard canEdit, discovered == found else { return nil }
         return (items, check)
     }
@@ -623,8 +625,8 @@ import SwiftUI
     func prepareReview(of candidates: [Candidate], using snapshot: CandidateCheck? = nil) async -> CatalogReview? {
         guard canEdit, !candidates.isEmpty else { return nil }
         let approval = CatalogApproval(candidates: candidates, dryRun: dryRun)
-        guard let check = await snapshotOrCurrent(snapshot) else { return nil }
-        let refusals = await Task.detached { check.refusals(of: approval.candidates) }.value
+        guard let check = await ReviewSignposts.interval("Check setup", { await snapshotOrCurrent(snapshot) }) else { return nil }
+        let refusals = await ReviewSignposts.interval("Item checks") { await Task.detached { check.refusals(of: approval.candidates) }.value }
         return CatalogReview(approval: approval, refusals: refusals, staying: AppUninstall.staying(chosen: candidates, offered: uninstallable))
     }
     /// The review sheet's rows checked again now, after their app quit (#377): each refused row's new reason, by candidate id.
