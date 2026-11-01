@@ -12,6 +12,7 @@ This spec covers behavior the prototype can't show. The screens, layout and copy
 - Unknown is shown as unknown, never as 0. A location CacheDrop can't read is listed as not accessible, not left out of the picture.
 - Estimated space, space moved to Trash and measured freed space are three separate numbers, always labeled (section 6).
 - No account or AI service, and no telemetry unless the user ticks Share setup progress: three setup events that carry nothing found on the Mac (Decision 127). All scanning and cleanup happen on the Mac; besides those events, only a requested update check contacts the network (Decision 102).
+- Scanning is free. Clean up and Applications uninstall are free until they've freed 2 GB on the Mac; after that they need a one-time license, checked on the Mac with no network call (Decision 135).
 - No automatic cleanup. CacheDrop only acts when the user confirms a reviewed plan.
 - Catalog and Explore storage expose lifecycle completion only after discovery and final History and Storage trends writes finish, including when stopped (Decision 98). Optional later cleanup measurements have separate completion: a lifecycle handoff skips sleeping checks and awaits running measurements and saved findings; ordinary cleanup and quit policy stay unchanged (Decision 99).
 
