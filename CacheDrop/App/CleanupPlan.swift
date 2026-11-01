@@ -484,7 +484,12 @@ struct WorkspaceCleanupConfirmationView: View {
         } actions: {
             Button("Cancel", action: cancelled).keyboardShortcut(.cancelAction); Button("Clean up", action: approve).buttonStyle(.borderedProminent)
         }
-        .task { for await _ in CatalogCleanupModel.appTerminations() { await checkQuitAppsAgain() } }
+        // Once at the start too: a holder may have quit while the checks ran, or held rows only through helpers that were closing.
+        .task {
+            let quits = CatalogCleanupModel.appTerminations()
+            await checkQuitAppsAgain()
+            for await _ in quits { await checkQuitAppsAgain() }
+        }
     }
     /// The plan's running-owner lines catch up once the sheet is gone, never under it (#307).
     private func cancelled() {
@@ -506,8 +511,11 @@ struct WorkspaceCleanupConfirmationView: View {
             let owners = held?.ownersToCheckAgain(isOpen: quitter.isOpen).filter { !quitting.contains($0) } ?? []
             guard !owners.isEmpty else { return }
             quitAnApp = true
-            for owner in owners {
-                guard let rows = held?.candidates(heldBy: owner), let checked = await review.model?.checkedAgain(rows) else { continue }
+            // One check for every holder's rows: each pass reads the running processes once, not once per holder.
+            let rows = owners.flatMap { held?.candidates(heldBy: $0) ?? [] }
+            guard let checked = await review.model?.checkedAgain(rows) else { continue }
+            // A Quit clicked meanwhile checks its own rows again when its app has gone.
+            for owner in owners where !quitting.contains(owner) {
                 held?.quitEnded(owner, outcome: .quit, isOpen: quitter.isOpen) { checked[$0.id] }
             }
         }
