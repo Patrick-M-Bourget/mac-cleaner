@@ -308,7 +308,7 @@ final class LaunchSmokeUITests: XCTestCase {
         let sheet = app.sheets.firstMatch
         XCTAssertTrue(sheet.staticTexts["Broader access is optional"].waitForExistence(timeout: 5))
         let summary = sheet.staticTexts["fullDiskAccessSummary"]
-        XCTAssertTrue((summary.value as? String ?? summary.label).contains("It’s broad authority, not read-only. CacheDrop’s scans stay read-only either way."))
+        XCTAssertTrue((summary.value as? String ?? summary.label).contains("macOS grants more than reading; CacheDrop’s scans only read."))
         XCTAssertTrue(sheet.staticTexts["Your folders and app caches"].exists)
         let protected = sheet.staticTexts["fullDiskAccessSheetStatus"]
         XCTAssertEqual(protected.value as? String ?? protected.label, "Not included")

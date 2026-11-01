@@ -101,8 +101,8 @@ struct ProtectedItemsView: View {
     var back: BackButton? = nil
     var body: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
-            PageHeader(title: "Protected items", subtitle: "Files and folders CacheDrop leaves out of its scans. Unticking something in a plan never adds it here.", back: back)
-            StatusRow(text: "A protected folder covers everything in it on the same disk. A renamed or moved item is no longer protected; anything saved at its old path is.", symbol: "folder.badge.minus")
+            PageHeader(title: "Protected items", subtitle: "Files and folders CacheDrop leaves out of its scans.", back: back)
+            StatusRow(text: "A protected folder covers everything in it on the same disk. Protection follows the path, so a moved or renamed item isn’t protected.", symbol: "folder.badge.minus")
             if let error = model.error { StatusRow(text: error, symbol: "exclamationmark.circle", role: .caution) }
             SettingsRow(title: "Always protected", detail: "System libraries, app packages, links and other disks, whatever is listed here.") { Label("Always on", systemImage: "lock") }
             if let preview = model.preview {

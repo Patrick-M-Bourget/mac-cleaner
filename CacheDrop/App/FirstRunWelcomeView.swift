@@ -144,7 +144,7 @@ struct FirstRunWelcomeView: View {
             case .welcome:
                 Text("CacheDrop finds space you can safely get back, and cleans only what you choose.")
                     .font(CacheDropDesign.TypeStyle.note).foregroundStyle(.secondary)
-                StatusRow(text: "It never touches your files without asking, your logins, or Photos, Mail and Messages data.",
+                StatusRow(text: "It never touches your logins or your Photos, Mail and Messages data, and changes your files only when you ask.",
                           symbol: "hand.raised", identifier: "welcomeNeverTouches")
             case .access:
                 Text("CacheDrop can request access to Downloads and app data. macOS may ask you to allow access. Full Disk Access is optional.")
