@@ -46,6 +46,7 @@ struct AppearancePicker: View {
 struct CacheDropSettingsView: View {
     @State private var appearance = AppLifecycleController.shared.appearance
     @AppStorage(PreferenceKeys.showsMenuBarItem) private var showsMenuBarItem = true
+    @State private var sharing = SetupProgressSharing.shared
     var body: some View {
         Form {
             Section {
@@ -57,6 +58,11 @@ struct CacheDropSettingsView: View {
             // #131: low-space alerts live here, not in the sidebar.
             LowSpaceAlertsSettings(controller: AppLifecycleController.shared.alerts)
             Section { DryRunToggle(model: AppLifecycleController.shared.selection.catalog) }
+            Section {
+                Toggle(SetupProgressSharing.title, isOn: sharing.binding).accessibilityIdentifier("shareSetupProgressSettings")
+            } footer: {
+                Text(SetupProgressSharing.explanation).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+            }
             Section {
                 Button("Check for Updates…") { AppLifecycleController.shared.manualUpdater.checkForUpdates() }
                     .buttonStyle(.link).accessibilityIdentifier("checkForUpdatesSettings")

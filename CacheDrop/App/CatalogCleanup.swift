@@ -508,6 +508,7 @@ import SwiftUI
         scanProgress?.phase = .appManagedStorage
         await scanAppManaged(home: home, fullDiskAccess: scanned.access, receipts: scanned.receipts)
         preparedScan = UUID()
+        SetupProgressSharing.shared.record(.firstScanCompleted)
         // Full Disk Access granted while it ran (from the welcome, during the launch scan): scan again once, by itself (#310).
         if fullDiskAccessRescan.scanEnded(probing: FullDiskAccessProbe(home: home)) { rescanPending = true }
     }
@@ -660,6 +661,7 @@ import SwiftUI
             result = outcome
             measureStoppedWorkAgain(outcome, of: approval, run: run)
             if !approval.dryRun { rescanFollowsCleanup = true }
+            if !approval.dryRun && !outcome.cleanedCandidateIDs.isEmpty { SetupProgressSharing.shared.record(.firstCleanupCompleted) }
             // What the run cleaned leaves every page; what it skipped keeps its tick (#349). Picked folders keep the large and old files this run didn't act on (#125).
             // The other rows stay, dimmed, until the rescan that follows replaces them (#375).
             selections.finishRun(cleaned: outcome.cleanedCandidateIDs); selections.revise()

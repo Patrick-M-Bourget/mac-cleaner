@@ -752,6 +752,36 @@ final class FirstRunWelcomeUITests: XCTestCase {
                       "Failed initial preparation must not leave Applications in an endless loading state")
     }
 
+    /// Decision 127: Share setup progress is off until ticked, saved at once (Close included), and the same in Settings.
+    /// Debug builds send nothing, so the ticked first launch stays pending in the isolated state (the scan Close starts may add
+    /// first scan completed after it).
+    @MainActor func testWelcomeShareSetupProgressIsOffUntilTickedAndMatchesSettings() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app), home = try configureCatalogHome(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        app.launchEnvironment["CACHEDROP_TEST_SHOW_WELCOME"] = "1"
+        app.launch()
+        let share = app.checkBoxes["welcomeShareSetupProgress"]
+        XCTAssertTrue(share.waitForExistence(timeout: 10))
+        XCTAssertEqual(share.value as? Int, 0, "Off until ticked")
+        let file = state.appendingPathComponent("setup-progress.json")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: file.path), "Nothing is kept before the opt-in")
+        share.click()
+        XCTAssertEqual(share.value as? Int, 1)
+        app.buttons["welcomeCancel"].click()
+        let saved = NSPredicate { _, _ in
+            guard let data = try? Data(contentsOf: file), let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return false }
+            return json["sharing"] as? Bool == true && (json["pending"] as? [String])?.first == "first_launch" && json["installID"] is String
+        }
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: saved, object: nil)], timeout: 10), .completed,
+                       "setup-progress.json: " + ((try? String(contentsOf: file, encoding: .utf8)) ?? "missing; state holds \((try? FileManager.default.contentsOfDirectory(atPath: state.path)) ?? [])"))
+        app.typeKey(",", modifierFlags: .command)
+        let setting = app.descendants(matching: .any)["shareSetupProgressSettings"]
+        XCTAssertTrue(setting.waitForExistence(timeout: 5))
+        XCTAssertEqual(setting.value as? Int, 1, "Settings shows the same choice")
+    }
+
     @MainActor func testOnboardingPreparationFailureCanRetryOrContinueWithAvailableResults() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
