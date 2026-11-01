@@ -141,3 +141,16 @@ private func records(_ actions: [CleanupAction], dryRun: Bool = false) throws ->
     pending.message = "Ran brew"
     #expect(pending.shownMessage == "Ran brew")
 }
+
+/// Review: Recovery's detail line says a state once ("Not started · Nothing was changed", never "… · Not started").
+@Test func recoveryDetailSaysTheStateOnce() throws {
+    let (home, made) = try records([.delete, .delete])
+    defer { try? FileManager.default.removeItem(at: home) }
+    var pending = made[0], failed = made[1]
+    pending.message = "Approved; not started"
+    #expect(pending.recoveryLine == "Not started · Nothing was changed")
+    pending.message = "Not started"
+    #expect(pending.recoveryLine == "Not started · Nothing was changed")
+    failed.state = .failed; failed.message = "Couldn’t remove it (Permission denied). Left unchanged."
+    #expect(failed.recoveryLine == "Failed · Not changed · Couldn’t remove it (Permission denied). Left unchanged.")
+}

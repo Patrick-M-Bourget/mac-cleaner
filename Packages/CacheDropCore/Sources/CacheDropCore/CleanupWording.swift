@@ -95,6 +95,11 @@ extension CleanupRecord {
         let restates = shown == outcomeTitle || (state == .succeeded && Self.restatesOutcome.contains(shown))
         return restates ? outcomeTitle : outcomeTitle + " · " + shown
     }
+    /// Recovery's detail line: its state, then its message when that adds something, so a state is said once.
+    public var recoveryLine: String {
+        let state = recoveryStateText, shown = shownMessage
+        return shown.isEmpty || state.contains(shown) ? state : state + " · " + shown
+    }
     public var recoveryStateText: String {
         switch state {
         case .pending: return "Not started · Nothing was changed"
