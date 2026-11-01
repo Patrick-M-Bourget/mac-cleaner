@@ -598,6 +598,45 @@ final class AppearanceSettingsUITests: XCTestCase {
         XCTAssertTrue(picker.waitForExistence(timeout: 5))
         XCTAssertEqual(picker.value as? String, "System")
     }
+
+    /// #594: Settings → License pastes a key, says what it is and removes it from this Mac. The run keeps its key in memory,
+    /// never the Keychain, and trusts docs/reference/license-key-format.md's TEST public key so its test vector activates.
+    @MainActor func testLicenseSectionPastesShowsAndRemovesAKey() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state) }
+        app.launchEnvironment["CACHEDROP_TEST_LICENSE_PUBLIC_KEY"] = "281edbf56bcb31e08ce7365ddfc3c2b7e48543b62e182a97f68c5dbd359100ea"
+        let vector = "CD1-AFPQYKUOHMOUY342PYWUXDA6N4YACA2RCZNANLQOLOVBPE7YY2TQLLQHQYCN2NRSAPS25JC6ZXJASXVXWQY6FRAPPNOSR6XEHBQHV2WWO7ZYV6VXQL3AAIERS5UY3GQNOF2UIWIJ"
+        app.launch()
+        XCTAssertTrue(app.staticTexts["overviewTitle"].waitForExistence(timeout: 10))
+        app.typeKey(",", modifierFlags: .command)
+        let status = app.staticTexts["licenseState"], field = app.textFields["licenseKeyField"], activate = app.links["licenseActivate"]
+        func text(_ element: XCUIElement) -> String { element.value as? String ?? element.label }
+        XCTAssertTrue(status.waitForExistence(timeout: 5))
+        XCTAssertEqual(text(status), "No license on this Mac")
+        XCTAssertFalse(activate.isEnabled, "Activate waits for a key")
+
+        field.click()
+        field.typeText("CD1-NOTAKEY")
+        activate.click()
+        XCTAssertTrue(app.staticTexts["licenseRejected"].waitForExistence(timeout: 5))
+        XCTAssertEqual(text(app.staticTexts["licenseRejected"]), "License key not valid")
+        XCTAssertEqual(text(status), "No license on this Mac", "A key that isn't valid is never kept")
+
+        field.click()
+        field.typeKey("a", modifierFlags: .command)
+        field.typeText(vector)
+        activate.click()
+        let licensed = NSPredicate(format: "value == %@ OR label == %@", "Licensed, up to 3 Macs", "Licensed, up to 3 Macs")
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: licensed, object: status)], timeout: 5), .completed)
+        XCTAssertFalse(app.staticTexts["licenseRejected"].exists)
+        XCTAssertFalse(field.exists, "A licensed Mac shows Remove from this Mac in place of the field")
+
+        app.links["licenseRemove"].click()
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        XCTAssertEqual(text(status), "No license on this Mac")
+    }
 }
 
 /// #127, #141, #270, #527: ⌘1–⌘8 follow the sidebar order, Applications above Storage trends, and ⌘R scans again from any screen.

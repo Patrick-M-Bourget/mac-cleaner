@@ -42,7 +42,8 @@ struct AppearancePicker: View {
 }
 
 /// The Settings window (⌘,). Appearance follows the system unless overridden here; the menu bar item is shown and
-/// low-space alerts are off unless changed here (#131); the dry run is off unless turned on here.
+/// low-space alerts are off unless changed here (#131); the dry run is off unless turned on here; the license key is
+/// entered and removed here (#594).
 struct CacheDropSettingsView: View {
     @State private var appearance = AppLifecycleController.shared.appearance
     @AppStorage(PreferenceKeys.showsMenuBarItem) private var showsMenuBarItem = true
@@ -61,6 +62,7 @@ struct CacheDropSettingsView: View {
                 Button("Check for Updates…") { AppLifecycleController.shared.manualUpdater.checkForUpdates() }
                     .buttonStyle(.link).accessibilityIdentifier("checkForUpdatesSettings")
             }
+            LicenseSettings(license: AppLifecycleController.shared.license)
         }.formStyle(.grouped).frame(width: CacheDropDesign.Size.sheetNarrow).fixedSize(horizontal: false, vertical: true)
             .cacheDropButtonRule()
     }
