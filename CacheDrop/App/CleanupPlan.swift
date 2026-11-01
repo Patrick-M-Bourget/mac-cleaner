@@ -99,7 +99,10 @@ struct RefreshRequest: Sendable {
     /// Whether a Smart clean can be reviewed: nothing else is running and the catalog can be edited.
     var canReviewSmartClean: Bool { canStartReview && !catalog.smartCleanCandidates.isEmpty }
     /// Whether the Applications page's chosen leftovers can be reviewed (Decision 51).
-    var canReviewApplications: Bool { canStartReview && !catalog.applicationsSelected.isEmpty }
+    /// During a rescan that keeps its apps and plug-ins too (Decision 123); Clean up still waits for the scan.
+    var canReviewApplications: Bool {
+        !AppLifecycleController.shared.maintenanceInProgress && !workspaceRunning && catalog.canEditApplications && !catalog.applicationsSelected.isEmpty
+    }
     /// Whether the page `source` can be reviewed and cleaned now.
     func canReview(_ source: CleanupSelections.Source) -> Bool {
         switch source { case .plan: canReview; case .smartClean: canReviewSmartClean; case .applications: canReviewApplications }
@@ -186,10 +189,12 @@ struct RefreshRequest: Sendable {
     /// Why a review couldn't be built: the settings couldn't be read, or the choices changed meanwhile.
     private var failure: PlanReviewError { catalog.settingsUnreadable ? .settingsUnreadable : .changed }
     func executeWorkspace(_ review: WorkspaceCleanupReview) async throws {
-        guard canReview(review.source), catalog.selectionRevision(for: review.source) == review.catalogVersion else { throw PlanReviewError.changed }
+        // A review opened during a rescan (Decision 123) runs only once the scan ends.
+        guard canReview(review.source), !catalog.isScanning, catalog.selectionRevision(for: review.source) == review.catalogVersion else { throw PlanReviewError.changed }
         await run(review)
-        // CacheDrop scans again by itself, whichever page is open (#306); the pages keep the rows the run left, dimmed, until it ends (#375).
-        await catalog.rescan()
+        // CacheDrop scans again by itself, whichever page is open (#306); the pages keep the rows the run left, dimmed, until it ends (#375),
+        // except Applications' apps and plug-ins when the run changed none of them (Decision 123).
+        await catalog.rescanAfterRun()
     }
     private func run(_ review: WorkspaceCleanupReview) async {
         runSource = review.source
@@ -482,7 +487,10 @@ struct WorkspaceCleanupConfirmationView: View {
                 CatalogConfirmationSection(review: items, catalog: catalog, follow: follow, held: held, quit: quitAction)
             }
         } actions: {
-            Button("Cancel", action: cancelled).keyboardShortcut(.cancelAction); Button("Clean up", action: approve).buttonStyle(.borderedProminent)
+            Button("Cancel", action: cancelled).keyboardShortcut(.cancelAction)
+            // Applications' review can open during a rescan (Decision 123); Clean up waits for it, as Decision 61 says.
+            Button("Clean up", action: approve).buttonStyle(.borderedProminent).disabled(scanning)
+                .help(scanning ? CacheDropDesign.waitForScanHelp : "")
         }
         // Once at the start too: a holder may have quit while the checks ran, or held rows only through helpers that were closing.
         .task {
@@ -491,6 +499,7 @@ struct WorkspaceCleanupConfirmationView: View {
             for await _ in quits { await checkQuitAppsAgain() }
         }
     }
+    private var scanning: Bool { review.model?.isScanning == true }
     /// The plan's running-owner lines catch up once the sheet is gone, never under it (#307).
     private func cancelled() {
         cancel()

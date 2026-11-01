@@ -39,6 +39,15 @@ import SwiftUI
     private(set) var isScanning = false
     /// Identifies a fully prepared catalog; a cleared busy flag alone also includes stopped/failed scans.
     private(set) var preparedScan: UUID?
+    /// The running rescan follows a run that changed nothing the Applications page lists, so its apps and plug-ins stay
+    /// readable and clickable while it runs (Decision 123, #556). Any other scan asked for meanwhile turns it off.
+    private(set) var rescanKeepsApplications = false
+    /// The last prepared scan that could change what Applications lists: a rescan that keeps them carries it over, so the
+    /// page reads its lists again only after a scan that could change them (Decision 123). Nil while one runs, or after a
+    /// scan that stopped before its catalog was prepared.
+    private(set) var applicationsScan: UUID?
+    /// The last run changed nothing Applications lists (`CatalogExecutionResult.changesApplications`); false until a run says so.
+    private var lastRunKeptApplications = false
     private(set) var hasScanned = false { didSet { summaryChanged() } }
     /// The running catalog scan's progress, one location at a time (#128); nil when no scan is running. Only a finished
     /// location changes Overview's summary, not the phase.
@@ -316,7 +325,17 @@ import SwiftUI
     var selectedCount: Int { selectedCandidates.count }
     /// The space the plan's chosen items would release: Trash-bound items free nothing until the Trash is emptied (#350, SPEC section 6).
     var estimatedBytes: Int64 { selectedCandidates.filter(\.releasesSpace).reduce(0) { $0 + $1.estimatedBytes } }
-    var canEdit: Bool { !AppLifecycleController.shared.updateInstallation.blocksNewWork && !isScanning && !isRunning && !AppLifecycleController.shared.operationInProgress && !AppLifecycleController.shared.maintenanceInProgress }
+    var canEdit: Bool { nothingButScanBlocks && !isScanning }
+    /// Whether the Applications page's choices can be changed and reviewed now: as `canEdit`, and also during a rescan that
+    /// can't change its apps and plug-ins (Decision 123). Clean up still waits for the scan.
+    var canEditApplications: Bool { nothingButScanBlocks && (!isScanning || rescanKeepsApplications) }
+    /// Whether `item` can be ticked now: an installed app's or plug-in product's during a rescan that keeps them; files from
+    /// deleted apps and every other item only once the scan ends (Decision 123).
+    func canEdit(_ item: Candidate) -> Bool { AppRuleFamily.of(ruleID: item.ruleID)?.isUninstall == true ? canEditApplications : canEdit }
+    private var nothingButScanBlocks: Bool {
+        let lifecycle = AppLifecycleController.shared
+        return !lifecycle.updateInstallation.blocksNewWork && !isRunning && !lifecycle.operationInProgress && !lifecycle.maintenanceInProgress
+    }
     var canReview: Bool { canEdit && selectedCount > 0 }
     /// Why choices and the dry run can't be changed now, for a disabled control's tooltip; nil when they can (#310).
     var editBlockedReason: String? {
@@ -343,7 +362,8 @@ import SwiftUI
     }
     /// An app's checkbox, as a category's (#240): returns true when only its possibly related items are left to choose one by one.
     func toggleRow(_ id: String) -> Bool {
-        toggle(CategorySelection(rules: AppRuleFamily.uninstallRules, candidates: uninstallItems(ofRow: id), selected: selectedIDs))
+        guard canEditApplications else { return false }
+        return apply(CategorySelection(rules: AppRuleFamily.uninstallRules, candidates: uninstallItems(ofRow: id), selected: selectedIDs))
     }
     func selectionState(for rules: [CleanupRule]) -> CategorySelectionState { categorySelection(rules).state }
     /// What a checkbox over `rules` shows and does (#240), over `items` when given (Smart clean's recommended items), else
@@ -356,6 +376,9 @@ import SwiftUI
     @discardableResult func toggleCategory(_ rules: [CleanupRule]) -> Bool { toggle(categorySelection(rules)) }
     @discardableResult func toggle(_ selection: CategorySelection) -> Bool {
         guard canEdit else { return false }
+        return apply(selection)
+    }
+    private func apply(_ selection: CategorySelection) -> Bool {
         switch selection.toggle {
         case .choose(let ids): selections.set(ids, ticked: true)
         case .clear(let ids): selections.set(ids, ticked: false)
@@ -376,13 +399,27 @@ import SwiftUI
     func scanIfNeeded() async { if !hasScanned { await rescan() } }
     /// CacheDrop scans again by itself (#306): at launch, when a run ends and after a Put back, whichever page is open.
     /// Asked while a scan runs, it scans again once that one ends. Each scan it starts rechecks the remembered folders once.
-    func rescan() async {
+    func rescan() async { await rescan(keepingApplications: false) }
+    /// The rescan after a run (#306): Applications' apps and plug-ins stay usable while it runs when the run changed none
+    /// of them (Decision 123).
+    func rescanAfterRun() async {
+        let keeping = lastRunKeptApplications
+        lastRunKeptApplications = false
+        await rescan(keepingApplications: keeping)
+    }
+    private func rescan(keepingApplications keeping: Bool) async {
         guard !AppLifecycleController.shared.updateInstallation.blocksNewWork else { return }
-        if isScanning { rescanPending = true; return }
+        // A queued rescan that may change them makes the page wait for the running one too; one that keeps them never
+        // vouches for a scan already running.
+        if isScanning { rescanPending = true; if !keeping { rescanKeepsApplications = false }; return }
+        rescanKeepsApplications = keeping
         if await scan(rescan: true) { scanRememberedFolders?() }
     }
     /// Read-only sizing of the catalog's known locations. False when it couldn't start: a scan or a cleanup is running.
-    @discardableResult func scan() async -> Bool { await scan(rescan: false) }
+    @discardableResult func scan() async -> Bool {
+        if !isScanning { rescanKeepsApplications = false }
+        return await scan(rescan: false)
+    }
     private func scan(rescan: Bool) async -> Bool {
         let lifecycle = AppLifecycleController.shared
         guard !lifecycle.updateInstallation.blocksNewWork else { return false }
@@ -423,12 +460,13 @@ import SwiftUI
 
     private func scanCatalog(cancellation: ScanCancellation) async {
         preparedScan = nil
+        if !rescanKeepsApplications { applicationsScan = nil }
         isScanning = true; message = nil; scanProgress = CatalogScanProgress()
         defer { isScanning = false; hasScanned = true; scanProgress = nil }
-        guard let home = Self.home else { discovered = []; uninstallable = []; notes = []; overriddenRules = []; notAccessibleRules = []; setRunning([:], open: []); ownerNames = [:]; return }
+        guard let home = Self.home else { discovered = []; uninstallable = []; applicationsScan = nil; notes = []; overriddenRules = []; notAccessibleRules = []; setRunning([:], open: []); ownerNames = [:]; return }
         // Excluded items are never offered (SPEC section 2); without the settings nothing can be offered safely.
         guard let exclusions = try? await ProtectedItemsModel.shared.policyForScan() else {
-            discovered = []; uninstallable = []; notes = []; overriddenRules = []; notAccessibleRules = []; setRunning([:], open: []); ownerNames = [:]
+            discovered = []; uninstallable = []; applicationsScan = nil; notes = []; overriddenRules = []; notAccessibleRules = []; setRunning([:], open: []); ownerNames = [:]
             settingsUnreadable = true; return
         }
         guard !cancellation.isCancellationRequested else { return }
@@ -508,6 +546,7 @@ import SwiftUI
         scanProgress?.phase = .appManagedStorage
         await scanAppManaged(home: home, fullDiskAccess: scanned.access, receipts: scanned.receipts)
         preparedScan = UUID()
+        if !rescanKeepsApplications { applicationsScan = preparedScan }
         // Full Disk Access granted while it ran (from the welcome, during the launch scan): scan again once, by itself (#310).
         if fullDiskAccessRescan.scanEnded(probing: FullDiskAccessProbe(home: home)) { rescanPending = true }
     }
@@ -576,7 +615,7 @@ import SwiftUI
     /// Ticks or unticks found items on any page; every page that lists them shows it (#349).
     func setSelected(_ items: [Candidate], _ selected: Bool) {
         let found = Set(candidates.map(\.id)), items = items.filter { found.contains($0.id) }
-        guard canEdit, !items.isEmpty else { return }
+        guard !items.isEmpty, items.allSatisfy(canEdit) else { return }
         selections.set(items, ticked: selected)
         noteChoices()
     }
@@ -622,8 +661,10 @@ import SwiftUI
     /// Freezes `candidates`, from either selection, and checks them once (#141: one review path).
     /// `snapshot` is a check taken earlier in the same click (Smart clean's); without one, the review takes its own. Reading every
     /// open process is the slowest part of a check (#463), and Clean up checks each item again when it runs.
+    /// The Applications page's choices can be reviewed during a rescan that keeps its apps and plug-ins (Decision 123).
     func prepareReview(of candidates: [Candidate], using snapshot: CandidateCheck? = nil) async -> CatalogReview? {
-        guard canEdit, !candidates.isEmpty else { return nil }
+        let applications = candidates.allSatisfy { CleanupSelections.Source.page(of: $0) == .applications }
+        guard applications ? canEditApplications : canEdit, !candidates.isEmpty else { return nil }
         let approval = CatalogApproval(candidates: candidates, dryRun: dryRun)
         guard let check = await ReviewSignposts.interval("Check setup", { await snapshotOrCurrent(snapshot) }) else { return nil }
         let refusals = await ReviewSignposts.interval("Item checks") { await Task.detached { check.refusals(of: approval.candidates) }.value }
@@ -644,6 +685,7 @@ import SwiftUI
             return (total - available, total)
         }
         runRecords = []; runProgress = CleanupRunProgress(approval: approval, catalog: catalog, records: [])
+        lastRunKeptApplications = false
         defer { isRunning = false; executor = nil; runProgress = nil; runRecords = [] }
         guard let check = await currentCheck() else { return }
         do {
@@ -658,6 +700,7 @@ import SwiftUI
                 #endif
             }
             result = outcome
+            lastRunKeptApplications = !outcome.changesApplications
             measureStoppedWorkAgain(outcome, of: approval, run: run)
             if !approval.dryRun { rescanFollowsCleanup = true }
             // What the run cleaned leaves every page; what it skipped keeps its tick (#349). Picked folders keep the large and old files this run didn't act on (#125).

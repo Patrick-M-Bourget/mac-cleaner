@@ -103,7 +103,7 @@ struct ApplicationsView: View {
             } idle: {
                 BusyAction(busy: selection.isCheckingReview) {
                     ReviewCleanupButton(enabled: selection.canReviewApplications && !selection.isCheckingReview, focusRequest: reviewFocusRequest,
-                                        tooltip: catalog.isScanning ? CacheDropDesign.waitForScanHelp : nil) { Task { await openReview() } }.fixedSize()
+                                        tooltip: appsWaitForScan ? CacheDropDesign.waitForScanHelp : nil) { Task { await openReview() } }.fixedSize()
                 }
             }
         }
@@ -114,8 +114,11 @@ struct ApplicationsView: View {
         }
         // The sheet closes only when the choices it was built from changed, and the page says so (#307).
         .onChange(of: catalog.selectionRevision(for: .applications)) { _, _ in if selection.reviewChoicesChanged(.applications) { approvalError = PlanReviewError.changedMessage } }
-        // Read again after each catalog scan, so Scan again refreshes the lists too.
-        .task(id: catalog.isScanning) { if !catalog.isScanning { await model.load(plugIns: catalog.plugInInventory, scanID: catalog.preparedScan) } }
+        // Read again after each catalog scan that could change them, so Scan again refreshes the lists too; a rescan after a
+        // run that changed none of them keeps them, and they can be read during it (Decision 123).
+        .task(id: catalog.isScanning) {
+            if !appsWaitForScan { await model.load(plugIns: catalog.plugInInventory, scanID: catalog.applicationsScan) }
+        }
         // A search opens Files from deleted apps, so its matching groups show.
         .onChange(of: model.listing.isSearching) { _, searching in if searching { leftoversExpanded = true } }
     }
@@ -189,7 +192,7 @@ struct ApplicationsView: View {
         let value = items.isEmpty ? CacheDropDesign.noValue : catalog.sizeText(of: items) + " to Trash"
         return SelectionSummary(value: value, detail: CacheDropDesign.items(items.count) + " selected",
                                 identifier: "applicationsSummary", title: "Ready to clean")
-            .waitingForScan(catalog.isScanning)
+            .waitingForScan(appsWaitForScan)
     }
 
     /// The list's quiet table header, one sort for every section (#295, #352): "Name" over the names, "Size" over the sizes.
@@ -216,7 +219,10 @@ struct ApplicationsView: View {
     }
 
     /// A section's lists come after the catalog scan; until then, and while they are read, it shows skeleton rows (#270, #308).
-    private var listsLoading: Bool { !model.hasLoaded || model.isLoading || catalog.isScanning }
+    private var listsLoading: Bool { !model.hasLoaded || model.isLoading || appsWaitForScan }
+    /// Apps and Plug-ins wait for a running scan, unless it is the rescan after a run that changed none of them (Decision 123).
+    /// Files from deleted apps always wait for it.
+    private var appsWaitForScan: Bool { catalog.isScanning && !catalog.rescanKeepsApplications }
 
     @ViewBuilder private func section(_ title: String, id: String, entries: [InventoryEntry], category: StorageCategory, identifier: String,
                                       empty: (title: String, detail: String)) -> some View {
@@ -275,7 +281,7 @@ struct ApplicationsView: View {
         return CategoryRow(category: category, state: uninstall.isEmpty ? nil : catalog.selectionState(ofRow: entry.id), title: entry.name,
                            detail: [entry.maker, entry.volume].compactMap { $0 }.joined(separator: " · "),
                            size: size(of: entry).text,
-                           enabled: uninstall.isEmpty || catalog.canEdit, identifier: identifier,
+                           enabled: uninstall.isEmpty || catalog.canEditApplications, identifier: identifier,
                            // An app alone is its only item: no "Choose items · 1" (#270).
                            itemCount: count > 1 || !staying.isEmpty ? count : nil, staying: staying.count,
                            icon: category == .apps ? AppIcon.of(entry.id) : nil, expanded: isExpanded,
@@ -303,7 +309,7 @@ struct ApplicationsView: View {
             } else if !auv3.isEmpty, auv3.count == entry.parts.count {
                 // An AUv3 is part of its app: removing the app removes it (#288).
                 StatusRow(text: "Goes with " + Self.app(of: auv3[0]), identifier: "applicationsInsideApp-" + entry.id)
-            } else if catalog.hasScanned, !catalog.isScanning {
+            } else if catalog.hasScanned, !appsWaitForScan {
                 // A removable app the scan didn't offer says why, rather than showing a bare row (#281).
                 StatusRow(text: "Not offered: in Protected items, or changed since the scan", identifier: "applicationsNotOffered-" + entry.id)
             }
