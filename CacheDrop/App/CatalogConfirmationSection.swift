@@ -21,17 +21,17 @@ struct CatalogConfirmationSection: View {
     let catalog: Catalog
     /// Follows a staying line's link (#354); without it the lines show no link.
     var follow: ((AppUninstall.Staying.Link) -> Void)? = nil
-    /// The rows' reasons as checked again since the review opened (#377); the review's own when nil.
-    var refusals: [String: CheckRefusal]? = nil
-    /// A row's "Quit X" link, when a known app that is open holds it (#377).
-    var quit: ((Candidate) -> StatusAction?)? = nil
+    /// The skipped rows as checked again since the review opened (#377, #560); the review's own, with no Quit, when nil.
+    var held: ReviewHeldItems? = nil
+    /// A skipped line's "Quit X" link, when a known app that is open holds its rows (#377, #560).
+    var quit: ((ReviewHeldItems.Line) -> StatusAction?)? = nil
     var body: some View {
-        let refusals = refusals ?? review.refusals
+        let held = held ?? ReviewHeldItems(candidates: review.approval.candidates, refusals: review.refusals, catalog: catalog, isOpen: { _ in false })
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
             if review.approval.dryRun {
                 StatusRow(text: "Dry run is on. Nothing on disk changes.", symbol: "eye", role: .neutral, identifier: "reviewPreviewNotice")
             }
-            ForEach(ReviewGroup.groups(catalog: catalog, candidates: review.approval.candidates)) { group in
+            ForEach(ReviewGroup.groups(catalog: catalog, candidates: review.approval.candidates, skipped: Set(held.refusals.keys))) { group in
                 VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
                     HStack(spacing: CacheDropDesign.Space.md) {
                         group.consequence.badge
@@ -49,9 +49,10 @@ struct CatalogConfirmationSection: View {
                                 Text(line.estimate.text(upperBound: line.isUpperBound)).monospacedDigit()
                             }.font(CacheDropDesign.TypeStyle.note).accessibilityElement(children: .combine).accessibilityIdentifier("reviewLine-\(group.consequence)-\(line.id)")
                         }
-                        ForEach(group.candidates.filter { refusals[$0.id] != nil }) { item in
-                            StatusRow(text: item.displayName + " will be skipped: " + (refusals[item.id]?.reason ?? ""), symbol: "exclamationmark.circle", role: .caution,
-                                      identifier: "reviewSkipped-" + item.ruleID, action: quit?(item))
+                        // One line per holder, its skipped size once on it (#560, Decision 125).
+                        ForEach(held.lines(in: group.candidates)) { line in
+                            StatusRow(text: skippedText(line), symbol: "exclamationmark.circle", role: .caution,
+                                      identifier: "reviewSkipped-" + line.items[0].ruleID, action: quit?(line))
                         }
                         ActionDisclosureGroup(CacheDropDesign.items(group.candidates.count) + " · Show files") {
                             VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
@@ -72,6 +73,11 @@ struct CatalogConfirmationSection: View {
                           action: line.link.flatMap { link in follow.map { follow in StatusAction(title: link.title, identifier: "reviewStayingLink-" + line.id) { follow(link) } } })
             }
         }
+    }
+    /// "Google Chrome is open, so its caches will be skipped · 2.3 GB"; a row skipped for its own reason names itself and the reason.
+    private func skippedText(_ line: ReviewHeldItems.Line) -> String {
+        guard let text = line.text else { return line.items[0].displayName + " will be skipped: " + line.refusal.reason }
+        return text + " · " + line.size.text(upperBound: line.isUpperBound)
     }
     private func files(_ rule: CleanupRule, _ items: [Candidate]) -> some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.xs) {

@@ -243,6 +243,23 @@ import SwiftUI
         return SystemAppQuitter()
     }
 
+    /// Each time an app quits, by any means (#560). A debug UI test run's fixture apps aren't LaunchServices apps, so its
+    /// review looks every half second instead.
+    nonisolated static func appTerminations() -> AsyncStream<Void> {
+        AsyncStream(bufferingPolicy: .bufferingNewest(1)) { continuation in
+            let task = Task {
+                #if DEBUG
+                if LocalStateLocation.isDisposableTest, ProcessInfo.processInfo.environment["CACHEDROP_TEST_CATALOG_HOME"] != nil {
+                    while !Task.isCancelled { try? await Task.sleep(for: .milliseconds(500)); continuation.yield() }
+                    return
+                }
+                #endif
+                for await _ in NSWorkspace.shared.notificationCenter.notifications(named: NSWorkspace.didTerminateApplicationNotification) { continuation.yield() }
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+
     /// Plug-in products to uninstall (#176): their formats, own support files and shared items, never what is `offered` elsewhere.
     nonisolated private static func plugIns(home: URL, system: URL, installed: [InstalledApp], receipts: ReceiptListings, offered: [Candidate],
                                             exclusions: ProtectedItemsPolicy) -> (PlugInInventory, [Candidate]) {

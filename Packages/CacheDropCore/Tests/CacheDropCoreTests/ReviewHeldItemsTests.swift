@@ -127,3 +127,81 @@ private func open(_ ids: [String]) -> Bool { !Set(ids).isDisjoint(with: ["com.ma
     #expect(groups.map { $0.items.map(\.ruleID) } == [["browser-copies"], ["synth-cache", "synth-presets"], ["npm-cache"]])
     #expect(CandidateHold.grouped(items.filter { $0.hold != nil }).map(\.hold) == [using, running])
 }
+
+// #560, Decision 125: the review sheet shows one line per holder, not one per item. Chrome's real rule, two profiles with
+// two cache folders each: one "Google Chrome" line with one Quit link, the skipped size shown once, on that line.
+private struct ChromeRunning: RunningAppChecking {
+    func isRunning(_ owner: RuleOwner) -> Bool? { owner.name == "Google Chrome" }
+}
+private func chromeProfiles() throws -> (URL, Catalog, [Candidate]) {
+    let home = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropHeldChrome-\(UUID())").resolvingSymlinksInPath()
+    for profile in ["Default", "Profile 1"] {
+        for folder in ["Cache/Cache_Data/index", "Code Cache/js/index"] {
+            let file = home.appendingPathComponent("Library/Caches/Google/Chrome/\(profile)/\(folder)")
+            try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data(repeating: 1, count: 4_096).write(to: file)
+        }
+    }
+    let catalog = Catalog(rules: fixtureRules)
+    return (home, catalog, catalog.discover(fixture: home))
+}
+
+@Test func aBrowsersCachesInEveryProfileShowAsOneLineWithOneQuitLink() throws {
+    let (home, catalog, caches) = try chromeProfiles()
+    defer { try? FileManager.default.removeItem(at: home) }
+    try #require(caches.count == 4)
+    let refusals = CandidateCheck(catalog: catalog, running: ChromeRunning(), inUse: FixtureNothingInUse(), home: home).refusals(of: caches)
+    let held = ReviewHeldItems(candidates: caches, refusals: refusals, catalog: catalog, isOpen: { $0 == ["com.google.Chrome"] })
+    let lines = held.lines(in: caches)
+    #expect(lines.count == 1)
+    let line = try #require(lines.first)
+    #expect(line.text == "Google Chrome is open, so its caches will be skipped")
+    #expect(line.items.count == 4)
+    #expect(line.quitTitle == "Quit Google Chrome", "The browser holding its caches offers Quit (#560, point 3)")
+    #expect(line.size == SizeEstimate(sum: caches.map(SizeEstimate.init)))
+    #expect(line.text?.contains("scan again") == false)
+}
+
+// Two holders, two lines; a holder that isn't a known app still gets one line for its rows, without Quit; a row refused for
+// a reason of its own keeps a line of its own, which the sheet names by its row.
+@Test func eachHolderGetsOneLineAndARowSkippedForItsOwnReasonKeepsItsOwn() {
+    let items = ["synth-cache", "synth-presets", "npm-cache", "browser-copies"].map(item)
+    let other = Candidate(ruleID: "npm-cache", action: .delete, url: fixtureNoHome.appendingPathComponent("npm-2"), resourceID: "2:npm", isDirectory: true,
+                          toolURL: nil, volumeID: nil, modifiedSeconds: 0, modifiedNanoseconds: 0, logicalBytes: 500, allocatedBytes: 500,
+                          sizeComplete: true, lastUsed: nil, observedAt: Date(), profile: nil)
+    let all = [items[0], items[2], items[1], items[3], other]
+    let refusals: [String: CheckRefusal] = [items[0].id: .ownerRunning("Synth"), items[1].id: .ownerRunning("Synth"), items[2].id: .ownerRunning("npm"),
+                                            items[3].id: .inUse("Browser"), other.id: .changed]
+    let held = ReviewHeldItems(candidates: all, refusals: refusals, catalog: catalog, isOpen: open)
+    let lines = held.lines(in: all)
+    #expect(lines.map(\.text) == ["Synth is open, so its caches will be skipped", "npm is open, so its caches will be skipped",
+                                  "Browser is using 1 item, so it will be skipped", nil])
+    #expect(lines.map { $0.items.map(\.ruleID) } == [["synth-cache", "synth-presets"], ["npm-cache"], ["browser-copies"], ["npm-cache"]])
+    #expect(lines.map(\.quitTitle) == ["Quit Synth", nil, "Quit Browser", nil], "A command-line tool isn't an app")
+    #expect(lines.map(\.size) == [.measured(2_000), .measured(1_000), .measured(1_000), .measured(500)])
+    #expect(lines.map(\.isUpperBound) == [false, false, true, false], "Copies share disk blocks")
+    #expect(lines.last?.refusal == .changed)
+    #expect(held.lines(in: [items[0]]).map(\.items.count) == [1], "Only the rows asked about")
+}
+
+// #560, Decision 125: an app that quits by any means while the sheet is open (from its own menu, the Dock) has its rows checked
+// again, as after the sheet's own Quit. Rows still refused, say by a helper still closing, keep a line with that reason and no
+// Quit, and are looked at again; once they pass, the line goes.
+@Test func anAppThatQuitsByAnyMeansHasItsRowsCheckedAgain() {
+    let items = ["synth-cache", "synth-presets", "browser-copies"].map(item)
+    let refusals: [String: CheckRefusal] = [items[0].id: .ownerRunning("Synth"), items[1].id: .ownerRunning("Synth"), items[2].id: .inUse("Browser")]
+    var held = ReviewHeldItems(candidates: items, refusals: refusals, catalog: catalog, isOpen: open)
+    #expect(held.ownersToCheckAgain(isOpen: open).isEmpty, "Every holder is still open")
+
+    let synthQuit: ([String]) -> Bool = { $0 == ["com.maker.browser"] }
+    #expect(held.ownersToCheckAgain(isOpen: synthQuit) == [synth])
+    held.quitEnded(synth, outcome: .quit, isOpen: synthQuit) { $0.ruleID == "synth-presets" ? .ownerRunning("Synth") : nil }
+    #expect(held.lines(in: items).map(\.text) == ["Synth is open, so its caches will be skipped", "Browser is using 1 item, so it will be skipped"])
+    #expect(held.lines(in: items).map { $0.items.map(\.ruleID) } == [["synth-presets"], ["browser-copies"]])
+    #expect(held.lines(in: items).map(\.quitTitle) == [nil, "Quit Browser"], "Nothing open to quit")
+    #expect(held.ownersToCheckAgain(isOpen: synthQuit) == [synth], "Still held, so looked at again")
+
+    held.quitEnded(synth, outcome: .quit, isOpen: synthQuit) { _ in nil }
+    #expect(held.ownersToCheckAgain(isOpen: synthQuit).isEmpty)
+    #expect(held.lines(in: items).map(\.text) == ["Browser is using 1 item, so it will be skipped"])
+}

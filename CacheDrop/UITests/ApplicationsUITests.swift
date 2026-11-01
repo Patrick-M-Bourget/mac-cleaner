@@ -208,30 +208,19 @@ final class ApplicationsUITests: XCTestCase {
         XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Uninstalled Synth · 3 items")).firstMatch.waitForExistence(timeout: 10))
     }
 
-    /// #377: an app that is open when its uninstall is reviewed. Its rows say why they will be skipped, with "Quit Synth"; the
-    /// link asks it to quit, its rows are checked again and become cleanable, and the sheet stays open. Synth is a fixture app the
-    /// journey starts itself (a copy of `sleep` in the fixture home's bundle); a debug run only ever sees and quits apps run
-    /// from its fixture home, so no real app on this Mac is touched. A dry run, so nothing is removed.
-    @MainActor func testTheReviewQuitsTheAppHoldingARowAndTheRowBecomesCleanable() throws {
-        continueAfterFailure = false
-        let app = XCUIApplication()
-        let state = try configureIsolatedState(app)
-        let home = try configureCatalogHome(app)
+    /// Synth, a fixture app the journey starts itself (a copy of `sleep` in the fixture home's bundle), open while its uninstall
+    /// is reviewed: its app and its container are two rows it holds. A debug run only ever sees and quits apps run from its
+    /// fixture home, so no real app on this Mac is touched. A dry run, so nothing is removed. The caller stops `running` in its
+    /// `defer`, before the home is removed.
+    @MainActor private func reviewSynthWhileOpen(_ app: XCUIApplication, home: URL, running: Process) throws -> URL {
         turnOnDryRun(app)
         let synth = try addApp("Synth", id: "com.maker.synth", bytes: 1, in: home)
-        let executable = synth.appendingPathComponent("Contents/MacOS/main")
         app.launchEnvironment["CACHEDROP_TEST_PREPARE_SYNTH_APP"] = "1"
         let container = home.appendingPathComponent("Library/Containers/com.maker.synth/Data/state.db")
         try FileManager.default.createDirectory(at: container.deletingLastPathComponent(), withIntermediateDirectories: true)
         try Data(repeating: 4, count: 60_000).write(to: container)
-        let running = Process()
-        running.executableURL = executable
+        running.executableURL = synth.appendingPathComponent("Contents/MacOS/main")
         running.arguments = ["600"]
-        // The fixture app is stopped whatever happens, before its home is removed.
-        defer {
-            if running.isRunning { running.terminate(); running.waitUntilExit() }
-            app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home)
-        }
         // The unsandboxed DEBUG app prepares only this known fixture, before the runner attempts its launch (#383).
         app.launch()
         let verification = Process()
@@ -248,30 +237,80 @@ final class ApplicationsUITests: XCTestCase {
         XCTAssertTrue(row.waitForExistence(timeout: 10))
         revealAndClick(row, in: app)
         XCTAssertEqual(row.value as? Int, 1)
-
         try running.run()
         app.buttons["Review cleanup"].click()
+        return synth
+    }
+
+    /// #377, #560: an app that is open when its uninstall is reviewed. Its two rows are one line, "Synth is open, so its items
+    /// will be skipped", with one "Quit Synth"; the link asks it to quit, its rows are checked again and become cleanable, and
+    /// the sheet stays open.
+    @MainActor func testTheReviewQuitsTheAppHoldingARowAndTheRowBecomesCleanable() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        let running = Process()
+        // The fixture app is stopped whatever happens, before its home is removed.
+        defer {
+            if running.isRunning { running.terminate(); running.waitUntilExit() }
+            app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home)
+        }
+        let synth = try reviewSynthWhileOpen(app, home: home, running: running)
         let skipped = app.staticTexts["reviewSkipped-uninstall-app"]
-        XCTAssertTrue(skipped.waitForExistence(timeout: 10), "The app's row will be skipped while it is open")
-        XCTAssertTrue((skipped.value as? String ?? skipped.label).contains("Synth is running."), skipped.debugDescription)
-        // Each row's link is its own (#384): the identifier carries the row's candidate id after its rule.
-        let quits = app.links.matching(NSPredicate(format: "identifier BEGINSWITH %@", "reviewQuit-uninstall-app|"))
-        XCTAssertEqual(quits.count, 1, "One link for the app's row")
+        XCTAssertTrue(skipped.waitForExistence(timeout: 10), "The app's rows will be skipped while it is open")
+        XCTAssertTrue((skipped.value as? String ?? skipped.label).hasPrefix("Synth is open, so its items will be skipped · "), skipped.debugDescription)
+        XCTAssertFalse(app.staticTexts["reviewSkipped-uninstall-app-files"].exists, "One line for the app and its files (#560)")
+        let quits = app.links.matching(NSPredicate(format: "identifier BEGINSWITH %@", "reviewQuit-"))
+        XCTAssertEqual(quits.count, 1, "One link for the holder")
         let quit = quits.firstMatch
-        XCTAssertTrue(quit.exists, "An open known app offers Quit")
+        XCTAssertTrue(quit.identifier.hasPrefix("reviewQuit-uninstall-app|"), quit.identifier)
         XCTAssertEqual(quit.label, "Quit Synth")
 
         quit.click()
-        XCTAssertTrue(skipped.waitForNonExistence(timeout: 20), "Once Synth quits, its row is checked again and can be cleaned")
+        XCTAssertTrue(skipped.waitForNonExistence(timeout: 20), "Once Synth quits, its rows are checked again and can be cleaned")
         running.waitUntilExit()
         XCTAssertFalse(running.isRunning, "The fixture app was asked to quit and did")
-        XCTAssertFalse(app.staticTexts["reviewSkipped-uninstall-app-files"].exists, "Its files were checked again too")
         XCTAssertFalse(quits.firstMatch.exists)
         // The recheck changes no choice, so the sheet stays open (#307).
         XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "sheetFooter").firstMatch.buttons["Clean up"].exists)
         XCTAssertFalse(app.staticTexts["Your choices changed. Check the items and try again."].exists)
         app.buttons["Cancel"].click()
         XCTAssertTrue(FileManager.default.fileExists(atPath: synth.path))
+    }
+
+    /// #560: the holder quits outside the sheet (here the journey stops it, as ⌘Q in the app would). Its line goes away by
+    /// itself and the sheet stays open. Sizes count only what will be cleaned: while Synth holds every row, the group and its
+    /// line read Zero KB and the skipped size shows once, on Synth's line; once Synth is gone, that size is the group's.
+    @MainActor func testTheReviewDropsAHoldersLineWhenItQuitsOutsideTheSheet() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        let running = Process()
+        defer {
+            if running.isRunning { running.terminate(); running.waitUntilExit() }
+            app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home)
+        }
+        _ = try reviewSynthWhileOpen(app, home: home, running: running)
+        let skipped = app.staticTexts["reviewSkipped-uninstall-app"]
+        XCTAssertTrue(skipped.waitForExistence(timeout: 10))
+        let text = skipped.value as? String ?? skipped.label
+        let size = try XCTUnwrap(text.components(separatedBy: " · ").last, text)
+        XCTAssertNotEqual(size, "Zero KB", text)
+        // The page behind the sheet shows Synth's size too, so sizes are looked for in the sheet only.
+        let sheet = app.sheets.firstMatch
+        XCTAssertTrue(sheet.staticTexts["Zero KB"].exists, "Skipped items count in no total")
+        XCTAssertFalse(sheet.staticTexts[size].exists, "The skipped size shows only on Synth's line")
+
+        running.terminate()
+        running.waitUntilExit()
+        XCTAssertTrue(skipped.waitForNonExistence(timeout: 20), "Synth's line goes once it quits, without the sheet's link")
+        XCTAssertTrue(sheet.staticTexts[size].waitForExistence(timeout: 5), "Its rows will be cleaned, so the group counts them")
+        XCTAssertFalse(sheet.staticTexts["Zero KB"].exists)
+        XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "sheetFooter").firstMatch.buttons["Clean up"].exists, "The sheet stays open")
+        XCTAssertFalse(app.staticTexts["Your choices changed. Check the items and try again."].exists)
+        app.buttons["Cancel"].click()
     }
 
     /// #305: two apps of one maker. Each row offers only its own files, though the other keeps the maker installed, and once

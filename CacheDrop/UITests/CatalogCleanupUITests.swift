@@ -2106,7 +2106,7 @@ extension CatalogCleanupUITests {
         app.buttons["smartCleanCleanUp"].click()
         let skipped = app.staticTexts["reviewSkipped-npm-cache"]
         XCTAssertTrue(skipped.waitForExistence(timeout: 10), "The review says the npm cache will be skipped")
-        XCTAssertTrue((skipped.value as? String ?? skipped.label).contains("will be skipped: "), skipped.debugDescription)
+        XCTAssertTrue((skipped.value as? String ?? skipped.label).hasPrefix("npm is open, so its caches will be skipped · "), skipped.debugDescription)
         XCTAssertFalse(app.links.matching(NSPredicate(format: "identifier BEGINSWITH %@", "reviewQuit-npm-cache|")).firstMatch.exists,
                        "A command-line tool isn't an app: no Quit, only the reason (#377)")
         app.buttons["Cancel"].click()
