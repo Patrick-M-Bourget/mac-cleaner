@@ -32,11 +32,14 @@ public enum LicenseKey {
     /// The payload and signature of `text`, or nil when it isn't a well-formed key. Case, spaces and line breaks are
     /// ignored, so a key that was wrapped or retyped still reads.
     static func split(_ text: String) -> (payload: Data, signature: Data)? {
-        let compact = text.filter { !$0.isWhitespace }.uppercased()
+        let compact = canonical(text)
         guard compact.hasPrefix(prefix), compact.count == prefix.count + encodedLength,
               let bytes = Base32.decode(compact.dropFirst(prefix.count)) else { return nil }
         return (bytes.prefix(payloadLength), bytes.suffix(signatureLength))
     }
+
+    /// The one-line, upper-case spelling the issuing function writes, which is what the Keychain keeps.
+    static func canonical(_ text: String) -> String { text.filter { !$0.isWhitespace }.uppercased() }
 
     /// The license a verified payload describes, or nil when its version, edition or Mac count isn't one this app knows.
     static func license(from payload: Data) -> License? {
