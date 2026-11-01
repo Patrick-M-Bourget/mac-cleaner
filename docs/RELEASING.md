@@ -68,6 +68,13 @@ Use `--keychain-account` on release.sh, or `--account` on sparkle-release.py, if
 
 Signing order and entitlement handling follow [Sparkle's custom-signing guidance](https://sparkle-project.org/documentation/sandboxing/#code-signing). Feed generation follows [Sparkle's publishing guidance](https://sparkle-project.org/documentation/publishing/).
 
+## License keys
+
+License keys are checked on the Mac against the public key built into the app, with no network call (Decisions 135 and 136; the format is [docs/reference/license-key-format.md](reference/license-key-format.md)). Two things ship in each release, both in `Packages/CacheDropCore/Sources/CacheDropCore/LicenseBuiltIns.swift`:
+
+- **The production public key.** Until the owner supplies it (#593), `LicensePublicKey.productionBase64` holds a placeholder that rejects every key. To supply it, replace `placeholder` there with the 32-byte raw Ed25519 public key in base64 (`productionBase64 = "…"`), and keep the `placeholder` constant itself. Only the public key goes in source; the private key stays with the issuing function's secrets and never enters this repository. `scripts/check-release.sh` refuses a Release app that still has the placeholder once license gating is on (`LICENSE_GATING` in the app's Release Swift conditions, #595).
+- **The revocation list.** Before building a release, add the license ID of every key refunded, charged back or leaked since the last one to `LicenseRevocations.ids`, one per line as `UUID(uuidString: "5f0c2a8e-3b1d-4c6f-9a7e-2d4b8c1e6f30")!,` with a comment giving the reason and date (no email or name), then commit. The ID is the lower-case UUID the issuing function recorded for the purchase. IDs are never removed. A revoked key keeps working on a Mac until it installs that release; there is no online check.
+
 ## Stage and promote separately
 
 After building, keep the signed DMG, `release-identity.json`, generated `appcast.xml` and reviewed HTML notes together. In the sibling `cachedrop-website` repository, run `scripts/stage-release.sh <dev|prod> DMG release-identity.json` to verify and stage identical bytes in both download destinations. Staging does not advertise a release. Then run `scripts/promote-release.sh <dev|prod> ARTIFACT_DIRECTORY HTTPS_FEED_URL` to verify both destinations, advance website latest, and publish the appcast last. See that repository's `docs/RELEASING.md` for explicit target configuration and retry instructions. Production publication remains a separate owner action.
