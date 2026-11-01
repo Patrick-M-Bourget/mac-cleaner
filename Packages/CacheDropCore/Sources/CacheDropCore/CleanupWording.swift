@@ -119,7 +119,7 @@ extension CleanupHistoryRun {
     public var isPutBack: Bool { !records.isEmpty && records.allSatisfy(\.isPutBack) }
     /// A deletion of CacheDrop's own items from the Trash (#359), recorded as its own run.
     public var isEmptyFromTrash: Bool { !records.isEmpty && records.allSatisfy(\.isEmptyFromTrash) }
-    /// The figure a History row leads with (#569, Decision 127). A cleanup leads with the measured freed space Results leads
+    /// The figure a History row leads with (#569, Decision 128). A cleanup leads with the measured freed space Results leads
     /// with (Decision 93), "Unknown" when a reading is missing, and so does Empty from Trash, which frees space too; a run
     /// that only moved items to the Trash, with what went there; a Put back, with what it returned; a dry run, with what it
     /// would affect.

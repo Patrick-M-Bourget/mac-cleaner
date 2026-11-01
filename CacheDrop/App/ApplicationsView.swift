@@ -136,7 +136,7 @@ struct ApplicationsView: View {
     private var page: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
             header
-            // Nothing on the page can be ticked: no card reading "—" and "0 items selected" (#575, Decision 129).
+            // Nothing on the page can be ticked: no card reading "—" and "0 items selected" (#575, Decision 130).
             if listsLoading || hasTickable || !catalog.applicationsSelected.isEmpty { summary }
             SettingsUnreadableNotice(model: catalog)
             if let approvalError { StatusRow(text: approvalError, symbol: "exclamationmark.circle", role: .caution) }
