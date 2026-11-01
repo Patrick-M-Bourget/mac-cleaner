@@ -550,7 +550,8 @@ struct ReviewSheetFrame<Content: View, Actions: View>: View {
                     .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
             }
             .frame(idealHeight: contentHeight, maxHeight: contentHeight > 0 ? contentHeight : nil)
-            Spacer(minLength: 0)
+            // Room the minimum height leaves over goes under the list, with no second gap above the footer's line.
+            .frame(maxHeight: .infinity, alignment: .top)
             Divider()
             SheetFooter(actions: actions)
         }.padding(CacheDropDesign.Space.xl)
