@@ -2409,6 +2409,9 @@ const smStyle=document.createElement(&#x27;style&#x27;);smStyle.textContent=`
 #still-refined .sm-block .sm-tick{position:absolute;top:6px;right:7px;color:var(--st-blue)}
 #still-refined .sm-block .sm-tick svg{width:14px;height:14px}
 #still-refined .sm-block.sm-unlabeled&gt;*{display:none}
+#still-refined .sm-too-small{margin:8px 0 0;font-size:11px;color:var(--st-secondary)}
+#still-refined .sm-too-small button{border:0;background:none;padding:0;font:inherit;color:var(--st-blue)}
+#still-refined .sf-breadcrumb button.sm-crumb-here{color:var(--st-secondary);cursor:default;opacity:1}
 #still-refined .sm-plan-toggle{display:flex;align-items:center;gap:7px;font-size:12px;margin:0 0 12px}
 #still-refined .sm-plan-toggle input{margin:0}
 @media(max-width:740px){#still-refined .sm-map{height:300px}}
@@ -2421,6 +2424,8 @@ const browserPanel=root.querySelector(&#x27;[data-panel=&quot;browser&quot;]&#x2
 const fileList=browserPanel.querySelector(&#x27;.sf-file-list&#x27;);
 const crumbs=browserPanel.querySelector(&#x27;.sf-breadcrumb&#x27;);
 const mapBox=el(&#x27;div&#x27;,&#x27;sm-map&#x27;);mapBox.setAttribute(&#x27;role&#x27;,&#x27;group&#x27;);mapBox.hidden=true;fileList.after(mapBox);
+// Blocks drawn at their true size but too small to label are named here, so nothing is reachable only by hovering.
+const tooSmall=el(&#x27;p&#x27;,&#x27;sm-too-small&#x27;);tooSmall.hidden=true;mapBox.after(tooSmall);
 const tools=el(&#x27;span&#x27;,&#x27;sm-tools&#x27;);
 const largeToggle=button(&#x27;Large and old files&#x27;,&#x27;sm-quiet&#x27;,()=&gt;{largeOld=!largeOld;renderBrowser()});
 const viewSwitch=el(&#x27;span&#x27;,&#x27;sm-switch&#x27;);viewSwitch.setAttribute(&#x27;role&#x27;,&#x27;group&#x27;);viewSwitch.setAttribute(&#x27;aria-label&#x27;,&#x27;View as&#x27;);
@@ -2457,7 +2462,7 @@ function layout(items,w,h){const small=r=&gt;r.w&lt;SM_MIN_W||r.h&lt;SM_MIN_H;le
     if(!more.length||(more.length===1&amp;&amp;!tiny.length))return rects;
     tiny.push(...more);kept=kept.filter(i=&gt;!more.includes(i))}}
 
-function drawMap(){mapBox.replaceChildren();const query=root.querySelector(&#x27;[data-file-search]&#x27;).value.toLowerCase();
+function drawMap(){mapBox.replaceChildren();const unlabeled=[];const query=root.querySelector(&#x27;[data-file-search]&#x27;).value.toLowerCase();
   const items=largeOld?largeFiles():atRoot()?rootFolders():files.filter(f=&gt;f.group===location).sort((a,b)=&gt;b.size-a.size);
   mapBox.setAttribute(&#x27;aria-label&#x27;,(largeOld?&#x27;Large and old files&#x27;:location)+&#x27;, storage map&#x27;);
   const w=mapBox.clientWidth||640,h=mapBox.clientHeight||360;
@@ -2471,14 +2476,18 @@ function drawMap(){mapBox.replaceChildren();const query=root.querySelector(&#x27
       if(i.id===inspected){b.classList.add(&#x27;sm-inspected&#x27;);b.setAttribute(&#x27;aria-current&#x27;,&#x27;true&#x27;)}
       b.addEventListener(&#x27;click&#x27;,()=&gt;{inspector(i);renderBrowser()})}
     if(query&amp;&amp;!i.merged&amp;&amp;!i.name.toLowerCase().includes(query))b.classList.add(&#x27;sm-dimmed&#x27;);
-    if(!i.merged&amp;&amp;(r.w&lt;SM_MIN_W||r.h&lt;SM_MIN_H))b.classList.add(&#x27;sm-unlabeled&#x27;);
-    mapBox.append(b)}}
+    if(r.w&lt;SM_MIN_W||r.h&lt;SM_MIN_H){b.classList.add(&#x27;sm-unlabeled&#x27;);unlabeled.push({i,open:()=&gt;b.click()})}
+    mapBox.append(b)}
+  tooSmall.replaceChildren();tooSmall.hidden=!unlabeled.length;if(unlabeled.length){tooSmall.append(&#x27;Too small to label: &#x27;);unlabeled.forEach(({i,open},n)=&gt;{if(n)tooSmall.append(&#x27;, &#x27;);const link=button(i.name,&#x27;&#x27;,open);tooSmall.append(link,&#x27; · &#x27;+sizeText(i))})}}
 
 const listRenderBrowser=renderBrowser;renderBrowser=function(){listRenderBrowser();
   const map=exploreView===&#x27;map&#x27;;viewButtons.forEach(b=&gt;b.setAttribute(&#x27;aria-pressed&#x27;,String(b.dataset.view===exploreView)));
   largeToggle.textContent=largeOld?&#x27;All files&#x27;:&#x27;Large and old files&#x27;;
   if(largeOld&amp;&amp;!map){const list=root.querySelector(&#x27;[data-browser-rows]&#x27;);list.replaceChildren(...largeFiles().map(fileRow))}
-  fileList.hidden=map;mapBox.hidden=!map;if(map)drawMap();
+  fileList.hidden=map;mapBox.hidden=!map;tooSmall.hidden=true;if(map)drawMap();
+  // The app&#x27;s breadcrumb (Decision 66, StorageExplorer): &quot;Scanned folders&quot; alone at the top, a link with › folder below it.
+  const rootCrumb=crumbs.querySelector(&#x27;[data-browser-root]&#x27;);rootCrumb.textContent=&#x27;Scanned folders&#x27;;const top=atRoot();rootCrumb.disabled=top;rootCrumb.classList.toggle(&#x27;sm-crumb-here&#x27;,top);
+  rootCrumb.nextElementSibling.style.display=top?&#x27;none&#x27;:&#x27;&#x27;;crumbs.querySelector(&#x27;[data-browser-location]&#x27;).style.display=top?&#x27;none&#x27;:&#x27;&#x27;;
   const hint=browserPanel.querySelector(&#x27;.uf-selection-hint&#x27;);if(map)hint.textContent=&#x27;Click a folder to open it, or a file to see its details and add it to the plan.&#x27;;
   const f=files.find(f=&gt;f.id===inspected);const showInspector=!(atRoot()&amp;&amp;!largeOld)&amp;&amp;!!f;browserPanel.querySelector(&#x27;.sf-inspector&#x27;).hidden=!showInspector;browserPanel.querySelector(&#x27;.sf-browser&#x27;).style.gridTemplateColumns=showInspector?&#x27;&#x27;:&#x27;minmax(0,1fr)&#x27;;
   planToggle.hidden=!(f&amp;&amp;f.action&amp;&amp;planEligible(f));planBox.checked=!!f&amp;&amp;selectedFiles.has(f.id);
