@@ -47,6 +47,7 @@ struct AppearancePicker: View {
 struct CacheDropSettingsView: View {
     @State private var appearance = AppLifecycleController.shared.appearance
     @AppStorage(PreferenceKeys.showsMenuBarItem) private var showsMenuBarItem = true
+    @AppStorage(PreferenceKeys.checksForUpdatesAutomatically) private var checksForUpdatesAutomatically = true
     var body: some View {
         Form {
             Section {
@@ -60,8 +61,15 @@ struct CacheDropSettingsView: View {
             WeeklyReminderSettings(controller: AppLifecycleController.shared.weeklyReminder)
             Section { DryRunToggle(model: AppLifecycleController.shared.selection.catalog) }
             Section {
+                // #600: weekly; Sparkle asks before downloading or installing anything (Decision 145).
+                Toggle("Check for updates automatically", isOn: $checksForUpdatesAutomatically)
+                    .accessibilityIdentifier("automaticUpdateChecksToggle")
+                    .onChange(of: checksForUpdatesAutomatically) { _, _ in AppLifecycleController.shared.manualUpdater.automaticChecksChanged() }
                 Button("Check for Updates…") { AppLifecycleController.shared.manualUpdater.checkForUpdates() }
                     .buttonStyle(.link).accessibilityIdentifier("checkForUpdatesSettings")
+            } footer: {
+                Text("Once a week · Nothing is downloaded or installed until you choose")
+                    .font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
             }
             LicenseSettings(license: AppLifecycleController.shared.license, trial: AppLifecycleController.shared.trial)
         }.formStyle(.grouped).frame(width: CacheDropDesign.Size.sheetNarrow).fixedSize(horizontal: false, vertical: true)
