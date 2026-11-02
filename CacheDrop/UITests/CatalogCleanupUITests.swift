@@ -1622,16 +1622,17 @@ final class TrashSpaceUITests: XCTestCase {
         while !FileManager.default.fileExists(atPath: marker.path), Date() < deadline { RunLoop.current.run(until: Date().addingTimeInterval(0.2)) }
         XCTAssertEqual(try String(contentsOf: marker, encoding: .utf8), home.appendingPathComponent(".Trash").path)
         XCTAssertTrue(FileManager.default.fileExists(atPath: trashed.path), "Opening the Trash changes nothing in it")
-        // #603: the menu bar menu reads the same measurement. The menu is checked, not clicked (see the #131 journey).
-        // The line's text ends with the separator before its link ("Trash holds 303 KB ·", `TrashLine`).
-        let size = text.dropFirst("Trash holds ".count).replacingOccurrences(of: " ·", with: "")
-        XCTAssertTrue(app.menuItems["Trash · " + size].waitForExistence(timeout: 5), "The menu says what the Trash holds: \(size)")
+        // #603 (Decision 140): the menu bar menu says Overview's line, word for word. The menu is checked, not clicked (see
+        // the #131 journey). Overview's text ends with the separator before its link ("Trash holds 303 KB ·", `TrashLine`).
+        let trashLine = String(text.dropLast(" ·".count))
+        XCTAssertTrue(text.hasSuffix(" ·"), text)
+        XCTAssertTrue(app.menuItems[trashLine].waitForExistence(timeout: 5), "The menu says Overview’s Trash line: \(trashLine)")
         XCTAssertTrue(app.menuItems["Open Trash"].exists)
     }
 
-    /// #603: a Trash CacheDrop can't read says Unknown in the menu bar menu, never 0, and still offers Open Trash. Overview's
-    /// note shows the whole Trash's size only when it can be read (Decision 68), so it has no line.
-    @MainActor func testUnreadableTrashIsUnknownInTheMenuBarMenu() throws {
+    /// #603 (Decision 140): a Trash CacheDrop can't read, as macOS keeps it without Full Disk Access, has no line on Overview
+    /// (Decision 68) and none in the menu bar menu either, never Unknown or 0.
+    @MainActor func testUnreadableTrashHasNoLineOnOverviewOrInTheMenuBarMenu() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
         let state = try configureIsolatedState(app)
@@ -1642,8 +1643,15 @@ final class TrashSpaceUITests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(app.staticTexts["overviewTitle"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.menuItems["Trash · Unknown"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.menuItems["Open Trash"].exists)
+        // Only the menu bar menu has Open CacheDrop. The Trash is measured as Overview shows, so its lines would appear within
+        // a moment: none may, through the next 3 seconds.
+        XCTAssertTrue(app.menuItems["Open CacheDrop"].waitForExistence(timeout: 10))
+        let trashLines = app.menuItems.matching(NSPredicate(format: "title BEGINSWITH 'Trash' OR title == 'Open Trash'"))
+        let deadline = Date().addingTimeInterval(3)
+        while Date() < deadline {
+            XCTAssertFalse(trashLines.firstMatch.exists, "No Trash lines in the menu while the Trash can't be read")
+            RunLoop.current.run(until: Date().addingTimeInterval(0.5))
+        }
         XCTAssertFalse(app.staticTexts["overviewTrash"].exists, "Overview has no Trash line while it can't be read")
     }
 

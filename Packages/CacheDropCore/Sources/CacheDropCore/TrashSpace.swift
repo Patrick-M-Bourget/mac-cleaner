@@ -53,14 +53,11 @@ extension TrashContents {
         guard bytes > 0 else { return overviewText }
         return (overviewText.map { $0 + " · " } ?? "") + SizeFormatter.text(bytes) + " from CacheDrop"
     }
-    /// The menu bar menu's line above Open Trash (#603), e.g. "Trash · 14 GB", in Decision 96's wording: an empty Trash
-    /// says Empty (Decision 131) and one that can't be read says Unknown, never 0.
-    public var menuBarText: String {
-        switch self {
-        case .holds(let bytes): "Trash · " + SizeFormatter.text(bytes)
-        case .empty: "Trash · Empty"
-        case .unknown: "Trash · " + SizeFormatter.text(SizeEstimate.unknown)
-        }
+    /// The Trash line Overview and the menu bar menu both say (#603, Decision 140): with CacheDrop's own items in the Trash,
+    /// `overviewText(fromCacheDrop:)`; otherwise what the whole Trash holds when it can be read. Nil when there is nothing
+    /// to say, so an empty or unreadable Trash shows no line (Decision 68), never 0. `contents` is nil until measured.
+    public static func line(_ contents: TrashContents?, fromCacheDrop bytes: Int64) -> String? {
+        bytes > 0 ? (contents ?? .unknown).overviewText(fromCacheDrop: bytes) : contents?.overviewText
     }
 }
 
