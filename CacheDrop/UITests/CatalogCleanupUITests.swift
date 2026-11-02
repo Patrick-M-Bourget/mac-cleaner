@@ -1622,6 +1622,28 @@ final class TrashSpaceUITests: XCTestCase {
         while !FileManager.default.fileExists(atPath: marker.path), Date() < deadline { RunLoop.current.run(until: Date().addingTimeInterval(0.2)) }
         XCTAssertEqual(try String(contentsOf: marker, encoding: .utf8), home.appendingPathComponent(".Trash").path)
         XCTAssertTrue(FileManager.default.fileExists(atPath: trashed.path), "Opening the Trash changes nothing in it")
+        // #603: the menu bar menu reads the same measurement. The menu is checked, not clicked (see the #131 journey).
+        let size = String(text.dropFirst("Trash holds ".count))
+        XCTAssertTrue(app.menuItems["Trash · " + size].waitForExistence(timeout: 5), "The menu says what the Trash holds: \(size)")
+        XCTAssertTrue(app.menuItems["Open Trash"].exists)
+    }
+
+    /// #603: a Trash CacheDrop can't read says Unknown in the menu bar menu, never 0, and still offers Open Trash. Overview's
+    /// note shows the whole Trash's size only when it can be read (Decision 68), so it has no line.
+    @MainActor func testUnreadableTrashIsUnknownInTheMenuBarMenu() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        // A file where the Trash folder should be can't be listed, as a Trash macOS protects without Full Disk Access.
+        try Data(repeating: 5, count: 1_000).write(to: home.appendingPathComponent(".Trash"))
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["overviewTitle"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.menuItems["Trash · Unknown"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.menuItems["Open Trash"].exists)
+        XCTAssertFalse(app.staticTexts["overviewTrash"].exists, "Overview has no Trash line while it can't be read")
     }
 
     /// #164: Overview's disk bar shows what was found inside the used space: a segment per category with an "up to" label for

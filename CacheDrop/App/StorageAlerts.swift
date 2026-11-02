@@ -201,7 +201,8 @@ struct CacheDropMenuBarLabel: View {
     }
 }
 
-/// The menu bar item's menu: Open CacheDrop, Scan again, Smart clean… when it has something, Settings… and Quit.
+/// The menu bar item's menu: Open CacheDrop, Scan again, Smart clean… when it has something, what the Trash holds with
+/// Open Trash once it has been measured (#603), Settings… and Quit.
 struct CacheDropMenuBarMenu: View {
     @Environment(\.openWindow) private var openWindow
     let lifecycle: AppLifecycleController
@@ -215,6 +216,12 @@ struct CacheDropMenuBarMenu: View {
             .disabled(lifecycle.scanAgainBlockedReason != nil).help(lifecycle.scanAgainBlockedReason ?? "")
         if hasRecommendedPlan {
             Button(MenuBarStatus.Item.smartClean.title) { openCacheDrop(); lifecycle.openSmartClean?() }
+        }
+        // The same measurement Overview's Trash note reads (`TrashModel`), refreshed by Overview, Scan again and each run.
+        if let trash = TrashModel.shared.contents {
+            Divider()
+            Text(trash.menuBarText)
+            Button(MenuBarStatus.Item.openTrash.title) { TrashModel.shared.open() }.accessibilityIdentifier("menuBarOpenTrash")
         }
         Divider()
         SettingsLink { Text(MenuBarStatus.Item.settings.title) }.keyboardShortcut(",")
