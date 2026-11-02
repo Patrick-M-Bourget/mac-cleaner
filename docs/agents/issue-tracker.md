@@ -25,6 +25,10 @@ Use the gh CLI for issue operations.
 - `edit N --replace OLD NEW ... [--title T]`: changes the body only if every OLD matches exactly once, so a failed match never posts half an edit. Copy OLD from `dump`: GitHub stores some references as `owner/repo#N` even where the page shows `#N`.
 - `decision N [--site]`: prints one whole Decision from `docs/RESET.md` (`--site`: cachedrop-website's `docs/DECISIONS.md`). It ends with the later Decisions that amend it (Decisions are append-only, #668); read those too before saying what it covers.
 
+## Merging a PR
+
+After the owner says "merge", run `scripts/merge-pr.py PR ISSUE... --trailer "Co-Authored-By: ..." --trailer "Claude-Session: ..."` (`--help` for the steps). It merges `origin/main` in without committing, runs the Decision check and `scripts/check.sh`, commits and pushes, waits for CI, validates the closing references, squash-merges, deletes the remote branch and confirms the issues closed, one line per step. A merge conflict stops it: resolve the conflict in the PR's worktree, then run the same command again. Run any UI journeys the merge touches before it.
+
 ## Moving a ticket to cachedrop-website
 
 `gh issue transfer N Patrick-M-Bourget/cachedrop-website` keeps the parent and blocking links (they work across the two repos) but drops the milestone and any label the website lacks (`parity`, `area:*`, `size:*`). Right after the move the API can report the links as missing for a moment; adding them again then fails with 422 "already taken", so read them back before re-adding. GitHub also rewrites some references to the moved ticket in other bodies, so `dump` again before editing those.
