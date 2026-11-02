@@ -3,6 +3,7 @@ import AppKit
 import ServiceManagement
 import Combine
 import CacheDropCore
+import StorageAlerts
 
 @MainActor private final class NativeLoginService: LoginService {
     var status: LoginStatus {
@@ -21,6 +22,7 @@ import CacheDropCore
 @MainActor final class AppLifecycleController: ObservableObject {
     static let shared = AppLifecycleController()
     let alerts = StorageAlertsController()
+    let weeklyReminder = WeeklyReminderController(system: NativeWeeklyReminderSystem())
     let capacity = CapacityRefreshController(system: NativeCapacityRefreshSystem())
     let appearance = AppearancePreferenceController(store: NativeAppearancePreferenceStore())
     let license = LicenseController.forApp()
@@ -59,6 +61,14 @@ import CacheDropCore
     }
     /// Opens the Smart clean page, for the menu bar item (#131, #141).
     var openSmartClean: (() -> Void)?
+    /// A clicked weekly reminder that launched CacheDrop asks for Smart clean before the workspace has appeared (#599).
+    var smartCleanPending = false
+    /// The weekly reminder was clicked: the workspace opens on Smart clean, which never cleans by itself (#599).
+    func openSmartCleanFromReminder() {
+        openWorkspace?()
+        NSApp.activate(ignoringOtherApps: true)
+        if let openSmartClean { openSmartClean() } else { smartCleanPending = true }
+    }
     /// Requests both stops before waiting. Completion includes discovery and every final History/Storage trends write.
     func stopScansAndWait() async {
         selection.catalog.requestScanStop()
@@ -130,6 +140,7 @@ import CacheDropCore
         }
         loginIntent = false; loginStatus = LocalStateLocation.isDisposableTest ? .disabled : registration.status
         try alerts.resetPreferences()
+        try weeklyReminder.resetPreferences()
     }
     func refreshLogin() {
         registration.refresh(); loginStatus = registration.status

@@ -60,10 +60,17 @@ extension Notification.Name {
         center.delegate = self
         let open = UNNotificationAction(identifier: "CacheDrop.open", title: "Open CacheDrop", options: [.foreground])
         let later = UNNotificationAction(identifier: "CacheDrop.remindLater", title: "Remind me later", options: [])
-        center.setNotificationCategories([UNNotificationCategory(identifier: "CacheDrop.capacity", actions: [open, later], intentIdentifiers: [])])
+        center.setNotificationCategories([UNNotificationCategory(identifier: "CacheDrop.capacity", actions: [open, later], intentIdentifiers: []),
+                                          UNNotificationCategory(identifier: WeeklyReminderNotification.category, actions: [], intentIdentifiers: [])])
     }
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
         let action = response.actionIdentifier
+        // The weekly reminder opens Smart clean (#599); dismissing it does nothing.
+        if response.notification.request.content.categoryIdentifier == WeeklyReminderNotification.category {
+            guard action == UNNotificationDefaultActionIdentifier else { return }
+            await MainActor.run { AppLifecycleController.shared.openSmartCleanFromReminder() }
+            return
+        }
         let context = AlertOpenContext(notificationUserInfo: response.notification.request.content.userInfo)
         await MainActor.run {
             if action == "CacheDrop.remindLater" { remindLater(); return }
