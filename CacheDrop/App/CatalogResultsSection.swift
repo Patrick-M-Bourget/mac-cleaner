@@ -28,6 +28,9 @@ struct CatalogResultsSection: View {
                 let onlyTrashed = result.records.movedOnlyToTrash
                 let upperBound = upperBound(result.records)
                 let estimate = SizeFormatter.text(result.estimatedBytes, upperBound: upperBound)
+                // The line under the measured figure counts only what frees space, as that figure does (#587).
+                let freeing = result.records.filter { $0.cleanupAction != .trash }
+                let freedEstimate = SizeFormatter.text(result.estimatedFreedBytes, upperBound: self.upperBound(freeing))
                 // One headline (#577, Decision 132): what was measured is the result; the estimate it's measured against is
                 // said once, in the line below, so a cleanup that worked never reads as falling short. A run that only
                 // moved items to the Trash has no measured figure and keeps the estimate as its figure.
@@ -45,7 +48,7 @@ struct CatalogResultsSection: View {
                 notCleaned
                 if !onlyTrashed {
                     // The size already says "Up to" when it's an upper bound (Decision 92 rule 4: no double hedge).
-                    Text("Estimated before cleanup: " + estimate + (settling ? "" : " · measured from the change in free space around each item"))
+                    Text("Estimated before cleanup: " + freedEstimate + (settling ? "" : " · measured from the change in free space around each item"))
                         .font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).monospacedDigit().accessibilityIdentifier("resultsEstimate")
                 }
                 // One explanation (Decision 25): while Docker hands space back, the note says a check is coming instead (#411).
@@ -122,6 +125,7 @@ private struct CatalogResultRow: View {
                 }
                 Text(record.outcomeTitle).font(CacheDropDesign.TypeStyle.note)
                 Text(SizeFormatter.text(record.recordedBytes)).font(CacheDropDesign.TypeStyle.note).monospacedDigit().foregroundStyle(.secondary)
+                    .accessibilityIdentifier("resultSize-" + record.originalURL.lastPathComponent)
             }
             VStack(alignment: .leading, spacing: CacheDropDesign.Space.xs) {
                 if record.needsAttention || record.finishedAfterStop { Text(record.shownMessage).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }

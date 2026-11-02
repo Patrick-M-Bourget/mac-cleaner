@@ -32,6 +32,14 @@ extension Array where Element == CleanupRecord {
         }
         return total
     }
+    /// What the items whose action frees space were sized at before cleanup, each space once (#587): the estimate the
+    /// measured freed space is set against, so it leaves out Trash moves, as `measuredFreedBytes` does. Results and
+    /// History both read it.
+    var estimatedFreedBytes: Int64 {
+        var seen = Set<String>()
+        return filter { $0.cleanupAction != .trash && seen.insert(SpaceKey.of(resourceID: $0.resourceID, ruleID: $0.ruleID, action: $0.cleanupAction, item: $0.toolItem)).inserted }
+            .reduce(0) { $0 + $1.recordedBytes }
+    }
 }
 
 /// How a measured freed space is shown (#418): never below 0. Other activity can move free space the other way while an
@@ -50,6 +58,9 @@ public struct CatalogExecutionResult: Sendable {
     public let estimatedBytes: Int64
     /// Sum of the available-space change read around each removed item; nil when any reading is missing.
     public var measuredFreedBytes: Int64? { dryRun ? nil : records.measuredFreedBytes }
+    /// Results' "Estimated before cleanup" under the measured freed space: the approved items whose action frees space
+    /// (#587). A run that only moved items to the Trash shows `estimatedBytes` as its figure instead (Decision 132).
+    public var estimatedFreedBytes: Int64 { records.estimatedFreedBytes }
     /// Results' line under the measured freed space once the disk was read again a minute after completed Docker prunes
     /// (#411). It isn't added to the measured freed space. Before the check (`checked` false) there is none; a check that
     /// couldn't read the disk says so, so Results' "check again" is always answered.

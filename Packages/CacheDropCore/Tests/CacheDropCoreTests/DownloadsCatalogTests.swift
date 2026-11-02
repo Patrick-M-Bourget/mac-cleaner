@@ -101,6 +101,9 @@ private func trashExecutor(_ home: URL, trash: FixtureTrash) throws -> (CleanupE
     #expect(FileManager.default.fileExists(atPath: downloads.appendingPathComponent("Other.pkg").path))
     #expect(result.movedToTrashBytes == chosen.allocatedBytes)
     #expect(result.measuredFreedBytes == 0)
+    // #587: nothing in it frees space, so it keeps its estimate as its figure (Decision 132).
+    #expect(result.estimatedFreedBytes == 0)
+    #expect(result.estimatedBytes == chosen.allocatedBytes)
     #expect(try journal.completedHistory().completedRuns.first?.trashHeldAllocatedBytes == chosen.allocatedBytes)
 }
 
