@@ -317,10 +317,11 @@ private struct WorkspaceView: View {
             AppLifecycleController.shared.scanAgain = { if canScanAgain { scanAgain() } }
             AppLifecycleController.shared.openSmartClean = { navigate(.smartClean) }
             AppLifecycleController.shared.openEmptyTrash = { navigate(.overview); TrashModel.shared.wholeTrashRequested = true }
+            if AppLifecycleController.shared.smartCleanPending { AppLifecycleController.shared.smartCleanPending = false; navigate(.smartClean) }
             selection.catalog.scanRememberedFolders = { run in scanRememberedFolders(after: run) }
         }
         .onReceive(NotificationCenter.default.publisher(for: .cacheDropAlertOpened)) { _ in destination = .overview; navigationState.savedDataVisible = false; navigationState.appManagedVisible = false; protectedItemsVisible = false; recoveryVisible = false; explorerVisible = false }
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in Task { await alerts.activated() } }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in Task { await alerts.activated(); await AppLifecycleController.shared.weeklyReminder.activated() } }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in if !welcome.waitsForAccess { Task { await selection.catalog.rescanIfFullDiskAccessGranted() } } }
         .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didWakeNotification)) { _ in Task { await alerts.activated() } }
         .toolbar { contextToolbar }

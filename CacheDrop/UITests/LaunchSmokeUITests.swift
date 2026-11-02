@@ -195,6 +195,9 @@ final class LaunchSmokeUITests: XCTestCase {
         XCTAssertEqual(alerts.value as? Int, 0, "Alerts are off by default")
         XCTAssertEqual(app.descendants(matching: .any)["menuBarItemToggle"].value as? Int, 1, "The menu bar item is shown by default")
         XCTAssertFalse(app.descendants(matching: .any)["lowSpaceThreshold"].exists, "The threshold appears only once alerts are on")
+        // #599: the weekly reminder sits beside them, off by default, with no status line until it's on.
+        XCTAssertEqual(app.descendants(matching: .any)["weeklyReminderToggle"].value as? Int, 0, "The weekly reminder is off by default")
+        XCTAssertFalse(app.descendants(matching: .any)["weeklyReminderStatus"].exists)
     }
 
     /// A relaunch after a previous session must still open the main window, whatever state macOS saved.

@@ -633,6 +633,9 @@ import SwiftUI
         preparedScan = UUID()
         if let preparedScan { applicationsRescan.scanPrepared(preparedScan) }
         Self.log.notice("\(what, privacy: .public) took \(took, privacy: .public)")
+        // The weekly reminder speaks for this scan: Smart clean's ticked total, no scan of its own (#599).
+        let ready = smartCleanCandidates.reduce(Int64(0)) { $0 + $1.estimatedBytes }
+        Task { await AppLifecycleController.shared.weeklyReminder.scanFinished(readyBytes: ready) }
         if fullDiskAccessRescan.scanEnded(probing: FullDiskAccessProbe(home: home)) { rescanPending = true }
     }
     private struct PartialScanResult: Sendable {
