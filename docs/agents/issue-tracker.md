@@ -23,7 +23,7 @@ Use the gh CLI for issue operations.
 - `dump 590-645` or `dump --milestone TITLE`: each ticket's raw body with its labels, milestone, parent, blockers and sub-issues. Read a batch this way rather than one `gh issue view` per ticket.
 - `check` (same arguments): run it after creating or editing a batch and fix every line it prints. It catches malformed references (`##590`), a `## Parent` section that disagrees with the native parent, conflicting triage labels, cited Decisions that don't exist, and leftover "transfer it there" notes. Missing blocking links, stale questions and contradictions between tickets stay a reviewer's judgement.
 - `edit N --replace OLD NEW ... [--title T]`: changes the body only if every OLD matches exactly once, so a failed match never posts half an edit. Copy OLD from `dump`: GitHub stores some references as `owner/repo#N` even where the page shows `#N`.
-- `decision N [--site]`: prints one whole Decision from `docs/RESET.md` (`--site`: cachedrop-website's `docs/DECISIONS.md`). Read the whole entry before saying what it covers: amendments often sit mid-paragraph.
+- `decision N [--site]`: prints one whole Decision from `docs/RESET.md` (`--site`: cachedrop-website's `docs/DECISIONS.md`). It ends with the later Decisions that amend it (Decisions are append-only, #668); read those too before saying what it covers.
 
 ## Moving a ticket to cachedrop-website
 

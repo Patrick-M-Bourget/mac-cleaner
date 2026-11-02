@@ -1,16 +1,69 @@
 #!/bin/bash
-# Fails when docs/RESET.md's Decisions aren't numbered uniquely and in increasing order.
+# Fails when docs/RESET.md's Decisions aren't numbered uniquely and in increasing order, or when a branch edits a
+# Decision that already exists (#668).
 #
-# RESET.md merges with git's union driver (.gitattributes), so parallel branches that each append a Decision merge
-# without conflicts, though their Decisions may land in either order. Union keeps both sides of any clash too: two
-# branches amending the same Decision leave it twice. This check catches all three, and two branches that took the same
-# number; reorder or deduplicate the lines it names. Gaps in the numbering are historical.
+# Decisions are append-only: a Decision that changes an earlier one says "amends N" in its own header, and Decision N
+# stays as written (`scripts/issues.py decision N` lists what amends it). RESET.md merges with git's union driver
+# (.gitattributes), which is safe only for appended text: parallel branches that each append a Decision merge without
+# conflicts, though their Decisions may land in either order, and an edited Decision would be kept twice. Gaps in the
+# numbering are historical.
+#
+# The append-only part compares each Decision with origin/main and with this branch's merge base; it is skipped when
+# origin/main isn't available (CI's shallow checkout).
 #
 #   scripts/check-decisions.sh        exit 0 when clean; otherwise prints each offending number
 set -uo pipefail
 cd "$(dirname "$0")/.."
-grep -E '^[0-9]+\. \*\*' docs/RESET.md | sed -E 's/^([0-9]+)\..*/\1/' | awk '
-  NR > 1 && $1 <= last { printf "Decision %d follows %d in docs/RESET.md: renumber it or remove the duplicate.\n", $1, last; bad = 1 }
-  { last = $1 }
-  END { exit bad }
-'
+base=""
+if git rev-parse -q --verify origin/main >/dev/null 2>&1; then
+  base=$(git merge-base HEAD origin/main 2>/dev/null || true)
+fi
+python3 -B - "$base" <<'PY'
+import re
+import subprocess
+import sys
+
+
+def decisions(text):
+    """Each Decision's whole text (its numbered line and any indented lines under it), by number, in file order."""
+    marker = re.search(r'^## Decisions', text, re.M)
+    if not marker:
+        return []
+    found, current = [], None
+    for line in text[marker.end():].split('\n'):
+        if line.startswith('## '):
+            break
+        start = re.match(r'(\d+)\. ', line)
+        if start:
+            current = [int(start[1]), [line]]
+            found.append(current)
+        elif current is not None:
+            current[1].append(line)
+    return [(number, '\n'.join(lines).rstrip()) for number, lines in found]
+
+
+def at(ref):
+    result = subprocess.run(['git', 'show', f'{ref}:docs/RESET.md'], capture_output=True, text=True)
+    return dict(decisions(result.stdout)) if result.returncode == 0 else {}
+
+
+bad = False
+here = decisions(open('docs/RESET.md').read())
+last = None
+for number, _ in here:
+    if last is not None and number <= last:
+        print(f'Decision {number} follows {last} in docs/RESET.md: renumber it or remove the duplicate.')
+        bad = True
+    last = number
+
+base = sys.argv[1]
+if base:
+    main, merge_base = at('origin/main'), at(base)
+    for number, text in here:
+        known = {v for v in (main.get(number), merge_base.get(number)) if v is not None}
+        if known and text not in known:
+            print(f'Decision {number} was edited. Decisions are append-only: restore it and say what changed in a new '
+                  f'Decision whose header says "amends {number}".')
+            bad = True
+sys.exit(1 if bad else 0)
+PY

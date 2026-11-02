@@ -61,7 +61,10 @@ class IssuesTests(unittest.TestCase):
         self.patches = self.home / 'patches.jsonl'
         self.decisions = self.home / 'RESET.md'
         self.decisions.write_text('# Plan\n\n1. **Not a decision:** a phase step.\n\n## Decisions\n\n'
-                                  '4. User-owned scope only.\n68. **Empty from the Trash** what CacheDrop moved.\n')
+                                  '4. User-owned scope only.\n68. **Empty from the Trash** what CacheDrop moved.\n'
+                                  '70. **Rows (2026-11-01; amends 4 and SPEC section 68).** One line each:\n'
+                                  '    - a sub-point of 70;\n'
+                                  '71. **Trash (2026-11-02, #68; amends 68\'s wording).** Said once.\n')
         self.site = self.home / 'site'
         (self.site / 'docs').mkdir(parents=True)
         (self.site / 'docs/DECISIONS.md').write_text('# Decisions\n\n13. **Supabase.** Two projects.\n'
@@ -199,10 +202,17 @@ class IssuesTests(unittest.TestCase):
     # decision
 
     def test_decision_prints_the_whole_decision(self):
-        self.assertEqual(self.run_issues('decision', '68').stdout.strip(),
-                         '68. **Empty from the Trash** what CacheDrop moved.')
+        self.assertTrue(self.run_issues('decision', '68').stdout.startswith(
+            '68. **Empty from the Trash** what CacheDrop moved.\n'))
         self.assertIn('platform claim follows the build', self.run_issues('decision', '35', '--site').stdout)
         self.assertEqual(self.run_issues('decision', '1').returncode, 1)
+
+    def test_decision_prints_its_indented_lines_and_what_amends_it(self):
+        self.assertIn('    - a sub-point of 70;', self.run_issues('decision', '70').stdout)
+        self.assertTrue(self.run_issues('decision', '4').stdout.rstrip().endswith('Amended later by Decision 70.'))
+        self.assertIn('Amended later by Decision 71.', self.run_issues('decision', '68').stdout,
+                      'section numbers and issue numbers are not amendments')
+        self.assertNotIn('Amended', self.run_issues('decision', '71').stdout)
 
     def test_decision_reads_the_real_reset(self):
         env = dict(self.env)
