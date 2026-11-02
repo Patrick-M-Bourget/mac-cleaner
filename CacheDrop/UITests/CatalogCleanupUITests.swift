@@ -209,6 +209,8 @@ final class CatalogCleanupUITests: XCTestCase {
         let state = try configureIsolatedState(app)
         let home = try configureCatalogHome(app)
         app.launchEnvironment["CACHEDROP_TEST_DISCOVERY_PAUSE"] = "0.25"
+        // #655: each capacity read takes 3 s, so the refresh after the scan is still running when the rows are measured.
+        app.launchEnvironment["CACHEDROP_TEST_CAPACITY_PAUSE"] = "3"
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
         app.launch()
 
@@ -232,6 +234,11 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertTrue(progress.waitForNonExistence(timeout: 60))
         let downloads = app.buttons["overviewCategory-downloads"]
         XCTAssertTrue(downloads.exists)
+        // #655: the capacity refresh the scan's end starts says so in place of "Updated …", never on a line of its own.
+        let observation = app.staticTexts["capacityObservation"]
+        let refreshing = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@ OR label == %@", "Refreshing…", "Refreshing…"), object: observation)
+        XCTAssertEqual(XCTWaiter.wait(for: [refreshing], timeout: 5), .completed, observation.debugDescription)
+        XCTAssertFalse(app.staticTexts["capacityRefreshStatus"].exists, "A refresh adds no line")
         // Nothing shifts when the scan ends: the rows stay put and the bar keeps its height.
         XCTAssertEqual(developer.frame.minY, rowTop, accuracy: 0.5)
         XCTAssertEqual(actionStrip(app).frame.height, stripHeight, accuracy: 0.5)
