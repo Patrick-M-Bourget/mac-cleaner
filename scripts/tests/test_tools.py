@@ -51,7 +51,8 @@ if re.search(os.environ.get('FAIL_PATTERN', r'(?!)'), call):
 '''
         for name in ['swift', 'xcodebuild', 'python3']:
             self.executable(self.bin / name, stub)
-        for name in ['check-debug-seams.sh', 'check-decisions.sh', 'check-copy.sh', 'check-stored-keys.sh', 'check-release.sh']:
+        for name in ['check-debug-seams.sh', 'check-decisions.sh', 'check-copy.sh', 'check-stored-keys.sh', 'check-release.sh',
+                     'check-stamp.sh']:
             self.executable(scripts / name, stub)
 
     def check(self, *args):
@@ -68,6 +69,7 @@ if re.search(os.environ.get('FAIL_PATTERN', r'(?!)'), call):
         self.assertTrue(any('Packages/StorageAlerts' in c for c in calls))
         self.assertTrue(any(c.startswith('xcodebuild build ') for c in calls))
         self.assertTrue(any(c.startswith('check-release.sh ') for c in calls))
+        self.assertEqual(calls[-1], 'check-stamp.sh write', 'a full pass records the pass stamp last (#667)')
         self.assertEqual(list(self.repo.glob('.build/check-logs/**/*.*')), [])
 
     def test_early_errors_and_separate_full_logs_survive(self):
@@ -82,14 +84,14 @@ if re.search(os.environ.get('FAIL_PATTERN', r'(?!)'), call):
             self.assertTrue(path.is_file())
             self.assertIn('FULL_LINE_' + 'x' * 700, path.read_text())
             self.assertIn('later passing output 99', path.read_text())
-        self.assertFalse(any(c.startswith(('xcodebuild ', 'check-release.sh ')) for c in calls))
+        self.assertFalse(any(c.startswith(('xcodebuild ', 'check-release.sh ', 'check-stamp.sh ')) for c in calls))
         self.assertTrue(any('Packages/StorageAlerts' in c for c in calls))
 
     def test_source_failure_also_prevents_app_builds(self):
         self.env['FAIL_PATTERN'] = r'^check-copy.sh '
         result, calls = self.check()
         self.assertNotEqual(result.returncode, 0)
-        self.assertFalse(any(c.startswith(('xcodebuild ', 'check-release.sh ')) for c in calls))
+        self.assertFalse(any(c.startswith(('xcodebuild ', 'check-release.sh ', 'check-stamp.sh ')) for c in calls))
 
     def test_failed_debug_build_prevents_release(self):
         self.env['FAIL_PATTERN'] = r'^xcodebuild '
@@ -100,7 +102,58 @@ if re.search(os.environ.get('FAIL_PATTERN', r'(?!)'), call):
     def test_fast_still_stops_after_normal_core(self):
         result, calls = self.check('--fast')
         self.assertEqual(result.returncode, 0, result.stdout)
-        self.assertFalse(any('[strict]' in c or 'StorageAlerts' in c or c.startswith(('xcodebuild ', 'check-release.sh ')) for c in calls))
+        self.assertFalse(any('[strict]' in c or 'StorageAlerts' in c or c.startswith(('xcodebuild ', 'check-release.sh ', 'check-stamp.sh ')) for c in calls))
+
+
+class DecisionsCheckTests(CommandTests):
+    """scripts/check-decisions.sh: numbering, and append-only against origin/main (#668)."""
+
+    def setUp(self):
+        super().setUp()
+        self.repo = self.home / 'repo'
+        (self.repo / 'scripts').mkdir(parents=True)
+        (self.repo / 'docs').mkdir()
+        shutil.copy2(ROOT / 'scripts/check-decisions.sh', self.repo / 'scripts/check-decisions.sh')
+        for args in (['init', '-q', '-b', 'main'], ['config', 'user.email', 't@example.com'], ['config', 'user.name', 'T']):
+            self.git(*args)
+        self.reset('1. **One.** First.\n2. **Two.** Second:\n    - a point.\n')
+        self.git('add', '.')
+        self.git('commit', '-q', '-m', 'start')
+        self.git('update-ref', 'refs/remotes/origin/main', 'HEAD')
+
+    def git(self, *args):
+        subprocess.run(['git', *args], cwd=self.repo, check=True, capture_output=True)
+
+    def reset(self, decisions):
+        (self.repo / 'docs/RESET.md').write_text('# Plan\n\n## Decisions\nIntro.\n\n' + decisions)
+
+    def check(self):
+        return self.run_command(['/bin/bash', str(self.repo / 'scripts/check-decisions.sh')])
+
+    def test_appending_passes_and_editing_an_existing_decision_fails(self):
+        self.reset('1. **One.** First.\n2. **Two.** Second:\n    - a point.\n3. **Three (amends 2).** Third.\n')
+        self.assertEqual(self.check().returncode, 0)
+        self.reset('1. **One.** First.\n2. **Two.** Second:\n    - a changed point.\n3. **Three.** Third.\n')
+        result = self.check()
+        self.assertEqual(result.returncode, 1)
+        self.assertIn('Decision 2 was edited', result.stdout)
+
+    def test_a_branch_behind_main_keeps_its_older_copy(self):
+        self.git('checkout', '-q', '-b', 'branch')
+        self.git('checkout', '-q', 'main')
+        self.reset('1. **One.** First.\n2. **Two.** Second:\n    - a point.\n3. **Three.** Third.\n')
+        self.git('commit', '-q', '-am', 'main appends')
+        self.git('update-ref', 'refs/remotes/origin/main', 'HEAD')
+        self.git('checkout', '-q', 'branch')
+        self.assertEqual(self.check().returncode, 0)
+
+    def test_order_still_checked_and_append_only_skipped_without_origin_main(self):
+        self.git('update-ref', '-d', 'refs/remotes/origin/main')
+        self.reset('1. **One.** Edited.\n3. **Three.** Third.\n2. **Two.** Second.\n')
+        result = self.check()
+        self.assertEqual(result.returncode, 1)
+        self.assertIn('Decision 2 follows 3', result.stdout)
+        self.assertNotIn('was edited', result.stdout)
 
 
 class ClosingReferenceTests(CommandTests):
