@@ -196,3 +196,36 @@ private func names(_ items: [Candidate]) -> Set<String> { Set(items.map(\.url.la
     #expect(names(touched.rescanningLeftovers(leftovers, home: home, apps: apps, receipts: NoReceipts())) == ["com.oldco.old.plist", "com.goneco.gone"],
             "Its container, cleaned by the plan, never shows as still there")
 }
+
+@Test func aFileAPlanRuleOffersStaysInThatRulesRowAfterItsAppIsUninstalledWithoutIt() async throws {
+    let (home, synth, pad) = try twoApps()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let apps = Apps(installed: [synth, pad])
+    let catalog = Catalog(rules: [rule])
+    // The full scan's order: the plan's rules first, then each app's row, never offering what the plan already offers.
+    let discovery = catalog.discovery(fixture: home)
+    let container = try #require(discovery.candidates.first { $0.url.lastPathComponent == "com.padco.pad" })
+    let leftovers = RemovedAppLeftovers.scan(home: home, apps: apps, receipts: NoReceipts())
+    let shownApps = apps.installed.flatMap {
+        AppUninstall.scan($0, excluding: nil, home: home, apps: apps, receipts: NoReceipts(), leftovers: leftovers, offered: discovery.candidates)
+    }
+    let padsRow = shownApps.filter { $0.isUninstalled(with: pad.path) }
+    try #require(!padsRow.contains { $0.url == container.url } && padsRow.first?.uninstall?.inPlan == 1, "Pad's row leaves its container to the plan")
+
+    // Pad's whole row is uninstalled; its container, which the row never listed, stays on disk.
+    let uninstalled = try await run(padsRow, home: home, apps: apps)
+    try #require(uninstalled.records.allSatisfy { $0.state == .succeeded })
+    let shown = discovery.candidates + shownApps
+    let touched = try #require(uninstalled.touchedApplications(shown: shown, plugIns: nil))
+    let rules = catalog.rescanned(after: uninstalled, shown: shown)
+    #expect(!rules.contains(rule.id), "The plan rule's row isn't read again: it never left the container to Pad's row")
+    let now = Apps(installed: [synth])
+    let fresh = catalog.discovery(fixture: home)
+    let shownLeftovers = touched.rescanningLeftovers([], home: home, apps: now, receipts: NoReceipts())
+    let merged = catalog.merging(CatalogDiscovery(candidates: fresh.candidates.filter { rules.contains($0.ruleID) }, notes: []), rescanned: rules,
+                                 into: CatalogDiscovery(candidates: uninstalled.keptDuringRescan(discovery.candidates) + shownLeftovers, notes: []))
+    let mergedApps = rescanning(touched, uninstalled.keptDuringRescan(shownApps), home: home, apps: now)
+
+    #expect(merged.candidates.filter { $0.url == container.url }.map(\.ruleID) == [rule.id], "Still in the plan rule's row, once")
+    #expect(!mergedApps.contains { $0.isUninstalled(with: pad.path) }, "Pad's row left")
+}
