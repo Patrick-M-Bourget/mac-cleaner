@@ -17,11 +17,14 @@ import Observation
     public private(set) var used: Int64 = 0
     public private(set) var notice: Notice?
     @ObservationIgnored private let store: any TrialStore
+    /// False while the stored count couldn't be read: `used` then holds only this launch's runs, and saving it would
+    /// overwrite a larger stored count, which would start the trial over.
+    @ObservationIgnored private var loaded = false
 
     public init(store: any TrialStore, gating: Bool) {
         self.store = store; self.gating = gating
         guard gating else { return }
-        do { used = max(0, try store.read() ?? 0) } catch { notice = .unreadable }
+        do { used = max(0, try store.read() ?? 0); loaded = true } catch { notice = .unreadable }
     }
 
     public func allowance(for license: LicenseState) -> CleanupAllowance {
@@ -33,7 +36,12 @@ import Observation
         let freed = result.trialBytes(of: approval, catalog: catalog)
         guard gating, freed > 0 else { return }
         used += freed
-        do { try store.write(used); if notice == .saveFailed { notice = nil } } catch { notice = .saveFailed }
+        if !loaded {
+            // Read again before saving, and add this launch's runs to what's stored; while it still can't be read, save nothing.
+            guard let stored = try? store.read() else { return }
+            used += max(0, stored ?? 0); loaded = true
+        }
+        do { try store.write(used); notice = nil } catch { notice = .saveFailed }
     }
 }
 

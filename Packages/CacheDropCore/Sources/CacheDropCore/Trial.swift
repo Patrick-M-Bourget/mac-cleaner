@@ -62,13 +62,18 @@ extension CleanupAllowance {
     }
 }
 
-/// The license's price beside Buy (Decision 135): 29.99 shown struck through, then 19.99, with the Mac's region currency
-/// symbol and the same numbers in every currency. The website's Buy link carries the real price.
+/// The license's price beside Buy (Decision 135): 29.99 shown struck through, then 19.99, the same numbers in every
+/// currency sold, in the Mac's region currency when it's one of them and US dollars otherwise, as checkout charges. The
+/// website's Buy link carries the real price.
 public enum LicensePrice {
     public static let buyURL = URL(string: "https://cachedrop.io/buy")!
+    /// The currencies the Payment Links sell in (Decision 135).
+    static let currencies: Set<String> = ["USD", "CAD", "EUR", "GBP", "AUD"]
     public static func text(locale: Locale = .current) -> (was: String, now: String) {
         let formatter = NumberFormatter()
         formatter.locale = locale; formatter.numberStyle = .currency
+        let regional = locale.currency?.identifier
+        formatter.currencyCode = regional.map(currencies.contains) == true ? regional : "USD"
         formatter.minimumFractionDigits = 2; formatter.maximumFractionDigits = 2
         func format(_ value: Decimal) -> String { formatter.string(from: value as NSDecimalNumber) ?? "\(value)" }
         return (format(29.99), format(19.99))

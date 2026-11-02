@@ -124,11 +124,30 @@ private func run(_ candidates: [Candidate], succeeded: Bool = true) -> (CatalogE
     store.failReads = true
     let trial = TrialController(store: store, gating: true)
     #expect(trial.notice == .unreadable)
-    store.failWrites = true
     let (result, approval) = run([logs])
     trial.record(result, of: approval, catalog: catalog)
-    #expect(trial.notice == .saveFailed)
+    #expect(trial.notice == .unreadable, "Still unreadable, so nothing was saved")
     #expect(trial.allowance(for: .none) == .trial(left: GB))
+    store.failReads = false; store.failWrites = true
+    trial.record(result, of: approval, catalog: catalog)
+    #expect(trial.notice == .saveFailed)
+}
+
+/// A launch that couldn't read the count never overwrites it with that launch's smaller total: it reads again before
+/// saving, and adds to what's stored; while it still can't read, it saves nothing.
+@Test @MainActor func aLaunchThatCouldntReadTheCountNeverOverwritesIt() {
+    let store = MemoryTrialStore(1_500_000_000)
+    store.failReads = true
+    let trial = TrialController(store: store, gating: true)
+    let (first, firstApproval) = run([logs])
+    trial.record(first, of: firstApproval, catalog: catalog)
+    #expect(store.used == 1_500_000_000, "Still unreadable: nothing saved over the stored count")
+    store.failReads = false
+    let (second, secondApproval) = run([npm])
+    trial.record(second, of: secondApproval, catalog: catalog)
+    #expect(store.used == 1_500_000_000 + GB + 3 * GB, "Readable again: both runs added to what was stored")
+    #expect(trial.notice == nil)
+    #expect(trial.allowance(for: .none) == .trial(left: 0))
 }
 
 /// Settings › License's first line while no key is active: what the trial has left, or that it's used; nothing while
@@ -157,8 +176,11 @@ private func run(_ candidates: [Candidate], succeeded: Bool = true) -> (CatalogE
     #expect(france.was.contains("29,99") && france.was.contains("€") && france.now.contains("19,99"))
     let uk = LicensePrice.text(locale: Locale(identifier: "en_GB"))
     #expect(uk.now == "£19.99")
+    let canada = LicensePrice.text(locale: Locale(identifier: "en_CA"))
+    #expect(canada.now == "$19.99")
     let japan = LicensePrice.text(locale: Locale(identifier: "ja_JP"))
-    #expect(japan.now.contains("19.99"), "Same numbers even where the currency has no cents")
+    #expect(japan.now.contains("$") && japan.now.contains("19.99") && !japan.now.contains("¥"),
+            "A region whose currency isn't sold shows US dollars, which its checkout charges")
 }
 
 /// The trial's Keychain item is its own, apart from the license key's, and its names are stored keys: renaming either
