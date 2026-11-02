@@ -209,7 +209,7 @@ struct CacheDropMenuBarLabel: View {
 }
 
 /// The menu bar item's menu: Open CacheDrop, Scan again, Smart clean… when it has something, Overview's Trash line with
-/// Open Trash whenever Overview shows it (#603), Settings… and Quit.
+/// Empty Trash… when the Trash can be read (#605) and Open Trash whenever Overview shows it (#603), Settings… and Quit.
 struct CacheDropMenuBarMenu: View {
     @Environment(\.openWindow) private var openWindow
     let lifecycle: AppLifecycleController
@@ -229,6 +229,11 @@ struct CacheDropMenuBarMenu: View {
         if let line = TrashContents.line(TrashModel.shared.contents, fromCacheDrop: TrashModel.shared.emptyableBytes) {
             Divider()
             Text(line)
+            // The sheet opens in the window, on Overview: the menu never empties anything by itself (Decision 142).
+            if case .holds = TrashModel.shared.contents {
+                Button(MenuBarStatus.Item.emptyTrash.title) { openCacheDrop(); lifecycle.openEmptyTrash?() }
+                    .disabled(lifecycle.updateInstallation.blocksNewWork).accessibilityIdentifier("menuBarEmptyTrash")
+            }
             Button(MenuBarStatus.Item.openTrash.title) { TrashModel.shared.open() }.accessibilityIdentifier("menuBarOpenTrash")
         }
         Divider()

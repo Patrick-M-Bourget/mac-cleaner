@@ -316,6 +316,7 @@ private struct WorkspaceView: View {
             AppLifecycleController.shared.openWorkspace = { openWindow(id: "workspace") }
             AppLifecycleController.shared.scanAgain = { if canScanAgain { scanAgain() } }
             AppLifecycleController.shared.openSmartClean = { navigate(.smartClean) }
+            AppLifecycleController.shared.openEmptyTrash = { navigate(.overview); TrashModel.shared.wholeTrashRequested = true }
             if AppLifecycleController.shared.smartCleanPending { AppLifecycleController.shared.smartCleanPending = false; navigate(.smartClean) }
             selection.catalog.scanRememberedFolders = { run in scanRememberedFolders(after: run) }
         }

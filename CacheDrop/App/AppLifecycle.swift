@@ -61,6 +61,8 @@ import StorageAlerts
     }
     /// Opens the Smart clean page, for the menu bar item (#131, #141).
     var openSmartClean: (() -> Void)?
+    /// Opens Overview with the Empty Trash sheet, for the menu bar item (#605).
+    var openEmptyTrash: (() -> Void)?
     /// A clicked weekly reminder that launched CacheDrop asks for Smart clean before the workspace has appeared (#599).
     var smartCleanPending = false
     /// The weekly reminder was clicked: the workspace opens on Smart clean, which never cleans by itself (#599).

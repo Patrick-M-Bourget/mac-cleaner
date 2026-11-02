@@ -55,6 +55,7 @@ The names CacheDrop shows, what they mean, and where they live in code. Copy fol
 | Delete permanently → Deleted | Removed for good (deletes and cleanup commands) | actions `delete`, `tool` |
 | Move to Trash → Put back | Goes to the Trash and can come back | action `trash`, `TrashPutBack` |
 | Empty from Trash → Deleted from the Trash | Deletes only what CacheDrop moved to the Trash | `TrashEmptying` |
+| Empty Trash → Deleted from the Trash | Deletes everything in the Trash that was there when its sheet opened, including your own trashed files; Finder's own word (#605) | `TrashEmptying.emptyWholeTrash` |
 | Remove local copies | Frees iCloud files' space on this Mac | action `evict` |
 | Check for Updates… | A requested update check through standard Sparkle dialogs | `ManualUpdater` |
 | Cancel update | Stop waiting for installation while current cleanup and maintenance keep running | `UpdateInstallation.cancel` |

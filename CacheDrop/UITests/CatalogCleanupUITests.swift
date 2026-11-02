@@ -1638,6 +1638,54 @@ final class TrashSpaceUITests: XCTestCase {
         XCTAssertTrue(app.menuItems["Open Trash"].exists)
     }
 
+    /// #605 (Decision 142): Empty Trash… on Overview lists everything in the (fixture) Trash, deletes exactly what it listed
+    /// (a file trashed while the sheet is open stays) and says the measured freed space; History records the run. The
+    /// menu bar menu offers it too (checked, not clicked).
+    @MainActor func testEmptyTrashDeletesWhatItsSheetListedAndHistoryRecordsIt() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        let trash = home.appendingPathComponent(".Trash")
+        let installer = trash.appendingPathComponent("Old installer.dmg"), project = trash.appendingPathComponent("Old project")
+        try FileManager.default.createDirectory(at: project, withIntermediateDirectories: true)
+        try Data(repeating: 5, count: 300_000).write(to: installer)
+        try Data(repeating: 6, count: 200_000).write(to: project.appendingPathComponent("notes.txt"))
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["overviewTitle"].waitForExistence(timeout: 10))
+        let emptyAll = app.links["overviewTrashEmptyAll"]
+        XCTAssertTrue(emptyAll.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.links["overviewTrashOpen"].exists)
+        XCTAssertTrue(app.menuItems["Empty Trash…"].waitForExistence(timeout: 5), "The menu bar menu offers it too")
+        revealAndClick(emptyAll, in: app)
+
+        XCTAssertTrue(app.staticTexts["Empty the Trash"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Everything in the Trash, including files you put there yourself, is deleted permanently. It can’t be put back."].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["emptyItem-Old installer.dmg"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["emptyItem-Old project"].exists)
+        // Trashed after the sheet listed the Trash: not in the list, so it stays.
+        let later = trash.appendingPathComponent("Later.txt")
+        try Data(repeating: 7, count: 1_000).write(to: later)
+        app.buttons["emptyFromTrashConfirm"].click()
+
+        let done = app.buttons["emptyFromTrashDone"]
+        XCTAssertTrue(done.waitForExistence(timeout: 10))
+        let summary = app.descendants(matching: .any)["emptyFromTrashSummary"]
+        let said = [summary.label, summary.value as? String ?? ""].joined(separator: " ")
+        XCTAssertTrue(said.contains("Deleted 2 items from the Trash · Measured freed space: "), said)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: installer.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: project.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: later.path), "Only what the sheet listed is deleted")
+        done.click()
+
+        app.typeKey("6", modifierFlags: .command)
+        let run = app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS[c] %@ OR value CONTAINS[c] %@",
+                                                                       "Emptied from the Trash · 2 items", "Emptied from the Trash · 2 items")).firstMatch
+        XCTAssertTrue(run.waitForExistence(timeout: 10))
+    }
+
     /// #603 (Decision 141): a Trash CacheDrop can't read, as macOS keeps it without Full Disk Access, has no line on Overview
     /// (Decision 68) and none in the menu bar menu either, never Unknown or 0.
     @MainActor func testUnreadableTrashHasNoLineOnOverviewOrInTheMenuBarMenu() throws {
