@@ -14,6 +14,13 @@ public struct CatalogApproval: Sendable, Identifiable {
     }
 }
 
+extension CleanupRecord {
+    /// The items the measured freed space covers, and so the estimate set against it (Decision 140): removed by an action
+    /// that frees space, and measured. A Trash move frees nothing yet, and an item that finished after the stop (#209)
+    /// freed its space where nothing measured it.
+    public var countsTowardMeasuredFreedSpace: Bool { state == .succeeded && cleanupAction != .trash && !finishedAfterStop }
+}
+
 extension Array where Element == CleanupRecord {
     /// True when the run moved something to the Trash and removed nothing else: nothing is freed until the Trash is emptied,
     /// so Results and History show no measured freed space (Decision 66).
@@ -26,11 +33,19 @@ extension Array where Element == CleanupRecord {
     /// History and Empty from Trash all read it (#433).
     var measuredFreedBytes: Int64? {
         var total: Int64 = 0
-        for record in self where record.state == .succeeded && record.cleanupAction != .trash && !record.finishedAfterStop {
+        for record in self where record.countsTowardMeasuredFreedSpace {
             guard let change = record.itemCapacity?.observedChange else { return nil }
             total += change
         }
         return total
+    }
+    /// What the measured freed space's items were sized at before cleanup, each space once (#587, Decision 140): the
+    /// estimate that figure is set against, like for like. Trash moves are In the Trash, failed and skipped items are Not
+    /// cleaned, and an item that finished after the stop is in neither figure. Results and History both read it.
+    var estimatedFreedBytes: Int64 {
+        var seen = Set<String>()
+        return filter { $0.countsTowardMeasuredFreedSpace && seen.insert(SpaceKey.of(resourceID: $0.resourceID, ruleID: $0.ruleID, action: $0.cleanupAction, item: $0.toolItem)).inserted }
+            .reduce(0) { $0 + $1.recordedBytes }
     }
 }
 
@@ -50,6 +65,9 @@ public struct CatalogExecutionResult: Sendable {
     public let estimatedBytes: Int64
     /// Sum of the available-space change read around each removed item; nil when any reading is missing.
     public var measuredFreedBytes: Int64? { dryRun ? nil : records.measuredFreedBytes }
+    /// Results' "Estimated before cleanup" under the measured freed space: the approved items whose action frees space
+    /// (#587). A run that only moved items to the Trash shows `estimatedBytes` as its figure instead (Decision 132).
+    public var estimatedFreedBytes: Int64 { records.estimatedFreedBytes }
     /// Results' line under the measured freed space once the disk was read again a minute after completed Docker prunes
     /// (#411). It isn't added to the measured freed space. Before the check (`checked` false) there is none; a check that
     /// couldn't read the disk says so, so Results' "check again" is always answered.

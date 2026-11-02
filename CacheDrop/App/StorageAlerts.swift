@@ -201,7 +201,8 @@ struct CacheDropMenuBarLabel: View {
     }
 }
 
-/// The menu bar item's menu: Open CacheDrop, Scan again, Smart clean… when it has something, Settings… and Quit.
+/// The menu bar item's menu: Open CacheDrop, Scan again, Smart clean… when it has something, Overview's Trash line with
+/// Open Trash whenever Overview shows it (#603), Settings… and Quit.
 struct CacheDropMenuBarMenu: View {
     @Environment(\.openWindow) private var openWindow
     let lifecycle: AppLifecycleController
@@ -215,6 +216,13 @@ struct CacheDropMenuBarMenu: View {
             .disabled(lifecycle.scanAgainBlockedReason != nil).help(lifecycle.scanAgainBlockedReason ?? "")
         if hasRecommendedPlan {
             Button(MenuBarStatus.Item.smartClean.title) { openCacheDrop(); lifecycle.openSmartClean?() }
+        }
+        // Overview's Trash line, from the same measurement (`TrashModel`) and wording, shown exactly when Overview shows it
+        // (Decision 141); refreshed by Overview, Scan again and each run, not when the menu opens.
+        if let line = TrashContents.line(TrashModel.shared.contents, fromCacheDrop: TrashModel.shared.emptyableBytes) {
+            Divider()
+            Text(line)
+            Button(MenuBarStatus.Item.openTrash.title) { TrashModel.shared.open() }.accessibilityIdentifier("menuBarOpenTrash")
         }
         Divider()
         SettingsLink { Text(MenuBarStatus.Item.settings.title) }.keyboardShortcut(",")
