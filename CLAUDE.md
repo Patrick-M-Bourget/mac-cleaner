@@ -21,7 +21,7 @@ The scheme keeps no test attachments and never records the screen (#153). Never 
 
 ## Workflow
 
-- One logical change per commit and about 500 lines or less per PR. Run `scripts/check.sh` before every commit.
+- One logical change per commit and about 500 lines or less per PR. Run `scripts/check.sh` before every commit: a full pass records the pass stamp (`scripts/check-stamp.sh`), and a hook in the owner's settings refuses a commit whose content it didn't pass on. Merge `main` in with `--no-commit`, check, then commit.
 - Push a branch, open a PR (`/pr`) based on `main`, and say what to smoke-test locally. After creating or editing a PR and immediately before merging, validate its closing references as `docs/agents/issue-tracker.md` describes. Merge only after the user confirms. A PR based on another PR's branch closes when that branch is deleted on merge.
 - Commit no screenshots, evidence reports or session essays. A finding that matters goes into `docs/RESET.md` (Decisions) or an issue.
 
