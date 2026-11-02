@@ -10,6 +10,8 @@ public enum PreferenceKeys {
     public static let showsMenuBarItem = "CacheDrop.showsMenuBarItem"
     /// The user's choice to start at login.
     public static let startAtLogin = "CacheDrop.startAtLogin"
+    /// Check for updates automatically (#600); on unless turned off.
+    public static let checksForUpdatesAutomatically = "CacheDrop.checksForUpdatesAutomatically"
 
     /// The login key's former name. Still's own value is never copied: login launch is registered for Still's app.
     static let legacyStartAtLogin = "Still.startAtLogin"

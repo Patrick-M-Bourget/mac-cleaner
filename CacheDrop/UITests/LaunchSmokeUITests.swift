@@ -198,6 +198,8 @@ final class LaunchSmokeUITests: XCTestCase {
         // #599: the weekly reminder sits beside them, off by default, with no status line until it's on.
         XCTAssertEqual(app.descendants(matching: .any)["weeklyReminderToggle"].value as? Int, 0, "The weekly reminder is off by default")
         XCTAssertFalse(app.descendants(matching: .any)["weeklyReminderStatus"].exists)
+        // #600: weekly update checks are on by default.
+        XCTAssertEqual(app.descendants(matching: .any)["automaticUpdateChecksToggle"].value as? Int, 1, "Automatic update checks are on by default")
     }
 
     /// A relaunch after a previous session must still open the main window, whatever state macOS saved.

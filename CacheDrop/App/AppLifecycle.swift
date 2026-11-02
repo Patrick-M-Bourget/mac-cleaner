@@ -143,6 +143,10 @@ import StorageAlerts
         loginIntent = false; loginStatus = LocalStateLocation.isDisposableTest ? .disabled : registration.status
         try alerts.resetPreferences()
         try weeklyReminder.resetPreferences()
+        if !LocalStateLocation.isDisposableTest {
+            UserDefaults.standard.removeObject(forKey: PreferenceKeys.checksForUpdatesAutomatically)
+            manualUpdater.automaticChecksChanged()
+        }
     }
     func refreshLogin() {
         registration.refresh(); loginStatus = registration.status
@@ -215,6 +219,8 @@ import StorageAlerts
         // Low-space alerts (#131): restore a saved choice. Nothing is asked for until you turn alerts on.
         if !LocalStateLocation.isDisposableTest { lifecycle.alerts.configureNotifications() }
         lifecycle.alerts.configure()
+        // Weekly update checks while they're on (#600, Decision 145); never in a disposable test run.
+        lifecycle.manualUpdater.startScheduledChecks()
         // A copy relaunched by Move to Applications ejects the disk image it came from (#559).
         MoveToApplicationsModel.ejectIfAsked()
     }
