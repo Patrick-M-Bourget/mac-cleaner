@@ -15,7 +15,7 @@ public struct CatalogApproval: Sendable, Identifiable {
 }
 
 extension CleanupRecord {
-    /// The items the measured freed space covers, and so the estimate set against it (Decision 139): removed by an action
+    /// The items the measured freed space covers, and so the estimate set against it (Decision 140): removed by an action
     /// that frees space, and measured. A Trash move frees nothing yet, and an item that finished after the stop (#209)
     /// freed its space where nothing measured it.
     public var countsTowardMeasuredFreedSpace: Bool { state == .succeeded && cleanupAction != .trash && !finishedAfterStop }
@@ -39,7 +39,7 @@ extension Array where Element == CleanupRecord {
         }
         return total
     }
-    /// What the measured freed space's items were sized at before cleanup, each space once (#587, Decision 139): the
+    /// What the measured freed space's items were sized at before cleanup, each space once (#587, Decision 140): the
     /// estimate that figure is set against, like for like. Trash moves are In the Trash, failed and skipped items are Not
     /// cleaned, and an item that finished after the stop is in neither figure. Results and History both read it.
     var estimatedFreedBytes: Int64 {

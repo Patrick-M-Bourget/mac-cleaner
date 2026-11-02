@@ -28,7 +28,7 @@ struct CatalogResultsSection: View {
                 let onlyTrashed = result.records.movedOnlyToTrash
                 let upperBound = upperBound(result.records)
                 let estimate = SizeFormatter.text(result.estimatedBytes, upperBound: upperBound)
-                // The line under the measured figure counts that figure's items only (#587, Decision 139).
+                // The line under the measured figure counts that figure's items only (#587, Decision 140).
                 let freeing = result.records.filter(\.countsTowardMeasuredFreedSpace)
                 let freedEstimate = SizeFormatter.text(result.estimatedFreedBytes, upperBound: self.upperBound(freeing))
                 // One headline (#577, Decision 132): what was measured is the result; the estimate it's measured against is
