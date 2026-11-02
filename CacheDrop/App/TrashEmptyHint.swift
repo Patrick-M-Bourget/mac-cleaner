@@ -31,32 +31,66 @@ struct EmptyFromTrashSheetState {
     func line(_ current: String?) -> String? { current ?? (request != nil ? heldLine : nil) }
     @MainActor mutating func open(_ line: String? = nil) {
         guard let items = TrashModel.shared.emptyable?.items, !items.isEmpty else { return }
-        heldLine = line; request = EmptyFromTrashRequest(items: items)
+        heldLine = line; request = EmptyFromTrashRequest(scope: .cacheDropItems(items))
+    }
+    /// Opens Empty Trash… with everything in the Trash as read now (#605); with nothing readable, measures again instead.
+    @MainActor mutating func open(wholeTrash review: WholeTrashReview?, line: String?) {
+        guard let review else { Task { await TrashModel.shared.refresh() }; return }
+        heldLine = line; request = EmptyFromTrashRequest(scope: .wholeTrash(review.items))
     }
 }
 
 /// What the sheet was opened with: the items offered at that moment, checked again when Empty is clicked.
 struct EmptyFromTrashRequest: Identifiable {
     let id = UUID()
-    let items: [CleanupRecord]
+    let scope: EmptyingScope
+}
+
+/// What a Trash sheet deletes: CacheDrop's own items (#359), or everything in the Trash (#605, Decision 142).
+enum EmptyingScope {
+    case cacheDropItems([CleanupRecord])
+    case wholeTrash([TrashItem])
+
+    var title: String {
+        switch self { case .cacheDropItems: "Empty from the Trash"; case .wholeTrash: "Empty the Trash" }
+    }
+    var note: String {
+        switch self {
+        case .cacheDropItems: "Deleted permanently. They can’t be put back."
+        case .wholeTrash: "Everything in the Trash, including files you put there yourself, is deleted permanently. It can’t be put back."
+        }
+    }
+    /// Each item by name, with its size and full path.
+    var rows: [(id: String, name: String, bytes: Int64, path: String)] {
+        switch self {
+        case .cacheDropItems(let items): items.map { ($0.id, $0.itemName ?? $0.originalURL.lastPathComponent, $0.recordedBytes, $0.originalURL.path) }
+        case .wholeTrash(let items): items.map { ($0.id, $0.name, $0.bytes, $0.url.path) }
+        }
+    }
+    @MainActor func empty() async {
+        switch self {
+        case .cacheDropItems(let items): await TrashModel.shared.empty(items)
+        case .wholeTrash(let items): await TrashModel.shared.emptyWholeTrash(items)
+        }
+    }
 }
 
 extension View {
     /// Presents the sheet that deletes CacheDrop's own items from the Trash (#359).
     func emptyFromTrashSheet(_ request: Binding<EmptyFromTrashRequest?>) -> some View {
-        sheet(item: request) { item in EmptyFromTrashSheet(items: item.items) { request.wrappedValue = nil } }
+        sheet(item: request) { item in EmptyFromTrashSheet(scope: item.scope) { request.wrappedValue = nil } }
     }
 }
 
-/// The review sheet for emptying (#359): the items, what happens to them and one Empty button that shows busy while it
-/// runs; then what happened to each, skipped ones with their reason.
+/// The review sheet for emptying (#359, #605): the items, what happens to them and one Empty button that shows busy while
+/// it runs; then what happened to each, skipped ones with their reason.
 struct EmptyFromTrashSheet: View {
-    let items: [CleanupRecord]
+    let scope: EmptyingScope
     let close: () -> Void
     @Bindable private var trash = TrashModel.shared
     private var dryRun: Bool { AppLifecycleController.shared.selection.catalog.dryRun }
     var body: some View {
-        ReviewSheetFrame(title: "Empty from the Trash") {
+        ReviewSheetFrame(title: scope.title) {
             if let result = trash.emptyingResult { outcome(result) } else { review }
         } actions: {
             actions
@@ -71,7 +105,7 @@ struct EmptyFromTrashSheet: View {
         } else {
             Button("Cancel", action: close).keyboardShortcut(.cancelAction).disabled(trash.isEmptying)
             BusyAction(busy: trash.isEmptying) {
-                Button("Empty") { Task { await trash.empty(items) } }.buttonStyle(.borderedProminent).disabled(AppLifecycleController.shared.updateInstallation.blocksNewWork).accessibilityIdentifier("emptyFromTrashConfirm")
+                Button("Empty") { Task { await scope.empty() } }.buttonStyle(.borderedProminent).disabled(AppLifecycleController.shared.updateInstallation.blocksNewWork).accessibilityIdentifier("emptyFromTrashConfirm")
             }
         }
     }
@@ -81,17 +115,17 @@ struct EmptyFromTrashSheet: View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
             heading
             VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
-                Text("Deleted permanently. They can’t be put back.").font(CacheDropDesign.TypeStyle.note).foregroundStyle(.secondary)
-                ForEach(items) { item in line(item, trailing: SizeFormatter.text(item.recordedBytes)) }
+                Text(scope.note).font(CacheDropDesign.TypeStyle.note).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                ForEach(scope.rows, id: \.id) { row in line(name: row.name, path: row.path, trailing: SizeFormatter.text(row.bytes)) }
             }.padding(.leading, CacheDropDesign.Size.badgeIndent)
         }
     }
     private var heading: some View {
         HStack(spacing: CacheDropDesign.Space.md) {
             ConsequenceGroup.permanentlyRemoved.badge
-            Text(CacheDropDesign.items(items.count)).font(CacheDropDesign.TypeStyle.section)
+            Text(CacheDropDesign.items(scope.rows.count)).font(CacheDropDesign.TypeStyle.section)
             Spacer()
-            Text(SizeFormatter.text(items.reduce(0) { $0 + $1.recordedBytes })).font(CacheDropDesign.TypeStyle.section).monospacedDigit()
+            Text(SizeFormatter.text(scope.rows.reduce(0) { $0 + $1.bytes })).font(CacheDropDesign.TypeStyle.section).monospacedDigit()
         }
     }
 
@@ -105,7 +139,7 @@ struct EmptyFromTrashSheet: View {
     }
     private func outcomeRow(_ record: CleanupRecord) -> some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.xs) {
-            line(record, trailing: record.outcomeTitle)
+            line(name: record.itemName ?? record.originalURL.lastPathComponent, path: record.originalURL.path, trailing: record.outcomeTitle)
             if record.needsAttention {
                 Text(record.message).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
@@ -119,11 +153,11 @@ struct EmptyFromTrashSheet: View {
         return deleted + " · Measured freed space: " + (MeasuredFreedSpace.shown(result.measuredFreedBytes).map { SizeFormatter.text($0) } ?? SizeEstimate.unknown.text)
     }
     /// One item, by name, then its size or outcome.
-    private func line(_ record: CleanupRecord, trailing: String) -> some View {
+    private func line(name: String, path: String, trailing: String) -> some View {
         HStack(alignment: .firstTextBaseline) {
-            Text(record.itemName ?? record.originalURL.lastPathComponent).lineLimit(1).truncationMode(.middle).help(record.originalURL.path)
+            Text(name).lineLimit(1).truncationMode(.middle).help(path)
             Spacer()
             Text(trailing).monospacedDigit()
-        }.font(CacheDropDesign.TypeStyle.note).accessibilityElement(children: .combine).accessibilityIdentifier("emptyItem-" + record.originalURL.lastPathComponent)
+        }.font(CacheDropDesign.TypeStyle.note).accessibilityElement(children: .combine).accessibilityIdentifier("emptyItem-" + (path as NSString).lastPathComponent)
     }
 }
