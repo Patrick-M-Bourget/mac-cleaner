@@ -475,6 +475,9 @@ struct CleanupStopStrip: View {
     }
 }
 struct WorkspaceCleanupConfirmationView: View {
+    /// The review sheet's header, checking or ready (#565).
+    static let title = "Review your cleanup"
+    static let subtitle = "Clean up does exactly what’s listed here."
     let review: WorkspaceCleanupReview
     let cancel: () -> Void
     let approve: () -> Void
@@ -491,7 +494,7 @@ struct WorkspaceCleanupConfirmationView: View {
         _held = State(initialValue: review.catalog.map { ReviewHeldItems(candidates: $0.approval.candidates, refusals: $0.refusals, catalog: catalog, isOpen: quitter.isOpen) })
     }
     var body: some View {
-        ReviewSheetFrame(title: "Review your cleanup", subtitle: "Clean up does exactly what’s listed here.") {
+        ReviewSheetFrame(title: Self.title, subtitle: Self.subtitle) {
             trial.line
             if let items = review.catalog {
                 CatalogConfirmationSection(review: items, catalog: catalog, follow: follow, held: held, quit: quitAction)
@@ -623,14 +626,16 @@ struct ReviewSheet: View {
 /// The review sheet while its click-time checks run (Decision 126): what it is doing, and Clean up unavailable until they finish.
 struct ReviewChecksRunning: View {
     let cancel: () -> Void
+    /// Starts its identifiers, so the Design gallery's copy has its own (#565).
+    var identifier = "review"
     var body: some View {
-        ReviewSheetFrame(title: "Review your cleanup", subtitle: "Clean up does exactly what’s listed here.") {
+        ReviewSheetFrame(title: WorkspaceCleanupConfirmationView.title, subtitle: WorkspaceCleanupConfirmationView.subtitle) {
             HStack(spacing: CacheDropDesign.Space.sm) {
                 ProgressView().controlSize(.small)
                 Text("Checking selected items…")
             }.font(CacheDropDesign.TypeStyle.note).foregroundStyle(.secondary)
-                .accessibilityElement(children: .combine).accessibilityIdentifier("reviewChecking")
-            SkeletonRows(.line, identifier: "reviewSkeleton")
+                .accessibilityElement(children: .combine).accessibilityIdentifier("\(identifier)Checking")
+            SkeletonRows(.line, identifier: "\(identifier)Skeleton")
         } actions: {
             Button("Cancel", action: cancel).keyboardShortcut(.cancelAction)
             Button("Clean up") {}.buttonStyle(.borderedProminent).disabled(true).help("Available once every item is checked")
