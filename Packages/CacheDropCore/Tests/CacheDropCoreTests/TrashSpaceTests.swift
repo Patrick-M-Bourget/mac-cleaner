@@ -169,7 +169,7 @@ private func inTrash(_ url: URL, _ home: URL) -> Bool { url.standardizedFileURL.
     for path in ["movie.mov", "Setup.dmg", "_cacache/content-v2/blob"] { #expect(FileManager.default.fileExists(atPath: trash.appendingPathComponent(path).path)) }
 }
 
-/// #603 (Decision 140): Overview and the menu bar menu say the same Trash line, from one function: what the Trash holds
+/// #603 (Decision 141): Overview and the menu bar menu say the same Trash line, from one function: what the Trash holds
 /// when it can be read, CacheDrop's own items' share when there are any, and no line when it is empty or can't be read
 /// and holds none of CacheDrop's items (Decision 68).
 @Test func overviewAndTheMenuShareOneTrashLine() {

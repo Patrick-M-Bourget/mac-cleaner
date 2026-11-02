@@ -1629,7 +1629,7 @@ final class TrashSpaceUITests: XCTestCase {
         while !FileManager.default.fileExists(atPath: marker.path), Date() < deadline { RunLoop.current.run(until: Date().addingTimeInterval(0.2)) }
         XCTAssertEqual(try String(contentsOf: marker, encoding: .utf8), home.appendingPathComponent(".Trash").path)
         XCTAssertTrue(FileManager.default.fileExists(atPath: trashed.path), "Opening the Trash changes nothing in it")
-        // #603 (Decision 140): the menu bar menu says Overview's line, word for word. The menu is checked, not clicked (see
+        // #603 (Decision 141): the menu bar menu says Overview's line, word for word. The menu is checked, not clicked (see
         // the #131 journey). Overview's text ends with the separator before its link ("Trash holds 303 KB ·", `TrashLine`).
         let trashLine = String(text.dropLast(" ·".count))
         XCTAssertTrue(text.hasSuffix(" ·"), text)
@@ -1637,7 +1637,7 @@ final class TrashSpaceUITests: XCTestCase {
         XCTAssertTrue(app.menuItems["Open Trash"].exists)
     }
 
-    /// #603 (Decision 140): a Trash CacheDrop can't read, as macOS keeps it without Full Disk Access, has no line on Overview
+    /// #603 (Decision 141): a Trash CacheDrop can't read, as macOS keeps it without Full Disk Access, has no line on Overview
     /// (Decision 68) and none in the menu bar menu either, never Unknown or 0.
     @MainActor func testUnreadableTrashHasNoLineOnOverviewOrInTheMenuBarMenu() throws {
         continueAfterFailure = false

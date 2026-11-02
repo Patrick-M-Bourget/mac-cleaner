@@ -10,7 +10,7 @@ struct TrashNote: View {
     @State private var sheet = EmptyFromTrashSheetState()
     var body: some View {
         // Measured by Overview's own task (`TrashModel.refresh`): a task here wouldn't run while the line is hidden.
-        // The same line the menu bar menu says (Decision 140).
+        // The same line the menu bar menu says (Decision 141).
         let line = TrashContents.line(model.contents, fromCacheDrop: model.emptyableBytes)
         if let text = sheet.line(model.emptyableBytes > 0 ? line : nil) {
             TrashLine(text: text, identifier: "overviewTrash", empty: { sheet.open(text) }, opensTrash: false).emptyFromTrashSheet($sheet.request)
