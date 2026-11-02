@@ -570,10 +570,10 @@ import SwiftUI
         await scanAppManaged(home: home, fullDiskAccess: scanned.access, receipts: scanned.receipts)
         finishScan(home: home, took: ContinuousClock.now - started, "Full catalog scan")
     }
-    /// The rescan after a run (Decisions 133 and 134, #556 part 2, #647): only `rules` and the Applications `rows` the run
-    /// touched are read again and merged into the rows shown; files from deleted apps, every other app and plug-in, the plug-in
-    /// inventory and app-managed storage keep what the last full scan found, and which owners are running is read again for
-    /// every row. It records no Storage trends snapshot, and the next full scan still counts as one after a cleanup.
+    /// The rescan after a run (Decisions 133 and 134, #556 part 2, #647): only `rules`, the Applications `rows` the run
+    /// touched and their makers' files from deleted apps are read again and merged into the rows shown; every other app,
+    /// plug-in and file from a deleted app, the plug-in inventory and app-managed storage keep what the last full scan found,
+    /// and which owners are running is read again for every row. It records no Storage trends snapshot, and the next full scan still counts as one after a cleanup.
     private func rescanRules(_ rules: Set<String>, rows: TouchedApplications, home: URL, exclusions: ProtectedItemsPolicy, cancellation: ScanCancellation) async {
         let catalog = catalog, locate = Self.locateTool, system = Self.systemRoot, userFolder = Self.userFolder, cloud = Self.cloud, quitter = Self.quitter
         let shown = CatalogDiscovery(candidates: discovered, notes: notes, notAccessible: notAccessibleRules), shownApps = uninstallable, inventory = plugInInventory
@@ -594,13 +594,21 @@ import SwiftUI
                                               #endif
                                           })
             guard !cancellation.isCancellationRequested else { reporter.finish(); return nil }
-            let merged = catalog.merging(fresh, rescanned: rules, into: shown)
-            // The touched apps and plug-in products, against the last full scan's inventory (Decision 134).
+            // Files from deleted apps of the touched makers and receipts, then the touched apps and plug-in products, against
+            // the last full scan's inventory (Decision 134). The installer receipts are read once, only for them.
+            let reads = !rows.rows.isEmpty || rows.readsLeftovers
+            let listings = reads ? ReceiptListings.read(under: system) : ReceiptListings([:])
+            if rows.readsLeftovers { reporter.yield(.phase(.removedAppLeftovers)) }
+            func isLeftover(_ item: Candidate) -> Bool { AppRuleFamily.of(ruleID: item.ruleID) == .removedAppLeftovers }
+            let shownLeftovers = rows.rescanningLeftovers(shown.candidates.filter(isLeftover), home: home, apps: presence,
+                                                          receipts: ReadReceipts(listings, home: home), exclusions: exclusions)
+            let merged = catalog.merging(fresh, rescanned: rules, into: CatalogDiscovery(candidates: shown.candidates.filter { !isLeftover($0) } + shownLeftovers,
+                                                                                       notes: shown.notes, notAccessible: shown.notAccessible))
             if !rows.rows.isEmpty { reporter.yield(.phase(.appsAndPlugIns)) }
-            let leftovers = merged.candidates.filter { AppRuleFamily.of(ruleID: $0.ruleID) == .removedAppLeftovers }
-            let apps = rows.rescanning(shownApps, home: home, systemRoot: system, apps: presence, receipts: rows.rows.isEmpty ? ReceiptListings([:]) : ReceiptListings.read(under: system),
+            let leftovers = merged.candidates.filter(isLeftover)
+            let apps = rows.rescanning(shownApps, home: home, systemRoot: system, apps: presence, receipts: listings,
                                        plugIns: inventory, excluding: own, leftovers: leftovers,
-                                       offered: merged.candidates.filter { AppRuleFamily.of(ruleID: $0.ruleID) != .removedAppLeftovers }, exclusions: exclusions)
+                                       offered: merged.candidates.filter { !isLeftover($0) }, exclusions: exclusions)
             guard !cancellation.isCancellationRequested else { reporter.finish(); return nil }
             reporter.yield(.phase(.openApps))
             let (owners, names) = Self.owners(of: merged.candidates + apps, in: catalog)
