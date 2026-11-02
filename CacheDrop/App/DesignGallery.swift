@@ -166,6 +166,9 @@ struct DesignGallery: View {
                         BusyAction(busy: false) { Button("Clean up") {}.buttonStyle(.borderedProminent).accessibilityIdentifier("galleryIdleAction") }
                         ReviewCleanupButton(enabled: false, focusRequest: 0, tooltip: CacheDropDesign.waitForScanHelp, action: {}).fixedSize()
                     }.controlSize(.large)
+                    // Decision 126: the review sheet opens at the click and shows its checks running (#565).
+                    Text("Review sheet · Checks running").font(.headline)
+                    ReviewChecksRunning(cancel: {}, identifier: "galleryReview")
                     CapacityMeter(available: nil, total: nil)
                     CapacityMeter(available: 40_000_000_000, total: 512_000_000_000, compact: true)
                     SettingsRow(title: "Shared navigation and brand", detail: "Reference accents identify destinations; labels and selected traits carry meaning.") {

@@ -88,3 +88,46 @@ private struct Unreadable: Error {}
     #expect(opening.open(.plan, revision: 1) == nil)
     #expect(opening.isOpen(for: .applications) == false)
 }
+
+// #563, Decision 126: Cancel stops the click-time checks at their next step; a step already running finishes and its result is dropped.
+
+@Test func cancelledChecksStopBeforeTheirNextStep() async {
+    let started = StepLog()
+    let checks = Task {
+        try await ReviewCheckSteps.run({
+            await started.record("setup")
+            withUnsafeCurrentTask { $0?.cancel() }
+            return 1
+        }, then: { (setup: Int) -> Int in
+            await started.record("item checks")
+            return setup + 1
+        })
+    }
+    let result = await checks.result
+    #expect(await started.steps == ["setup"], "The step running at Cancel finishes; the next never starts")
+    #expect(throws: CancellationError.self) { try result.get() }
+}
+
+@Test func checksThatAreNotCancelledRunEveryStep() async throws {
+    let started = StepLog()
+    let value = try await ReviewCheckSteps.run({ await started.record("setup"); return 1 }, then: { (setup: Int) -> Int in
+        await started.record("item checks"); return setup + 1
+    })
+    #expect(value == 2)
+    #expect(await started.steps == ["setup", "item checks"])
+}
+
+@Test func checksCancelledBeforeTheyStartRunNoStep() async {
+    let started = StepLog()
+    let checks = Task {
+        withUnsafeCurrentTask { $0?.cancel() }
+        return try await ReviewCheckSteps.run({ await started.record("setup") }, then: { await started.record("item checks") })
+    }
+    await #expect(throws: CancellationError.self) { try await checks.value }
+    #expect(await started.steps.isEmpty)
+}
+
+private actor StepLog {
+    private(set) var steps: [String] = []
+    func record(_ step: String) { steps.append(step) }
+}
