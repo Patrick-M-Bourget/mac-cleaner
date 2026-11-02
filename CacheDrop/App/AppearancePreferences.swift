@@ -62,7 +62,7 @@ struct CacheDropSettingsView: View {
                 Button("Check for Updates…") { AppLifecycleController.shared.manualUpdater.checkForUpdates() }
                     .buttonStyle(.link).accessibilityIdentifier("checkForUpdatesSettings")
             }
-            LicenseSettings(license: AppLifecycleController.shared.license)
+            LicenseSettings(license: AppLifecycleController.shared.license, trial: AppLifecycleController.shared.trial)
         }.formStyle(.grouped).frame(width: CacheDropDesign.Size.sheetNarrow).fixedSize(horizontal: false, vertical: true)
             .cacheDropButtonRule()
     }

@@ -192,6 +192,9 @@ struct RefreshRequest: Sendable {
     func executeWorkspace(_ review: WorkspaceCleanupReview) async throws {
         // A review opened during a rescan (Decision 123) runs only once the scan ends.
         guard canReview(review.source), !catalog.isScanning, catalog.selectionRevision(for: review.source) == review.catalogVersion else { throw PlanReviewError.changed }
+        // A plan bigger than what the trial has left never runs (Decision 137); the review sheet already said so.
+        if let items = review.catalog, !AppLifecycleController.shared.cleanupAllowance.permits(
+            items.approval.trialBytes(skipping: Set(items.refusals.keys), catalog: catalog.catalog), dryRun: items.approval.dryRun) { throw PlanReviewError.changed }
         await run(review)
         // CacheDrop scans again by itself, whichever page is open (#306); the pages keep the rows the run left, dimmed, until it ends (#375),
         // except Applications' apps and plug-ins when the run changed none of them (Decision 123).
@@ -205,7 +208,11 @@ struct RefreshRequest: Sendable {
         let lifecycle = AppLifecycleController.shared
         lifecycle.operationInProgress = true
         defer { workspaceRunning = false; workspaceCancellation = nil; lifecycle.operationInProgress = false; lifecycle.hasPendingPlan = hasPendingChoicesOnAnyPage }
-        if let items = review.catalog { await catalog.execute(items.approval, cancellation: cancellation) }
+        if let items = review.catalog {
+            await catalog.execute(items.approval, cancellation: cancellation)
+            // What the run removed or moved to the Trash counts toward the trial (Decision 137).
+            if let result = catalog.result, result.batchID == items.approval.id { lifecycle.trial.record(result, of: items.approval, catalog: catalog.catalog) }
+        }
         workspaceFinished = true
         lifecycle.capacity.request(.cleanupEnded)
     }
@@ -484,13 +491,15 @@ struct WorkspaceCleanupConfirmationView: View {
     }
     var body: some View {
         ReviewSheetFrame(title: "Review your cleanup", subtitle: "Clean up does exactly what’s listed here.") {
+            trial.line
             if let items = review.catalog {
                 CatalogConfirmationSection(review: items, catalog: catalog, follow: follow, held: held, quit: quitAction)
             }
         } actions: {
             Button("Cancel", action: cancelled).keyboardShortcut(.cancelAction)
+            if !trial.fits { TrialOfferButtons() }
             // Applications' review can open during a rescan (Decision 123); Clean up waits for it, as Decision 61 says.
-            Button("Clean up", action: approve).buttonStyle(.borderedProminent).disabled(scanning)
+            Button("Clean up", action: approve).buttonStyle(.borderedProminent).disabled(scanning || !trial.fits)
                 .help(scanning ? CacheDropDesign.waitForScanHelp : "")
         }
         // Once at the start too: a holder may have quit while the checks ran, or held rows only through helpers that were closing.
@@ -501,6 +510,7 @@ struct WorkspaceCleanupConfirmationView: View {
         }
     }
     private var scanning: Bool { review.model?.isScanning == true }
+    private var trial: TrialReviewGate { TrialReviewGate(review: review.catalog, held: held, catalog: catalog) }
     /// The plan's running-owner lines catch up once the sheet is gone, never under it (#307).
     private func cancelled() {
         cancel()
