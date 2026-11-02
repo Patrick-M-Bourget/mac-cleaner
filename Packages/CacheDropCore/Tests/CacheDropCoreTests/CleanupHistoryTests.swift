@@ -255,3 +255,19 @@ private func succeededRun(_ candidates: [Candidate]) -> CatalogExecutionResult {
     // History's row of the same run says the same number.
     #expect(CleanupHistoryRun(id: run.batchID, records: run.records).estimatedFreedBytes == 254_000)
 }
+/// The estimate counts the measured figure's items only: a failed or skipped item is said once, in Not cleaned, and an item
+/// that finished after the stop (#209) freed its space where nothing measured it, so it is in neither figure.
+@Test func theEstimateCountsOnlyTheItemsTheMeasuredFigureCovers() {
+    var run = succeededRun([sized("npm", .delete, bytes: 200_000), sized("yarn", .delete, bytes: 54_000),
+                            sized("pnpm", .delete, bytes: 31_000), sized("docker", .delete, bytes: 500_000),
+                            sized("Setup.dmg", .trash, bytes: 123_000)])
+    var records = run.records
+    records[1].state = .failed
+    records[2].state = .skipped
+    records[3].mayStillBeFinishing = true
+    records[3].laterMeasurement = LaterMeasurement(measuredAt: Date(), finding: .gone, afterSeconds: 60)
+    run = CatalogExecutionResult(batchID: run.batchID, records: records, dryRun: false, rejectedReplay: false, journalFailure: nil, estimatedBytes: 908_000)
+    #expect(records[3].finishedAfterStop)
+    #expect(run.estimatedFreedBytes == 200_000)
+    #expect(CleanupHistoryRun(id: run.batchID, records: run.records).estimatedFreedBytes == 200_000)
+}

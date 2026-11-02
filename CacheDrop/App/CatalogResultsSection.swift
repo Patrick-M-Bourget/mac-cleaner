@@ -28,8 +28,8 @@ struct CatalogResultsSection: View {
                 let onlyTrashed = result.records.movedOnlyToTrash
                 let upperBound = upperBound(result.records)
                 let estimate = SizeFormatter.text(result.estimatedBytes, upperBound: upperBound)
-                // The line under the measured figure counts only what frees space, as that figure does (#587).
-                let freeing = result.records.filter { $0.cleanupAction != .trash }
+                // The line under the measured figure counts that figure's items only (#587, Decision 139).
+                let freeing = result.records.filter(\.countsTowardMeasuredFreedSpace)
                 let freedEstimate = SizeFormatter.text(result.estimatedFreedBytes, upperBound: self.upperBound(freeing))
                 // One headline (#577, Decision 132): what was measured is the result; the estimate it's measured against is
                 // said once, in the line below, so a cleanup that worked never reads as falling short. A run that only

@@ -14,6 +14,13 @@ public struct CatalogApproval: Sendable, Identifiable {
     }
 }
 
+extension CleanupRecord {
+    /// The items the measured freed space covers, and so the estimate set against it (Decision 139): removed by an action
+    /// that frees space, and measured. A Trash move frees nothing yet, and an item that finished after the stop (#209)
+    /// freed its space where nothing measured it.
+    public var countsTowardMeasuredFreedSpace: Bool { state == .succeeded && cleanupAction != .trash && !finishedAfterStop }
+}
+
 extension Array where Element == CleanupRecord {
     /// True when the run moved something to the Trash and removed nothing else: nothing is freed until the Trash is emptied,
     /// so Results and History show no measured freed space (Decision 66).
@@ -26,18 +33,18 @@ extension Array where Element == CleanupRecord {
     /// History and Empty from Trash all read it (#433).
     var measuredFreedBytes: Int64? {
         var total: Int64 = 0
-        for record in self where record.state == .succeeded && record.cleanupAction != .trash && !record.finishedAfterStop {
+        for record in self where record.countsTowardMeasuredFreedSpace {
             guard let change = record.itemCapacity?.observedChange else { return nil }
             total += change
         }
         return total
     }
-    /// What the items whose action frees space were sized at before cleanup, each space once (#587): the estimate the
-    /// measured freed space is set against, so it leaves out Trash moves, as `measuredFreedBytes` does. Results and
-    /// History both read it.
+    /// What the measured freed space's items were sized at before cleanup, each space once (#587, Decision 139): the
+    /// estimate that figure is set against, like for like. Trash moves are In the Trash, failed and skipped items are Not
+    /// cleaned, and an item that finished after the stop is in neither figure. Results and History both read it.
     var estimatedFreedBytes: Int64 {
         var seen = Set<String>()
-        return filter { $0.cleanupAction != .trash && seen.insert(SpaceKey.of(resourceID: $0.resourceID, ruleID: $0.ruleID, action: $0.cleanupAction, item: $0.toolItem)).inserted }
+        return filter { $0.countsTowardMeasuredFreedSpace && seen.insert(SpaceKey.of(resourceID: $0.resourceID, ruleID: $0.ruleID, action: $0.cleanupAction, item: $0.toolItem)).inserted }
             .reduce(0) { $0 + $1.recordedBytes }
     }
 }
