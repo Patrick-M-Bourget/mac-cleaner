@@ -27,7 +27,8 @@ import SwiftUI
 
     /// `plugIns` is what the catalog scan read (#176), so the page lists the products it offers; nil reads them here.
     @ObservationIgnored private var loadingTask: Task<Void, Never>?
-    private var loadedScan: UUID?
+    /// The catalog scan whose lists are read (`CatalogCleanupModel.applicationsScan`).
+    private(set) var loadedScan: UUID?
     func load(plugIns read: PlugInInventory? = nil, scanID: UUID?) async {
         while let loadingTask { await loadingTask.value }
         if let scanID, loadedScan == scanID, hasLoaded { return }
@@ -151,9 +152,9 @@ struct ApplicationsView: View {
             } else {
             // Nothing listed yet: no Name and Size over empty states (#427).
             if !model.apps.isEmpty || !model.plugIns.isEmpty || catalog.leftoversRow != nil { columnHeader }
-            section("Apps", id: "apps", entries: model.apps, category: .apps, identifier: "applicationsApp-",
+            section("Apps", id: "apps", entries: listed(model.apps), category: .apps, identifier: "applicationsApp-",
                     empty: ("No apps to list", "Only Apple’s apps are in the Applications folders."))
-            section("Plug-ins", id: "plugIns", entries: model.plugIns, category: .audioPlugIns, identifier: "applicationsPlugIn-",
+            section("Plug-ins", id: "plugIns", entries: listed(model.plugIns), category: .audioPlugIns, identifier: "applicationsPlugIn-",
                     empty: ("No plug-ins to list", "No audio plug-ins other than Apple’s were found."))
             sectionHeader("Files from deleted apps")
             if let row = catalog.leftoversRow {
@@ -219,6 +220,10 @@ struct ApplicationsView: View {
               id: "applicationsNoMatches-" + id)
     }
 
+    /// The entries still listed: not one whose app or product the last run left nothing of (Decision 134).
+    private func listed(_ entries: [InventoryEntry]) -> [InventoryEntry] {
+        entries.filter { !catalog.applicationsHides($0.id, loaded: model.loadedScan) }
+    }
     /// A section's lists come after the catalog scan; until then, and while they are read, it shows skeleton rows (#270, #308).
     private var listsLoading: Bool { !model.hasLoaded || model.isLoading || appsWaitForScan }
     /// Apps and Plug-ins wait for a running scan, except the rescan after a run that changed none of them; Files from deleted
@@ -241,10 +246,12 @@ struct ApplicationsView: View {
         } else if shown.isEmpty {
             noMatches(id)
         } else {
-            // Rows from the last scan stay, dimmed, until the rescan says what can go with each (#303, #308).
+            // Rows from the last scan stay, dimmed, until the rescan says what can go with each (#303, #308); after a run, only
+            // the rows it reads again (Decision 134).
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(shown) { entry in
                     row(entry, category: category, identifier: identifier + entry.id)
+                        .waitingForScan(!listsLoading && catalog.applicationsRowWaits(entry.id))
                     Divider().padding(.vertical, CacheDropDesign.Space.md)
                 }
             }.waitingForScan(listsLoading)

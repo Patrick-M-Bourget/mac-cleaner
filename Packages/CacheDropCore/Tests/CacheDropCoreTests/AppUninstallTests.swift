@@ -362,9 +362,9 @@ private func twoApps() throws -> (home: URL, synth: InstalledApp, pad: Installed
     #expect(stale.allSatisfy { check(home, apps: Apps(installed: [pad])).check($0) == .changed }, "Also once Synth is gone")
 }
 
-/// Decision 123 (#556): a run that uninstalled an app may have changed what Applications lists, so the page waits for the
-/// rescan and reads its lists again; one the checks refused, or a dry run, changed nothing there.
-@Test func onlyARunThatUninstalledSomethingChangesWhatApplicationsLists() async throws {
+/// Decisions 123 and 134 (#556, #647): a run that uninstalled an app touched its row, which the rescan reads again; one the
+/// checks refused, or a dry run, touched nothing there.
+@Test func onlyARunThatUninstalledSomethingTouchesItsApplicationsRow() async throws {
     let (home, synth, apps) = try fixture()
     defer { try? FileManager.default.removeItem(at: home) }
     let chosen = scan(home, synth, apps).filter { $0.ruleID != AppUninstall.possiblyRelatedRuleID }
@@ -376,9 +376,9 @@ private func twoApps() throws -> (home: URL, synth: InstalledApp, pad: Installed
 
     let refused = try await run(check(home, running: Running(names: ["Synth"])), dryRun: false)
     #expect(refused.records.allSatisfy { $0.state == .skipped })
-    #expect(!refused.changesApplications(listing: []), "Refused: nothing left")
-    #expect(!(try await run(check(home), dryRun: true)).changesApplications(listing: chosen.map(\.url)), "A dry run changes nothing")
+    #expect(refused.touchedApplications(shown: chosen, plugIns: nil)?.rows == [], "Refused: nothing left")
+    #expect((try await run(check(home), dryRun: true)).touchedApplications(shown: chosen, plugIns: nil)?.rows == [], "A dry run changes nothing")
     let uninstalled = try await run(check(home), dryRun: false)
     #expect(uninstalled.records.allSatisfy { $0.state == .succeeded })
-    #expect(uninstalled.changesApplications(listing: []))
+    #expect(uninstalled.touchedApplications(shown: chosen, plugIns: nil)?.rows == [synth.path])
 }
