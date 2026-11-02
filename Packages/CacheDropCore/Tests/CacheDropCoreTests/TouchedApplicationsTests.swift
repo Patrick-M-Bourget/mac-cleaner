@@ -34,7 +34,10 @@ private func uninstallable(_ home: URL, _ apps: Apps) -> [Candidate] {
     return apps.installed.flatMap { AppUninstall.scan($0, excluding: nil, home: home, apps: apps, receipts: NoReceipts(), leftovers: leftovers) }
 }
 private func run(_ items: [Candidate], home: URL, apps: Apps, dryRun: Bool = false) async throws -> CatalogExecutionResult {
-    let check = CandidateCheck(catalog: Catalog(rules: AppRuleFamily.rules + [rule]), running: FixtureNothingRunning(), inUse: FixtureNothingInUse(), home: home,
+    try await runAny(items, rules: [rule], home: home, apps: apps, dryRun: dryRun)
+}
+private func runAny(_ items: [Candidate], rules: [CleanupRule], home: URL, apps: Apps, dryRun: Bool = false) async throws -> CatalogExecutionResult {
+    let check = CandidateCheck(catalog: Catalog(rules: AppRuleFamily.rules + rules), running: FixtureNothingRunning(), inUse: FixtureNothingInUse(), home: home,
                                apps: apps)
     let journal = try SQLiteCleanupJournal(url: home.appendingPathComponent("journal-\(UUID()).sqlite"))
     return await CleanupExecutor(journal: journal, check: check, measure: { _ in nil }, trash: FixtureHomeTrash(home: home))
@@ -128,16 +131,68 @@ private func rescanning(_ touched: TouchedApplications, _ shown: [Candidate], ho
     }
 }
 
-@Test func aRunThatActedOnFilesFromDeletedAppsNeedsAFullScan() async throws {
+/// Leftovers of Old, removed earlier, and of Gone, removed earlier by another maker; Synth and Pad installed.
+private func withLeftovers() throws -> (home: URL, synth: InstalledApp, pad: InstalledApp) {
     let (home, synth, pad) = try twoApps()
+    for relative in ["Library/Containers/com.oldco.old/Data/x", "Library/Preferences/com.oldco.old.plist", "Library/Containers/com.goneco.gone/Data/x"] {
+        let file = home.appendingPathComponent(relative)
+        try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data(repeating: 1, count: 200).write(to: file)
+    }
+    return (home, synth, pad)
+}
+private func names(_ items: [Candidate]) -> Set<String> { Set(items.map(\.url.lastPathComponent)) }
+
+@Test func cleaningFilesFromADeletedAppReadsAgainOnlyThatMakersLeftovers() async throws {
+    let (home, synth, pad) = try withLeftovers()
     defer { try? FileManager.default.removeItem(at: home) }
-    // Synth was removed earlier: its container and preferences are files from a deleted app.
-    try FileManager.default.removeItem(at: URL(fileURLWithPath: synth.path))
-    let apps = Apps(installed: [pad])
+    let apps = Apps(installed: [synth, pad])
     let leftovers = RemovedAppLeftovers.scan(home: home, apps: apps, receipts: NoReceipts())
-    try #require(leftovers.count == 2)
-    let shown = uninstallable(home, apps) + leftovers
-    let cleaned = try await run([leftovers[0]], home: home, apps: apps)
+    try #require(names(leftovers) == ["com.oldco.old", "com.oldco.old.plist", "com.goneco.gone"])
+    let container = try #require(leftovers.first { $0.url.lastPathComponent == "com.oldco.old" })
+    let cleaned = try await run([container], home: home, apps: apps)
     try #require(cleaned.records.allSatisfy { $0.state == .succeeded })
-    #expect(cleaned.touchedApplications(shown: shown, plugIns: nil) == nil)
+    // Gone's maker left another file meanwhile; its leftovers aren't read again.
+    try Data(count: 10).write(to: home.appendingPathComponent("Library/Preferences/com.goneco.gone.plist"))
+    let touched = try #require(cleaned.touchedApplications(shown: leftovers, plugIns: nil))
+    #expect(touched.rows.isEmpty)
+
+    let merged = touched.rescanningLeftovers(cleaned.keptDuringRescan(leftovers), home: home, apps: apps, receipts: NoReceipts())
+
+    #expect(names(merged) == ["com.oldco.old.plist", "com.goneco.gone"])
+    #expect(merged.first { $0.url.lastPathComponent == "com.goneco.gone" } == leftovers.first { $0.url.lastPathComponent == "com.goneco.gone" }, "As shown")
+}
+
+@Test func filesAnAppLeftAppearAsFilesFromADeletedAppOnceItIsUninstalled() async throws {
+    let (home, synth, pad) = try withLeftovers()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let apps = Apps(installed: [synth, pad])
+    let shownLeftovers = RemovedAppLeftovers.scan(home: home, apps: apps, receipts: NoReceipts())
+    let shown = uninstallable(home, apps)
+    // Only Synth's bundle was ticked: its container and preferences stay on disk, now an uninstalled app's.
+    let bundle = try #require(shown.first { $0.url.path == synth.path })
+    let uninstalled = try await run([bundle], home: home, apps: apps)
+    let touched = try #require(uninstalled.touchedApplications(shown: shown + shownLeftovers, plugIns: nil))
+
+    let merged = touched.rescanningLeftovers(shownLeftovers, home: home, apps: Apps(installed: [pad]), receipts: NoReceipts())
+
+    #expect(names(merged) == ["com.oldco.old", "com.oldco.old.plist", "com.goneco.gone", "com.synthco.synth", "com.synthco.synth.plist"])
+    #expect(Array(merged.prefix(3)) == shownLeftovers, "The others as shown")
+}
+
+@Test func anotherRulesItemAtAFileFromADeletedAppReadsItsMakersLeftoversAgain() async throws {
+    let (home, synth, pad) = try withLeftovers()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let apps = Apps(installed: [synth, pad])
+    let leftovers = RemovedAppLeftovers.scan(home: home, apps: apps, receipts: NoReceipts())
+    let oldsContainer = CleanupRule(id: "old", category: .system, title: "Old", detail: "", consequence: "", regen: .cache, action: .trash,
+                                    locations: ["Library/Containers/com.oldco.old"], owner: nil)
+    let data = Catalog(rules: [oldsContainer]).discover(fixture: home)
+    try #require(data.count == 1)
+    let cleaned = try await runAny(data, rules: [oldsContainer], home: home, apps: apps)
+    try #require(cleaned.records.allSatisfy { $0.state == .succeeded })
+    let touched = try #require(cleaned.touchedApplications(shown: leftovers + data, plugIns: nil))
+
+    #expect(names(touched.rescanningLeftovers(leftovers, home: home, apps: apps, receipts: NoReceipts())) == ["com.oldco.old.plist", "com.goneco.gone"],
+            "Its container, cleaned by the plan, never shows as still there")
 }
