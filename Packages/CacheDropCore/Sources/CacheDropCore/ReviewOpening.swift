@@ -61,3 +61,18 @@ public struct ReviewOpening<Review> {
         return true
     }
 }
+
+/// The click-time checks of a review sheet, in steps (Decision 126, #563). Cancel stops them at their next step: a step
+/// already running finishes, its result is dropped, and the next one never starts. Smart clean, the plan and Applications
+/// all run their checks through it.
+public enum ReviewCheckSteps {
+    /// Runs `first`, then `next` with what it found, unless the checks were cancelled first; throws `CancellationError` then.
+    /// Both steps run on the caller's actor.
+    public static func run<Found, Result>(isolation: isolated (any Actor)? = #isolation, _ first: () async throws -> Found,
+                                          then next: (Found) async throws -> Result) async throws -> Result {
+        try Task.checkCancellation()
+        let found = try await first()
+        try Task.checkCancellation()
+        return try await next(found)
+    }
+}
