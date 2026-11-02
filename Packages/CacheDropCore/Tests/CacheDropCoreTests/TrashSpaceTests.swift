@@ -168,3 +168,10 @@ private func inTrash(_ url: URL, _ home: URL) -> Bool { url.standardizedFileURL.
     #expect(result.records.allSatisfy { $0.state == .skipped })
     for path in ["movie.mov", "Setup.dmg", "_cacache/content-v2/blob"] { #expect(FileManager.default.fileExists(atPath: trash.appendingPathComponent(path).path)) }
 }
+
+/// #603: the menu bar menu says what the Trash holds in Decision 96's wording; unreadable is Unknown, never 0.
+@Test func menuBarSaysWhatTheTrashHoldsAndUnknownWhenItCantBeRead() {
+    #expect(TrashContents.holds(14_000_000_000).menuBarText == "Trash · 14 GB")
+    #expect(TrashContents.empty.menuBarText == "Trash · Empty")
+    #expect(TrashContents.unknown.menuBarText == "Trash · Unknown")
+}

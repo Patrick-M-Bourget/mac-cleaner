@@ -53,6 +53,15 @@ extension TrashContents {
         guard bytes > 0 else { return overviewText }
         return (overviewText.map { $0 + " · " } ?? "") + SizeFormatter.text(bytes) + " from CacheDrop"
     }
+    /// The menu bar menu's line above Open Trash (#603), e.g. "Trash · 14 GB", in Decision 96's wording: an empty Trash
+    /// says Empty (Decision 131) and one that can't be read says Unknown, never 0.
+    public var menuBarText: String {
+        switch self {
+        case .holds(let bytes): "Trash · " + SizeFormatter.text(bytes)
+        case .empty: "Trash · Empty"
+        case .unknown: "Trash · " + SizeFormatter.text(SizeEstimate.unknown)
+        }
+    }
 }
 
 extension TrashSpace {
