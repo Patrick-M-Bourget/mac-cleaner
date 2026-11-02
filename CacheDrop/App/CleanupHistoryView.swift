@@ -212,9 +212,10 @@ struct CleanupHistoryView: View {
                 if run.records.contains(where: { $0.cleanupAction == .trash }) {
                     note("In Trash until you empty it: " + SizeFormatter.text(run.trashHeldAllocatedBytes))
                 }
-                // The row leads with the measured freed space (#569); the estimate it's measured against is here, once.
+                // The row leads with the measured freed space (#569); the estimate it's measured against is here, once, without
+                // what went to the Trash (#587).
                 if !run.records.movedOnlyToTrash {
-                    note("Estimated before cleanup: " + SizeFormatter.text(run.plannedBytes))
+                    note("Estimated before cleanup: " + SizeFormatter.text(run.estimatedFreedBytes))
                 }
             }
             ForEach(run.records) { record in

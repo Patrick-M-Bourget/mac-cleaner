@@ -3,8 +3,9 @@ import Observation
 import CacheDropCore
 import SwiftUI
 
-/// Results after a run moved items to the Trash (#359): "7.1 GB is in the Trash. Empty it to free the space. · Empty from
-/// Trash… · Open Trash", from CacheDrop's own items still there, read after the run. With none left, no line.
+/// Results after a run moved items to the Trash (#359): "Empty from Trash… · Open Trash", while CacheDrop's own items are
+/// still there, read after the run. The summary's In the Trash figure already says how much, so the line has no size or
+/// sentence of its own (#588, Decision 92 rule 2). With none left, no line.
 struct TrashEmptyHint: View {
     @State private var measured = false
     @State private var sheet = EmptyFromTrashSheetState()
@@ -13,9 +14,9 @@ struct TrashEmptyHint: View {
         // A stack, not a Group: a Group passes `.task` to its children, and with the line not shown yet it has none, so the
         // reading after the run never started and the line never appeared (#392).
         VStack(alignment: .leading, spacing: 0) {
-            // The shared reading, so a put back (#159) or an emptying updates the line too.
-            if measured, let text = sheet.line(TrashSpace.emptyHint(bytes: trash.emptyableBytes)) {
-                TrashLine(text: text, identifier: "resultsTrash", empty: { sheet.open(text) }).emptyFromTrashSheet($sheet.request)
+            // The shared reading, so a put back (#159) or an emptying updates the line too; it stays while its sheet is open.
+            if measured, trash.emptyableBytes > 0 || sheet.request != nil {
+                TrashLine(text: nil, identifier: "resultsTrash", empty: { sheet.open() }).emptyFromTrashSheet($sheet.request)
             }
         }.task { await trash.refresh(); measured = true }
     }
@@ -28,7 +29,7 @@ struct EmptyFromTrashSheetState {
     private var heldLine: String?
     /// The line to show: `current`, or while the sheet is open the one it was opened from.
     func line(_ current: String?) -> String? { current ?? (request != nil ? heldLine : nil) }
-    @MainActor mutating func open(_ line: String) {
+    @MainActor mutating func open(_ line: String? = nil) {
         guard let items = TrashModel.shared.emptyable?.items, !items.isEmpty else { return }
         heldLine = line; request = EmptyFromTrashRequest(items: items)
     }

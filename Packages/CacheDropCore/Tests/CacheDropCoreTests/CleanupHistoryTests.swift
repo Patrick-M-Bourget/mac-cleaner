@@ -231,3 +231,43 @@ private func historyApproval(_ root: URL, names: [String]) async throws -> Fixtu
     let preview = CleanupHistoryRun(id: id, records: succeeded(fixtureCandidates(caches, action: .delete), freed: nil, dryRun: true))
     #expect(preview.headline == CleanupHistoryRun.Headline(bytes: preview.plannedBytes, note: "Dry run"))
 }
+
+/// #587: the estimate Results and History set the measured freed space against counts only the items whose action frees
+/// space, each space once, as the measured figure does; what went to the Trash frees nothing yet.
+private func sized(_ name: String, _ action: CleanupAction, bytes: Int64, resource: String? = nil, ruleID: String = "fixture") -> Candidate {
+    Candidate(ruleID: ruleID, action: action, url: fixtureNoHome.appendingPathComponent(name), resourceID: "1:" + (resource ?? name),
+              isDirectory: true, toolURL: nil, volumeID: nil, modifiedSeconds: 0, modifiedNanoseconds: 0, logicalBytes: bytes - 1, allocatedBytes: bytes,
+              sizeComplete: true, lastUsed: nil, observedAt: Date(), profile: nil)
+}
+private func succeededRun(_ candidates: [Candidate]) -> CatalogExecutionResult {
+    let id = UUID()
+    let records = candidates.map {
+        var record = CleanupRecord(batchID: id, approvedAt: Date(), candidate: $0, dryRun: false)
+        record.state = .succeeded
+        return record
+    }
+    return CatalogExecutionResult(batchID: id, records: records, dryRun: false, rejectedReplay: false, journalFailure: nil, estimatedBytes: 377_000)
+}
+@Test func aMixedRunsEstimateCountsOnlyWhatFreesSpace() {
+    let run = succeededRun([sized("npm", .delete, bytes: 200_000), sized("yarn", .delete, bytes: 54_000),
+                            sized("yarn again", .delete, bytes: 54_000, resource: "yarn"), sized("Setup.dmg", .trash, bytes: 123_000)])
+    #expect(run.estimatedFreedBytes == 254_000)
+    // History's row of the same run says the same number.
+    #expect(CleanupHistoryRun(id: run.batchID, records: run.records).estimatedFreedBytes == 254_000)
+}
+/// The estimate counts the measured figure's items only: a failed or skipped item is said once, in Not cleaned, and an item
+/// that finished after the stop (#209) freed its space where nothing measured it, so it is in neither figure.
+@Test func theEstimateCountsOnlyTheItemsTheMeasuredFigureCovers() {
+    var run = succeededRun([sized("npm", .delete, bytes: 200_000), sized("yarn", .delete, bytes: 54_000),
+                            sized("pnpm", .delete, bytes: 31_000), sized("docker", .delete, bytes: 500_000),
+                            sized("Setup.dmg", .trash, bytes: 123_000)])
+    var records = run.records
+    records[1].state = .failed
+    records[2].state = .skipped
+    records[3].mayStillBeFinishing = true
+    records[3].laterMeasurement = LaterMeasurement(measuredAt: Date(), finding: .gone, afterSeconds: 60)
+    run = CatalogExecutionResult(batchID: run.batchID, records: records, dryRun: false, rejectedReplay: false, journalFailure: nil, estimatedBytes: 908_000)
+    #expect(records[3].finishedAfterStop)
+    #expect(run.estimatedFreedBytes == 200_000)
+    #expect(CleanupHistoryRun(id: run.batchID, records: run.records).estimatedFreedBytes == 200_000)
+}

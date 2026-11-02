@@ -1715,6 +1715,8 @@ final class TrashSpaceUITests: XCTestCase {
     /// #359, Decision 68: an installer a run moved to the (fixture) Trash is deleted from it from Results: Empty from Trash…,
     /// the review sheet, Empty. Only that item goes; History shows "Emptied from the Trash · 1 item" and the item has no
     /// Put back. Debug test runs trash into, and empty from, the fixture home's `.Trash`, never the real one.
+    /// The run also deletes the npm cache, so Results and History set the measured figure against an estimate without
+    /// the installer's size (#587).
     @MainActor func testEmptyFromTrashDeletesWhatARunMovedThereAndHistoryRecordsIt() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
@@ -1735,19 +1737,29 @@ final class TrashSpaceUITests: XCTestCase {
         let category = app.checkBoxes["planCategory-downloads"]
         XCTAssertTrue(category.waitForExistence(timeout: 5))
         revealAndClick(category, in: app)
+        XCTAssertEqual(app.checkBoxes["planCategory-developer"].value as? Int, 1, "The recommended npm cache is in the run too")
         app.buttons["Review cleanup"].click()
         XCTAssertTrue(reviewLine(app, "movedToTrash", "downloads").waitForExistence(timeout: 5))
+        XCTAssertTrue(reviewLine(app, "permanentlyRemoved", "developer").exists)
         cleanUpFromReview(app)
 
         let inTrash = home.appendingPathComponent(".Trash/Setup.dmg")
         XCTAssertTrue(app.descendants(matching: .any)["putBack-Setup.dmg"].waitForExistence(timeout: 10))
         XCTAssertTrue(FileManager.default.fileExists(atPath: inTrash.path))
-        let line = app.staticTexts["resultsTrash"]
-        XCTAssertTrue(line.waitForExistence(timeout: 10))
-        let text = [line.label, line.value as? String ?? ""].first { !$0.isEmpty } ?? ""
-        XCTAssertTrue(text.hasSuffix("is in the Trash. Empty it to free the space. ·"), text)
+        // #587: the estimate under the measured figure is the deleted npm cache's size alone, never with the installer's.
+        let npmSize = app.staticTexts["resultSize-_cacache"]
+        XCTAssertTrue(npmSize.waitForExistence(timeout: 5))
+        let deletedSize = npmSize.value as? String ?? npmSize.label
+        let estimateLine = app.staticTexts["resultsEstimate"]
+        XCTAssertEqual(estimateLine.value as? String ?? estimateLine.label,
+                       "Estimated before cleanup: " + deletedSize + " · measured from the change in free space around each item")
+        // #588: the summary's In the Trash figure says how much once; the line under it is just "Empty from Trash… · Open Trash".
         let empty = app.descendants(matching: .any)["resultsTrashEmpty"]
-        XCTAssertTrue(empty.waitForExistence(timeout: 5))
+        XCTAssertTrue(empty.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.descendants(matching: .any)["resultsTrashOpen"].exists)
+        XCTAssertFalse(app.staticTexts["resultsTrash"].exists, "No size or sentence before the links")
+        XCTAssertTrue(app.staticTexts["In the Trash · Freed when you empty it"].exists)
+        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'is in the Trash' OR value CONTAINS 'is in the Trash'")).firstMatch.exists)
         revealAndClick(empty, in: app)
 
         XCTAssertTrue(app.staticTexts["Empty from the Trash"].waitForExistence(timeout: 5))
@@ -1773,6 +1785,9 @@ final class TrashSpaceUITests: XCTestCase {
         XCTAssertTrue(cleanup.waitForExistence(timeout: 10))
         revealAndClick(cleanup, in: app)
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Setup.dmg' OR value BEGINSWITH 'Setup.dmg'")).firstMatch.waitForExistence(timeout: 5))
+        // #587: History's estimate says the number Results said.
+        let historyEstimate = "Estimated before cleanup: " + deletedSize
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label == %@ OR value == %@", historyEstimate, historyEstimate)).firstMatch.exists, historyEstimate)
         XCTAssertFalse(app.descendants(matching: .any)["putBack-Setup.dmg"].exists, "History drops the emptied item's Put back")
     }
 }
