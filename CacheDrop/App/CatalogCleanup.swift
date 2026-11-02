@@ -571,9 +571,9 @@ import SwiftUI
         finishScan(home: home, took: ContinuousClock.now - started, "Full catalog scan")
     }
     /// The rescan after a run (Decisions 133 and 134, #556 part 2, #647): only `rules`, the Applications `rows` the run
-    /// touched and their makers' files from deleted apps are read again and merged into the rows shown; every other app,
-    /// plug-in and file from a deleted app, the plug-in inventory and app-managed storage keep what the last full scan found,
-    /// and which owners are running is read again for every row. It records no Storage trends snapshot, and the next full scan still counts as one after a cleanup.
+    /// touched and their makers' files from deleted apps are read again and merged into the rows shown, against the list of
+    /// installed apps read again; every other app, plug-in and file from a deleted app, app sizes, the plug-in inventory and
+    /// app-managed storage keep what the last full scan found, and which owners are running is read again for every row. It records no Storage trends snapshot, and the next full scan still counts as one after a cleanup.
     private func rescanRules(_ rules: Set<String>, rows: TouchedApplications, home: URL, exclusions: ProtectedItemsPolicy, cancellation: ScanCancellation) async {
         let catalog = catalog, locate = Self.locateTool, system = Self.systemRoot, userFolder = Self.userFolder, cloud = Self.cloud, quitter = Self.quitter
         let shown = CatalogDiscovery(candidates: discovered, notes: notes, notAccessible: notAccessibleRules), shownApps = uninstallable, inventory = plugInInventory
