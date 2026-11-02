@@ -36,10 +36,11 @@ Write the version's notes as `docs/releases/x.y.z.html` (content only, in the sh
 
 ```sh
 scripts/release.sh \
-  --sparkle-tools "$PWD/.build/sparkle-tools/bin" \
   --artifact-base-url 'https://YOUR-TEST-HOST/isolated-updates/0.10.0/' \
   --release-notes /absolute/path/to/reviewed-0.10.0.html
 ```
+
+release.sh finds the Sparkle tools in `.build/sparkle-tools/bin` of the checkout it runs from, then of the main checkout, so a fresh release worktree needs no copy. `--sparkle-tools DIR` or `CACHEDROP_SPARKLE_TOOLS` picks another folder; when none has the tools, it names the folders it checked.
 
 The command exports HEAD, builds Release, signs every Sparkle helper (Installer, Downloader with its entitlements preserved, Autoupdate, Updater), then the framework and app. It verifies each nested Mach-O's signature, Hardened Runtime, Developer ID team, and absence of development entitlements. It notarizes/staples the app, creates/signs/notarizes/staples `CacheDrop-x.y.z.dmg`, and only then EdDSA-signs the final DMG. Sparkle's generator creates a local full-update-only appcast with embedded reviewed notes. A separate signature verification and metadata check must pass before metadata is saved. No subsequent step changes the signed DMG bytes.
 
