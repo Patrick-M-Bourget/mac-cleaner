@@ -2,13 +2,11 @@ import CryptoKit
 import Foundation
 
 /// The public key license keys are checked against. Only the public half is in the app; the production private key never
-/// enters the repository (Decision 135). Until the owner supplies the production public key (#593) this holds a
-/// placeholder that rejects every key, and `scripts/check-release.sh` refuses a release that has gating on with it.
+/// enters the repository (Decision 135). The production key arrived with #652 (2026-11-02). `scripts/check-release.sh`
+/// refuses a gated release whose binary still holds #594's placeholder text, "CacheDrop license public key placeholder".
 public enum LicensePublicKey {
-    /// The production public key, 32 raw bytes in base64; `placeholder` until the owner replaces it (docs/RELEASING.md).
-    static let productionBase64 = placeholder
-    /// Marks the placeholder. check-release.sh looks for this text in the built app, so keep it verbatim.
-    static let placeholder = "CacheDrop license public key placeholder: rejects every key"
+    /// The production public key, 32 raw bytes in base64 (#652, #653). Every license ever sold is checked against it.
+    static let productionBase64 = "hyBpRb4zRvBKKP/vwMcklOlN33k4IpMGqTqYKisCn8M="
 
     public static var production: Curve25519.Signing.PublicKey? {
         guard let raw = Data(base64Encoded: productionBase64) else { return nil }
@@ -20,6 +18,7 @@ public enum LicensePublicKey {
 /// it installs a release that lists it; there is no online check (Decision 135). docs/RELEASING.md says how to add one.
 public enum LicenseRevocations {
     public static let ids: Set<UUID> = [
+        UUID(uuidString: "246b4873-8ea9-418d-a181-454be5450d12")!, // refunded: the first live test purchase, 2026-11-02 (#652)
     ]
 }
 
