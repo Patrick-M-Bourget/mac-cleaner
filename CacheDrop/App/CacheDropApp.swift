@@ -316,6 +316,7 @@ private struct WorkspaceView: View {
             AppLifecycleController.shared.openWorkspace = { openWindow(id: "workspace") }
             AppLifecycleController.shared.scanAgain = { if canScanAgain { scanAgain() } }
             AppLifecycleController.shared.openSmartClean = { navigate(.smartClean) }
+            AppLifecycleController.shared.openEmptyTrash = { navigate(.overview); TrashModel.shared.wholeTrashRequested = true }
             selection.catalog.scanRememberedFolders = { run in scanRememberedFolders(after: run) }
         }
         .onReceive(NotificationCenter.default.publisher(for: .cacheDropAlertOpened)) { _ in destination = .overview; navigationState.savedDataVisible = false; navigationState.appManagedVisible = false; protectedItemsVisible = false; recoveryVisible = false; explorerVisible = false }

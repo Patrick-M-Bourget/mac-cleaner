@@ -3,8 +3,8 @@ import Observation
 import CacheDropCore
 import SwiftUI
 
-/// What the Finder Trash holds, measured read-only off the main thread, and CacheDrop's own items in it. CacheDrop never
-/// empties the Trash; it deletes from it only items it moved there itself, when you ask (SPEC section 2, Decision 68).
+/// What the Finder Trash holds, measured read-only off the main thread, and CacheDrop's own items in it. CacheDrop deletes
+/// from the Trash only when you ask: its own items (Decision 68), or everything the Empty Trash sheet listed (Decision 142).
 @MainActor @Observable final class TrashModel {
     static let shared = TrashModel()
     /// nil until measured, and with no catalog home (a debug test run without a fixture home).
@@ -44,12 +44,22 @@ import SwiftUI
     /// Trash moves deleted from the Trash this session, so Results and History drop their Put back.
     private(set) var emptiedIDs: Set<String> = []
 
-    /// Deletes `items` from the Trash, each checked again first, or with the Settings dry run on only checks them. Then
-    /// measures the Trash again for Results and Overview.
+    /// Deletes CacheDrop's own `items` from the Trash, each checked again first, or with the Settings dry run on only
+    /// checks them. Then measures the Trash again for Results and Overview.
     func empty(_ items: [CleanupRecord]) async {
+        guard !items.isEmpty else { return }
+        await runEmptying { $0.empty(items, dryRun: $1) }
+    }
+    /// Deletes everything the Empty Trash sheet listed (#605), each checked again first; anything trashed since stays.
+    func emptyWholeTrash(_ items: [TrashItem]) async {
+        guard !items.isEmpty else { return }
+        await runEmptying { $0.emptyWholeTrash(items, dryRun: $1) }
+    }
+    /// One emptying at a time, as maintenance, journaled off the main thread; then the Trash is measured again.
+    private func runEmptying(_ work: @escaping @Sendable (TrashEmptying, Bool) -> TrashEmptyingResult) async {
         let lifecycle = AppLifecycleController.shared
         guard !lifecycle.updateInstallation.blocksNewWork, !lifecycle.maintenanceInProgress, !lifecycle.operationInProgress,
-              !isEmptying, !items.isEmpty else { return }
+              !isEmptying else { return }
         lifecycle.maintenanceInProgress = true
         defer { lifecycle.maintenanceInProgress = false }
         isEmptying = true
@@ -59,12 +69,20 @@ import SwiftUI
             guard let journal = try? CleanupJournalLocation.writer() else {
                 return TrashEmptyingResult(records: [], dryRun: dryRun, journalFailure: "CacheDrop couldn’t open its cleanup history, so nothing was changed.")
             }
-            return TrashEmptying(journal: journal).empty(items, dryRun: dryRun)
+            return work(TrashEmptying(journal: journal), dryRun)
         }.value
         emptyingResult = result
         if !result.dryRun { emptiedIDs.formUnion(result.records.filter { $0.state == .succeeded }.compactMap(\.emptyOf)) }
         await refresh()
     }
+    /// What Empty Trash… offers: every item in the Trash with its size, read off the main thread; nil when the Trash
+    /// can't be read in full or is empty (Decision 142), so the sheet never guesses.
+    func reviewWholeTrash() async -> WholeTrashReview? {
+        guard let home = CatalogCleanupModel.home else { return nil }
+        return await Task.detached(priority: .userInitiated) { TrashEmptying.reviewWholeTrash(home: home) }.value
+    }
+    /// Set by the menu bar's Empty Trash… so Overview opens the sheet in the window (#605).
+    var wholeTrashRequested = false
     func dismissEmptyingResult() { emptyingResult = nil }
     /// What each put back led to, by the Trash move's record id, for Results and History (#159).
     private(set) var putBackOutcomes: [String: PutBackOutcome] = [:]

@@ -59,6 +59,8 @@ import CacheDropCore
     }
     /// Opens the Smart clean page, for the menu bar item (#131, #141).
     var openSmartClean: (() -> Void)?
+    /// Opens Overview with the Empty Trash sheet, for the menu bar item (#605).
+    var openEmptyTrash: (() -> Void)?
     /// Requests both stops before waiting. Completion includes discovery and every final History/Storage trends write.
     func stopScansAndWait() async {
         selection.catalog.requestScanStop()
