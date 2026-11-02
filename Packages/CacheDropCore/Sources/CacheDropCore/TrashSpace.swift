@@ -60,10 +60,3 @@ extension TrashContents {
         bytes > 0 ? (contents ?? .unknown).overviewText(fromCacheDrop: bytes) : contents?.overviewText
     }
 }
-
-extension TrashSpace {
-    /// The results line while CacheDrop's own items hold `bytes` in the Trash (#359), from their recorded sizes; nil with none.
-    public static func emptyHint(bytes: Int64) -> String? {
-        bytes > 0 ? SizeFormatter.text(bytes) + " is in the Trash. Empty it to free the space." : nil
-    }
-}

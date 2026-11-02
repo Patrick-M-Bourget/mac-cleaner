@@ -733,20 +733,23 @@ import SwiftUI
     }
 
     /// Freezes the Cleanup plan's chosen candidates and checks them once so the review can show what would be refused.
-    func prepareReview() async -> CatalogReview? {
+    func prepareReview() async throws -> CatalogReview? {
         guard canReview else { return nil }
-        return await prepareReview(of: selectedCandidates)
+        return try await prepareReview(of: selectedCandidates)
     }
     /// Freezes `candidates`, from either selection, and checks them once (#141: one review path).
     /// `snapshot` is a check taken earlier in the same click (Smart clean's); without one, the review takes its own. Reading every
     /// open process is the slowest part of a check (#463), and Clean up checks each item again when it runs.
     /// An app's or plug-in product's items can be reviewed during a rescan that keeps them (Decision 123).
-    func prepareReview(of candidates: [Candidate], using snapshot: CandidateCheck? = nil) async -> CatalogReview? {
+    /// A closed sheet stops it before the item checks (Decision 126, #563).
+    func prepareReview(of candidates: [Candidate], using snapshot: CandidateCheck? = nil) async throws -> CatalogReview? {
         guard canChoose(candidates), !candidates.isEmpty else { return nil }
         let approval = CatalogApproval(candidates: candidates, dryRun: dryRun)
-        guard let check = await ReviewSignposts.interval("Check setup", { await snapshotOrCurrent(snapshot) }) else { return nil }
-        let refusals = await ReviewSignposts.interval("Item checks") { await Task.detached { check.refusals(of: approval.candidates) }.value }
-        return CatalogReview(approval: approval, refusals: refusals, staying: AppUninstall.staying(chosen: candidates, offered: uninstallable))
+        return try await ReviewCheckSteps.run({ await ReviewSignposts.interval("Check setup") { await snapshotOrCurrent(snapshot) } }, then: { check in
+            guard let check else { return nil }
+            let refusals = await ReviewSignposts.interval("Item checks") { await Task.detached { check.refusals(of: approval.candidates) }.value }
+            return CatalogReview(approval: approval, refusals: refusals, staying: AppUninstall.staying(chosen: candidates, offered: uninstallable))
+        })
     }
     /// The review sheet's rows checked again now, after their app quit (#377): each refused row's new reason, by candidate id.
     /// Read-only: no choice changes, so the review stays open. Nil when nothing could be checked.

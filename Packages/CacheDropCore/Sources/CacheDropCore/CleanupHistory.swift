@@ -11,6 +11,8 @@ public struct CleanupHistoryRun: Sendable, Identifiable {
     public var reviewRecords: [CleanupRecord] = []
     /// What the run planned, in the size Results shows (allocated where known), so both read the same (#312).
     public var plannedBytes: Int64 { distinctSpaces.reduce(0) { $0 + $1.recordedBytes } }
+    /// The expanded row's "Estimated before cleanup": only what frees space, as Results says it (#587).
+    public var estimatedFreedBytes: Int64 { records.estimatedFreedBytes }
     private var distinctSpaces: [CleanupRecord] {
         var seen = Set<String>()
         // Docker's prunes share the folder that anchors them, but each is its own space (`SpaceKey`).

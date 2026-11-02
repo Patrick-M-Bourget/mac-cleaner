@@ -21,23 +21,36 @@ struct FixtureAppPresence: AppPresence {
     }
     func isRegistered(bundleID: String) -> Bool { false }
 
-    /// #383: only this opt-in journey's disposable Synth bundle is made launchable outside the sandboxed runner.
-    /// The journey verifies the signature and launches it itself; preparation errors fail that test, never skip it.
+    /// The fixture apps a journey may open, each behind its own opt-in switch: its bundle's name, identifier and executable.
+    /// Synth holds its own uninstall (#377); the Google Chrome stand-in holds Chrome's per-profile caches (#566).
+    private static let quitJourneyApps: [(env: String, name: String, bundleID: String, executable: String)] = [
+        ("CACHEDROP_TEST_PREPARE_SYNTH_APP", "Synth", "com.maker.synth", "main"),
+        ("CACHEDROP_TEST_PREPARE_CHROME_APP", "Google Chrome", "com.google.Chrome", "Google Chrome"),
+    ]
+
+    /// #383: only an opt-in journey's disposable fixture bundle (`quitJourneyApps`) is made launchable outside the sandboxed
+    /// runner. The journey verifies the signature and launches it itself; preparation errors fail that test, never skip it.
     @MainActor static func prepareQuitJourney() throws {
-        guard LocalStateLocation.isDisposableTest,
-              LocalStateLocation.fixtureEnvironment["CACHEDROP_TEST_PREPARE_SYNTH_APP"] == "1",
-              let home = CatalogCleanupModel.home else { return }
+        guard LocalStateLocation.isDisposableTest, let home = CatalogCleanupModel.home else { return }
+        for fixture in quitJourneyApps where LocalStateLocation.fixtureEnvironment[fixture.env] == "1" {
+            try prepare(fixture.name, bundleID: fixture.bundleID, executable: fixture.executable, in: home)
+        }
+    }
+
+    /// Replaces the fixture bundle's executable with a copy of `sleep`, clears its quarantine and signs it, after checking that
+    /// the bundle in the fixture home is exactly the one named, with no symlink on the way.
+    @MainActor private static func prepare(_ name: String, bundleID: String, executable executableName: String, in home: URL) throws {
         _ = try LocalStateLocation.root(create: false)
-        let bundle = home.appendingPathComponent("Applications/Synth.app")
+        let bundle = home.appendingPathComponent("Applications/\(name).app")
         let contents = bundle.appendingPathComponent("Contents")
         let macOS = contents.appendingPathComponent("MacOS")
-        let executable = macOS.appendingPathComponent("main")
+        let executable = macOS.appendingPathComponent(executableName)
         let info = contents.appendingPathComponent("Info.plist")
         let paths = [bundle, contents, macOS, executable, info]
         guard paths.allSatisfy({ $0.path == $0.resolvingSymlinksInPath().path }),
               let identity = NSDictionary(contentsOf: info),
-              identity["CFBundleIdentifier"] as? String == "com.maker.synth",
-              identity["CFBundleExecutable"] as? String == "main" else { throw CocoaError(.fileReadNoPermission) }
+              identity["CFBundleIdentifier"] as? String == bundleID,
+              identity["CFBundleExecutable"] as? String == executableName else { throw CocoaError(.fileReadNoPermission) }
         try FileManager.default.removeItem(at: executable)
         try FileManager.default.copyItem(atPath: "/bin/sleep", toPath: executable.path)
         for path in paths { removexattr(path.path, "com.apple.quarantine", 0) }

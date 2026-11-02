@@ -86,12 +86,6 @@ private func write(_ url: URL, bytes: Int) throws {
     #expect(TrashContents.unknown.overviewText(fromCacheDrop: 0) == nil)
 }
 
-/// #359: Results says what CacheDrop's items hold in the Trash, never the whole Trash's size, and nothing when none is left.
-@Test func resultsSayWhatIsInTheTrashUntilItIsEmptied() {
-    #expect(TrashSpace.emptyHint(bytes: 7_100_000_000) == "7.1 GB is in the Trash. Empty it to free the space.")
-    #expect(TrashSpace.emptyHint(bytes: 0) == nil)
-}
-
 private final class RecordingOpener: TrashOpening, @unchecked Sendable {
     var opened: [URL] = []
     func open(_ folder: URL) -> Bool { opened.append(folder); return true }
