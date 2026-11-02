@@ -29,10 +29,10 @@ public struct SmartCleanReport: Sendable {
             self.catalog = catalog; self.home = home; self.userFolder = userFolder; self.exclusions = exclusions; self.apps = apps; self.receipts = receipts
             self.locateTool = locateTool; self.systemRoot = systemRoot; self.cloud = cloud; self.inUse = inUse; self.running = running; self.access = access
         }
-        #if DEBUG
-        /// This Mac as the app scans it, with the exclusions the user saved, read without the store's lock.
-        /// Debug only: the owner's opt-in report test calls it, and Release never does (#334).
-        public static func thisMac() throws -> Sources {
+        /// The current user's Mac as the app scans it, with the Protected items the user saved, read without the store's
+        /// lock: `cachedrop scan` and `plan` (#626). Throws when Protected items can't be read, so nothing excluded is
+        /// ever listed (SPEC section 2).
+        public static func currentUser() throws -> Sources {
             let home = FileManager.default.homeDirectoryForCurrentUser.resolvingSymlinksInPath()
             let exclusions = try ProtectedItemsStore.policy(readingOnly: LocalStateLocation.root(create: false).appendingPathComponent("Exclusions", isDirectory: true))
             return Sources(catalog: Catalog(rules: BuiltInCatalog.rules), home: home, userFolder: Catalog.currentUserFolder(), exclusions: exclusions,
@@ -40,6 +40,9 @@ public struct SmartCleanReport: Sendable {
                            systemRoot: URL(fileURLWithPath: "/"), cloud: SystemUbiquitousItems(), inUse: SystemInUseChecker(), running: SystemRunningAppChecker(),
                            access: FullDiskAccessProbe(home: home).status())
         }
+        #if DEBUG
+        /// The owner's opt-in report test; the name stays Debug only, which `release.sh` checks (#334).
+        public static func thisMac() throws -> Sources { try currentUser() }
         #endif
     }
 
@@ -65,11 +68,15 @@ public struct SmartCleanReport: Sendable {
     }
 
     /// The scan the app runs: the catalog's discovery, then files from deleted apps no catalog item covers.
-    public static func scan(_ sources: Sources) -> [Candidate] {
+    public static func scan(_ sources: Sources) -> [Candidate] { discover(sources).candidates }
+    /// The same scan, keeping which rules couldn't be read without Full Disk Access, as Overview needs (#626).
+    public static func discover(_ sources: Sources) -> CatalogDiscovery {
         let discovered = sources.catalog.discovery(home: sources.home, userFolder: sources.userFolder, exclusions: sources.exclusions, inUse: sources.inUse,
                                                    locateTool: sources.locateTool, systemRoot: sources.systemRoot, cloud: sources.cloud, access: sources.access)
         let leftovers = RemovedAppLeftovers.scan(home: sources.home, apps: sources.apps, receipts: sources.receipts, exclusions: sources.exclusions)
-        return discovered.candidates + RemovedAppLeftovers.notOffered(by: discovered.candidates, leftovers)
+        return CatalogDiscovery(candidates: discovered.candidates + RemovedAppLeftovers.notOffered(by: discovered.candidates, leftovers),
+                                notes: discovered.notes, scannedRuleIDs: discovered.scannedRuleIDs,
+                                notAccessible: discovered.notAccessible, notMeasured: discovered.notMeasured)
     }
 
     /// Scans, builds the plan and runs the full checks, as Clean up would, without acting.
