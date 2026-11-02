@@ -14,11 +14,13 @@ set -uo pipefail
 cd "$(dirname "$0")/.."
 stamp=$(git rev-parse --git-path check-pass) || exit 1
 
-# The tree of the index after `git add $1`, built in a scratch copy so the real index is untouched.
+# The tree of the index after `git add $1`, built in a scratch copy so the real index is untouched. The copy keeps the
+# index's modification time (cp -p): git re-reads entries no older than the index file, and a fresh time would hide a
+# same-size edit made in the same second (#673).
 tree_after_add() {
   local scratch status
   scratch=$(mktemp) || return 1
-  cp "$(git rev-parse --git-path index)" "$scratch" 2>/dev/null || : >"$scratch"
+  cp -p "$(git rev-parse --git-path index)" "$scratch" 2>/dev/null || : >"$scratch"
   GIT_INDEX_FILE=$scratch git add "$1" >/dev/null 2>&1 && GIT_INDEX_FILE=$scratch git write-tree 2>/dev/null
   status=$?
   rm -f "$scratch"
