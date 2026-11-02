@@ -1,4 +1,5 @@
 import XCTest
+import AppKit
 
 /// A fixture home with an npm cache and a Downloads installer, inside the runner's temp folder. The app reads it only through
 /// the DEBUG-only CACHEDROP_TEST_CATALOG_HOME seam, so the journey never touches real user paths.
@@ -2180,6 +2181,72 @@ extension CatalogCleanupUITests {
         XCTAssertTrue((skipped.value as? String ?? skipped.label).hasPrefix("npm is open, so its caches will be skipped · "), skipped.debugDescription)
         XCTAssertFalse(app.links.matching(NSPredicate(format: "identifier BEGINSWITH %@", "reviewQuit-npm-cache|")).firstMatch.exists,
                        "A command-line tool isn't an app: no Quit, only the reason (#377)")
+        app.buttons["Cancel"].click()
+    }
+
+    /// #566, Decision 125: a browser open with two profiles holds four cache folders, and the review shows them as one line with
+    /// one Quit link. Chrome's real rule, with a stand-in Google Chrome (a copy of `sleep` in the fixture home's bundle, prepared
+    /// by the DEBUG app) that the journey starts after the scan; a debug run only ever sees and quits apps run from its fixture
+    /// home. A dry run, so nothing is removed.
+    @MainActor func testTwoProfilesOfAnOpenBrowserMakeOneReviewLineWithOneQuitLink() throws {
+        continueAfterFailure = false
+        try XCTSkipIf(!NSRunningApplication.runningApplications(withBundleIdentifier: "com.google.Chrome").isEmpty,
+                      "Google Chrome is open on this Mac, so the scan holds its caches before the stand-in starts")
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        turnOnDryRun(app)
+        let chrome = Process()
+        // The stand-in is stopped whatever happens, before its home is removed.
+        defer {
+            if chrome.isRunning { chrome.terminate(); chrome.waitUntilExit() }
+            app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home)
+        }
+        for profile in ["Default", "Profile 1"] {
+            for folder in ["Cache/Cache_Data/index", "Code Cache/js/index"] {
+                let file = home.appendingPathComponent("Library/Caches/Google/Chrome/\(profile)/\(folder)")
+                try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+                try Data(repeating: 5, count: 300_000).write(to: file)
+            }
+        }
+        let bundle = home.appendingPathComponent("Applications/Google Chrome.app")
+        let executable = bundle.appendingPathComponent("Contents/MacOS/Google Chrome")
+        try FileManager.default.createDirectory(at: executable.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let info: [String: Any] = ["CFBundleIdentifier": "com.google.Chrome", "CFBundleExecutable": "Google Chrome"]
+        try PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0).write(to: bundle.appendingPathComponent("Contents/Info.plist"))
+        try Data(repeating: 1, count: 1).write(to: executable)
+        // The unsandboxed DEBUG app prepares only this known fixture, before the runner attempts its launch (#383).
+        app.launchEnvironment["CACHEDROP_TEST_PREPARE_CHROME_APP"] = "1"
+        app.launch()
+        let verification = Process()
+        verification.executableURL = URL(fileURLWithPath: "/usr/bin/codesign")
+        verification.arguments = ["--verify", "--strict", bundle.path]
+        verification.standardOutput = FileHandle.nullDevice
+        verification.standardError = FileHandle.nullDevice
+        try verification.run()
+        verification.waitUntilExit()
+        XCTAssertEqual(verification.terminationStatus, 0, "The fixture app needs a valid bundle signature before launch (#383)")
+        XCTAssertTrue(app.staticTexts["overviewTitle"].waitForExistence(timeout: 10))
+        waitForCatalogScan(app)
+        app.typeKey("2", modifierFlags: .command)
+        let browser = app.checkBoxes["smartCleanCategory-browser"]
+        XCTAssertTrue(browser.waitForExistence(timeout: 10), "Chrome's caches are listed: it wasn't open at the scan")
+        tick(browser, in: app)
+
+        chrome.executableURL = executable
+        chrome.arguments = ["600"]
+        try chrome.run()
+        app.buttons["smartCleanCleanUp"].click()
+        let skipped = app.staticTexts.matching(identifier: "reviewSkipped-chrome-cache")
+        XCTAssertTrue(skipped.firstMatch.waitForExistence(timeout: 10), "Chrome's caches will be skipped while it is open")
+        let line = skipped.firstMatch
+        XCTAssertTrue((line.value as? String ?? line.label).hasPrefix("Google Chrome is open, so its caches will be skipped · "), line.debugDescription)
+        XCTAssertEqual(skipped.count, 1, "Two profiles' four cache folders are one line (#560)")
+        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@ OR value CONTAINS %@", "Cache will be skipped", "Cache will be skipped")).firstMatch.exists,
+                       "No line per folder")
+        let quits = app.links.matching(NSPredicate(format: "identifier BEGINSWITH %@", "reviewQuit-chrome-cache|"))
+        XCTAssertEqual(quits.count, 1, "One Quit link for the holder")
+        XCTAssertEqual(quits.firstMatch.label, "Quit Google Chrome")
         app.buttons["Cancel"].click()
     }
 
