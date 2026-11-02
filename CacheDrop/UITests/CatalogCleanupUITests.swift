@@ -1325,6 +1325,73 @@ extension CatalogCleanupUITests {
         XCTAssertFalse(app.buttons["Open folder " + folder.lastPathComponent].exists)
     }
 
+    /// #686, Decision 147: the Map view. A folder's block opens it, a file's block inspects it, and the file is ticked only
+    /// from the inspector, which the bottom bar counts as in the list.
+    @MainActor func testTheStorageMapOpensAFolderInspectsAFileAndTicksItFromTheInspector() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        let folder = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("CacheDropPicked-" + UUID().uuidString)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home); try? FileManager.default.removeItem(at: folder) }
+        let media = folder.appendingPathComponent("Media")
+        try FileManager.default.createDirectory(at: media, withIntermediateDirectories: true)
+        try Data(repeating: 2, count: 400_000).write(to: folder.appendingPathComponent("notes.bin"))
+        // 600 MB on disk, so it is large (#394), preallocated rather than written; removed with the folder.
+        let large = media.appendingPathComponent("large-video.mov")
+        try Data(repeating: 1, count: 4_000).write(to: large)
+        let fd = open(large.path, O_RDWR)
+        var store = fstore_t(fst_flags: UInt32(F_ALLOCATEALL), fst_posmode: F_PEOFPOSMODE, fst_offset: 0, fst_length: 600_000_000, fst_bytesalloc: 0)
+        XCTAssertEqual(fcntl(fd, F_PREALLOCATE, &store), 0); XCTAssertEqual(ftruncate(fd, 600_000_000), 0); close(fd)
+        app.launch()
+        XCTAssertTrue(app.staticTexts["overviewTitle"].waitForExistence(timeout: 10))
+        chooseFolderToScan(app)
+        let panel = app.sheets.firstMatch.exists ? app.sheets.firstMatch : app.dialogs.firstMatch
+        XCTAssertTrue(panel.waitForExistence(timeout: 5))
+        panel.typeKey("g", modifierFlags: [.command, .shift])
+        app.typeText(folder.path + "\n")
+        panel.buttons["Scan folder"].click()
+        waitForScannedFolder(app)
+        let explore = app.links["Explore storage"]
+        XCTAssertTrue(explore.waitForExistence(timeout: 20))
+        revealAndClick(explore, in: app)
+
+        // Storage trends' segmented picker: List until changed.
+        let presentation = app.radioGroups["explorerPresentation"]
+        XCTAssertTrue(presentation.waitForExistence(timeout: 5))
+        XCTAssertEqual(presentation.radioButtons["List"].value as? Int, 1)
+        presentation.radioButtons["Map"].click()
+        XCTAssertTrue(app.descendants(matching: .any)["explorerMap"].waitForExistence(timeout: 5))
+        let hint = app.staticTexts["explorerHint"]
+        XCTAssertEqual(hint.value as? String ?? hint.label, "Click a folder to open it, or a file to see its details and add it to the plan.")
+
+        // Scanned folders, then the picked folder, then Media, each opened from its block; the breadcrumbs follow.
+        let picked = app.buttons["explorerMapBlock-" + folder.lastPathComponent]
+        XCTAssertTrue(picked.waitForExistence(timeout: 5))
+        picked.click()
+        let mediaBlock = app.buttons["explorerMapBlock-Media"]
+        XCTAssertTrue(mediaBlock.waitForExistence(timeout: 5))
+        XCTAssertTrue(mediaBlock.label.hasPrefix("Media, "), "a block reads its name and size on disk: \(mediaBlock.label)")
+        XCTAssertTrue(mediaBlock.label.hasSuffix(" on disk"))
+        mediaBlock.click()
+        XCTAssertTrue(app.links[folder.lastPathComponent].waitForExistence(timeout: 5), "the picked folder is a breadcrumb link")
+
+        // A file's block inspects it and ticks nothing; the inspector's toggle does.
+        let file = app.buttons["explorerMapBlock-large-video.mov"]
+        XCTAssertTrue(file.waitForExistence(timeout: 5))
+        file.click()
+        let inspector = app.descendants(matching: .any)["explorerInspector"]
+        XCTAssertTrue(inspector.staticTexts["large-video.mov"].waitForExistence(timeout: 5))
+        let choose = app.checkBoxes["explorerInspectorChoose"]
+        XCTAssertTrue(choose.waitForExistence(timeout: 10))
+        XCTAssertEqual(choose.value as? Int, 0, "a click on a block never adds anything to the plan")
+        choose.click()
+        XCTAssertTrue(actionStrip(app).staticTexts["1 selected"].waitForExistence(timeout: 5))
+        XCTAssertTrue(actionStrip(app).buttons["Add to cleanup plan"].isEnabled)
+        // The map stays, and the choice lasts while CacheDrop runs.
+        XCTAssertEqual(presentation.radioButtons["Map"].value as? Int, 1)
+    }
+
     /// #320: Explore storage's home is Locations. A scanned folder's Explore link opens it at that folder; ticking
     /// a large file enables Add to cleanup plan, which lands on the plan with the file ticked and "‹ Explore storage".
     @MainActor func testExploreFromLocationsAddsALargeFileToThePlan() throws {

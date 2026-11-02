@@ -17,6 +17,8 @@ The names CacheDrop shows, what they mean, and where they live in code. Copy fol
 | System access | Optional Full Disk Access status and guidance | `SystemAccessView`, `FullDiskAccessGuide` |
 | Explore storage | Browse a scanned folder by size | `StorageExplorer`, `ExploreStorage` |
 | Storage map | Explore storage's Map view: the folder on show as blocks sized by what they take on disk (Decision 147) | `StorageMap`, `StorageMapLayout` |
+| N smaller items | The storage map's one block for children too small to label; a click switches to List (Decision 147) | `StorageMapLayout.Content.smaller` |
+| Too small to label | The line under the storage map naming blocks drawn at their true size without a label (Decision 147) | `TooSmallToLabelLine` |
 | Protected items | Paths CacheDrop never offers | `ProtectedItems*` (`ProtectedItemsView`, `ProtectedItemsPolicy`) |
 | Saved data | What CacheDrop keeps on this Mac, and Reset | `SavedData*` (`SavedDataView`) |
 | App-managed storage | Space only its app can clear; CacheDrop shows where | `AppManagedStorageView`, `CatalogCleanupModel.appManaged` |

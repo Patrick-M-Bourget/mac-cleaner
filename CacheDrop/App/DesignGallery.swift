@@ -11,6 +11,7 @@ struct DesignGallery: View {
     @State private var shellExamplesExpanded = false
     @State private var historyExamplesExpanded = false
     @State private var growthExamplesExpanded = false
+    @State private var mapExamplesExpanded = false
     @State private var alertExamplesExpanded = false
     @State private var categoryRowExpanded = false
     var body: some View {
@@ -42,6 +43,7 @@ struct DesignGallery: View {
                         HistoryActivityGalleryExamples()
                     }
                     DisclosureGroup("Synthetic Storage trends examples", isExpanded: $growthExamplesExpanded) { StorageTrendsGalleryExamples() }
+                    DisclosureGroup("Synthetic storage map examples", isExpanded: $mapExamplesExpanded) { StorageMapGalleryExamples() }
                     DisclosureGroup("Synthetic storage alert settings", isExpanded: $alertExamplesExpanded) {
                         AlertThresholdEditor(draft: .constant("60"), canApply: true, apply: {})
                         AlertThresholdEditor(draft: .constant("invalid"), canApply: false, invalidDraft: true, apply: {})

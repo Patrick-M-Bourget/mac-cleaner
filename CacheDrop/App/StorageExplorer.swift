@@ -54,6 +54,9 @@ import SwiftUI
     }
     /// Lists the large and old files offered from picked folders instead of the folder's contents.
     var showsLargeAndOld = false
+    /// List or the storage map (Decision 147): List until changed; kept until CacheDrop quits, as the sort is.
+    enum Presentation: Hashable { case list, map }
+    var presentation = Presentation.list
     /// The column header's sort for every list here (#373): On disk, largest first, until changed; kept until CacheDrop quits.
     var sort = ListSort()
     var position = Position()
@@ -171,11 +174,12 @@ struct StorageExplorerView: View {
                 ScanHistoryRecordingNotice()
                 breadcrumbs
                 // The screen's one explanation (Decision 25).
-                Text(showsLargeAndOld ? "Files of 500 MB or more, or not opened in 90 days." : "Click a name to open or inspect it.")
+                Text(showsLargeAndOld ? "Files of 500 MB or more, or not opened in 90 days."
+                     : showsMap ? "Click a folder to open it, or a file to see its details and add it to the plan." : "Click a name to open or inspect it.")
                     .font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).lineLimit(1).accessibilityIdentifier("explorerHint")
                 // The inspector shows one path, only for a picked item or a folder on show (#320, #371).
                 HStack(alignment: .top, spacing: CacheDropDesign.Space.lg) {
-                    list.frame(maxWidth: .infinity, maxHeight: .infinity)
+                    Group { if showsMap { map } else { list } }.frame(maxWidth: .infinity, maxHeight: .infinity)
                     if wide && showsInspector { inspector.frame(width: CacheDropDesign.Size.inspector) }
                 }.frame(maxHeight: .infinity)
                 if !wide && showsInspector { inspector.frame(maxHeight: min(CacheDropDesign.Size.inspectorStacked, geometry.size.height * CacheDropDesign.Size.inspectorStackedShare)) }
@@ -221,6 +225,11 @@ struct StorageExplorerView: View {
                     Button(context.showsLargeAndOld ? "All files" : "Large and old files") { context.showsLargeAndOld.toggle() }
                         .buttonStyle(.link).accessibilityIdentifier("explorerMode")
                 }
+                // Storage trends' native segmented picker, not a new control (Decision 147).
+                Picker("View as", selection: $context.presentation) {
+                    Text("List").tag(StorageExplorerContext.Presentation.list)
+                    Text("Map").tag(StorageExplorerContext.Presentation.map)
+                }.pickerStyle(.segmented).labelsHidden().fixedSize().accessibilityIdentifier("explorerPresentation")
             }.font(CacheDropDesign.TypeStyle.note)
             if folderAvailable, let folder = context.position.folder {
                 PageSearchField(label: "Search this folder", prompt: "Search this folder", text: $context.position.query, identifier: "explorerSearch")
@@ -279,6 +288,62 @@ struct StorageExplorerView: View {
                 }.frame(maxWidth: .infinity, alignment: .leading)
             }.accessibilityIdentifier("explorerList")
         }
+    }
+    /// The map replaces the list when it has something to draw; indexing, empty and gone folders keep the list's states.
+    private var showsMap: Bool {
+        guard context.presentation == .map, index != nil, folderAvailable else { return false }
+        return model.isScanning || !mapItems.isEmpty
+    }
+    /// The storage map of what the list would show (Decision 147): while a scan runs, the list's skeleton (61), not moving blocks.
+    @ViewBuilder private var map: some View {
+        if model.isScanning {
+            SkeletonRows(.line, count: 6, identifier: "explorerSkeleton").frame(maxHeight: .infinity, alignment: .top)
+        } else {
+            VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
+                StorageMap(title: showsLargeAndOld ? "Large and old files" : context.position.folder?.lastPathComponent ?? context.rootName,
+                           items: mapItems) { context.presentation = .list }
+                if context.position.folder == nil && !showsLargeAndOld {
+                    ForEach(goneLocations, id: \.location.scope) { recoveryRow($0.location, lastObserved: $0.lastObserved) }
+                }
+            }
+        }
+    }
+    /// One block per child of the folder on show, a scanned folder at the top, or each large and old file as one flat map.
+    private var mapItems: [StorageMapItem] {
+        if showsLargeAndOld {
+            return offeredHere.map { file, entry in
+                StorageMapItem(id: entry.id, name: file.displayName, bytes: file.estimatedBytes, isTicked: selection.catalog.isSelected(file),
+                               isInspected: isInspected(entry.item), action: { context.inspect(entry.item) })
+            }
+        }
+        guard let folder = context.position.folder else {
+            return scans.map { scan in
+                StorageMapItem(id: scan.scope.path, name: scan.scope.lastPathComponent, bytes: scan.totalAllocatedBytes ?? scan.allocatedBytes,
+                               isAtLeast: scan.totalAllocatedBytes == nil, isFolder: true, action: { context.enter(scan.scope) })
+            }
+        }
+        guard let index else { return [] }
+        let matched = matchedChildren(in: folder)
+        return index.children(of: folder).map { entry in
+            let item = entry.item, isFolder = item.kind == .folder
+            let subtotal = isFolder ? index.allocatedSubtotal(in: item.url) : nil
+            return StorageMapItem(id: entry.id, name: item.url.lastPathComponent, bytes: subtotal?.bytes ?? item.allocatedBytes,
+                                  isAtLeast: subtotal?.hasUnknownRemainder ?? false, isFolder: isFolder,
+                                  isTicked: offered(item).map { selection.catalog.isSelected($0) } ?? false, isInspected: isInspected(item),
+                                  isDimmed: matched.map { !$0.contains(entry.path) } ?? false,
+                                  action: { if isFolder { context.enter(item.url) } else { context.inspect(item) } })
+        }
+    }
+    /// With a search, the children of `folder` that match or hold a match; the map dims the rest. Nil without a search.
+    private func matchedChildren(in folder: URL) -> Set<String>? {
+        guard !context.position.query.isEmpty else { return nil }
+        let path = folder.standardizedFileURL.path, prefix = path == "/" ? "/" : path + "/"
+        return Set(visible.compactMap { match in
+            match.path.dropFirst(prefix.count).split(separator: "/").first.map { prefix + $0 }
+        })
+    }
+    private func isInspected(_ item: FileObservation) -> Bool {
+        context.position.inspectedID == item.id && context.position.inspectedResource == item.resourceID
     }
     /// A plain row: the checkbox when the file can go in the plan, the name, and its size on disk.
     private func row(_ entry: Entry) -> some View {

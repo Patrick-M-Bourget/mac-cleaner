@@ -36,6 +36,8 @@ enum CacheDropDesign {
         /// below the list otherwise, at most `inspectorStacked` tall or `inspectorStackedShare` of the page (#320).
         static let explorerWide: CGFloat = 800; static let inspector: CGFloat = 280; static let inspectorStacked: CGFloat = 220
         static let inspectorStackedShare: CGFloat = 0.35
+        /// The storage map's smallest labelled block: room for a truncated name and its size (Decision 147); smaller ones merge.
+        static let storageMapLabel = CGSize(width: 64, height: 36)
         /// The workspace's default content size and minimum outer-window size.
         static let defaultWindow = CGSize(width: 1120, height: 760)
         static let minimumWindow = CGSize(width: 900, height: 640)
@@ -65,6 +67,8 @@ enum CacheDropDesign {
         /// Opaque sidebar chrome and the inspected item's accent tint.
         static let opaqueSidebar: Double = 0.65
         static let inspectedItem: Double = 0.06
+        /// Storage map blocks a search doesn't match (Decision 147).
+        static let searchDimmed: Double = 0.35
     }
     enum Stroke {
         static let fine: CGFloat = 0.5
