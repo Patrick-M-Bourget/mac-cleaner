@@ -28,6 +28,8 @@ if ((!verify)); then
     sign "$code"
   done < <(find "$app/Contents" -depth \( -path "$sparkle" -o -path "$sparkle/*" \) -prune -o \
     \( -name '*.framework' -o -name '*.dylib' -o -name '*.bundle' -o -name '*.appex' -o -name '*.xpc' -o -name '*.app' -o -name '*.systemextension' \) -print0)
+  # The command line (#680) is a bare executable, which the bundle search above doesn't find.
+  if [[ -e "$app/Contents/Helpers/cachedrop" ]]; then sign --identifier com.patrickbourget.CacheDrop.cachedrop "$app/Contents/Helpers/cachedrop"; fi
   sign "$app"
 fi
 # Check every nested Mach-O itself, not merely the outer bundle seal.

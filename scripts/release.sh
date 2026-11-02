@@ -127,6 +127,10 @@ version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$plis
 build_number="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$plist")"
 min_os="$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' "$plist")"
 exe="$built/Contents/MacOS/$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$plist")"
+# The command line ships inside the app, built like it (Decision 146, #680).
+helper="$built/Contents/Helpers/cachedrop"
+[[ -x "$helper" ]] || die "no Contents/Helpers/cachedrop in the app"
+[[ "$(lipo -archs "$helper")" == "$(lipo -archs "$exe")" ]] || die "cachedrop is built for $(lipo -archs "$helper"), the app for $(lipo -archs "$exe")"
 
 # 3. Sign each Sparkle helper explicitly, then the framework and outer app.
 step "Signing and verifying every nested executable"
@@ -237,7 +241,7 @@ step "Done"
 binary_min_os="$(vtool -show-build "$app/Contents/MacOS/$(basename "$exe")" 2>/dev/null | awk '/minos/ && !n++ { print $2 }')"
 echo "Mode:         $( ((adhoc)) && echo "ad hoc (not notarized, not for distribution)" || echo "Developer ID, notarized, stapled")"
 echo "Commit:       $commit"
-echo "Architecture: $(lipo -archs "$app/Contents/MacOS/$(basename "$exe")")"
+echo "Architecture: $(lipo -archs "$app/Contents/MacOS/$(basename "$exe")") (cachedrop: $(lipo -archs "$app/Contents/Helpers/cachedrop"))"
 echo "Version:      $version ($build_number)"
 echo "Minimum OS:   macOS $min_os (binary minos ${binary_min_os:-unknown})"
 echo "App:          $app"
