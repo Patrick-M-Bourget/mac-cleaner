@@ -24,6 +24,7 @@ import CacheDropCore
     let capacity = CapacityRefreshController(system: NativeCapacityRefreshSystem())
     let appearance = AppearancePreferenceController(store: NativeAppearancePreferenceStore())
     let license = LicenseController.forApp()
+    let trial = TrialController.forApp()
     let selection = CleanupPlan()
     let recovery = CleanupRecoveryModel()
     let workspaceNavigation = WorkspaceNavigation()

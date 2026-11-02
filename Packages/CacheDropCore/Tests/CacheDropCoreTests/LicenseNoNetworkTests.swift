@@ -31,14 +31,14 @@ private final class RecordingURLProtocol: URLProtocol, @unchecked Sendable {
 }
 
 /// No licensing source can reach the network at all: none names a networking API. Covers CacheDropCore's `License*`
-/// files and the app's License section.
+/// and `Trial*` files (#595) and the app's License section.
 @Test func noLicensingSourceNamesANetworkingAPI() throws {
     let repo = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("../../../..").standardized
     let core = repo.appendingPathComponent("Packages/CacheDropCore/Sources/CacheDropCore")
     var files = try FileManager.default.contentsOfDirectory(at: core, includingPropertiesForKeys: nil)
-        .filter { $0.lastPathComponent.hasPrefix("License") }
+        .filter { $0.lastPathComponent.hasPrefix("License") || $0.lastPathComponent.hasPrefix("Trial") }
     files.append(repo.appendingPathComponent("CacheDrop/App/LicenseSettings.swift"))
-    #expect(files.count >= 4)
+    #expect(files.count >= 6)
     let network = try Regex("URLSession|URLRequest|NSURLConnection|import Network|NWConnection|NWPath|CFNetwork|CFStream|socket\\(|getaddrinfo|WKWebView")
     for file in files {
         let source = try String(contentsOf: file, encoding: .utf8)

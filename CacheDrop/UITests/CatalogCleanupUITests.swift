@@ -517,6 +517,7 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertTrue(reviewLine(app, "permanentlyRemoved", "developer").waitForExistence(timeout: 5))
         XCTAssertFalse(reviewLine(app, "commandsRun", "developer").exists)
         XCTAssertFalse(app.staticTexts["reviewPreviewNotice"].exists)
+        XCTAssertFalse(app.staticTexts["reviewTrial"].exists, "#595: with the build setting off, no trial line")
         // #574: one group, so the sheet fits it rather than standing at its full 520-point height (after its resize settles).
         Thread.sleep(forTimeInterval: 1)
         let sheet = app.sheets.firstMatch
@@ -2708,5 +2709,81 @@ extension CatalogCleanupUITests {
             XCTAssertLessThan(developer.frame.minY, min(npm.frame.minY, yarn.frame.minY), "Rules stay below their own category")
             XCTAssertEqual(alpha.value as? Int, ticked, "Sorting never changes a tick")
         }
+    }
+}
+
+/// #595, Decision 137: the trial with gating on through the Debug-only seam (`CACHEDROP_TEST_LICENSE_GATING`), its count
+/// in memory from `CACHEDROP_TEST_TRIAL_USED`. Each run really deletes the fixture npm cache, in a temp fixture home.
+final class TrialGatingUITests: XCTestCase {
+    @MainActor private func text(_ element: XCUIElement) -> String { element.value as? String ?? element.label }
+    @MainActor private func launchGated(usedBytes: Int64) throws -> (XCUIApplication, () -> Void) {
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        app.launchEnvironment["CACHEDROP_TEST_LICENSE_GATING"] = "1"
+        app.launchEnvironment["CACHEDROP_TEST_TRIAL_USED"] = String(usedBytes)
+        app.launchEnvironment["CACHEDROP_TEST_LICENSE_PUBLIC_KEY"] = "281edbf56bcb31e08ce7365ddfc3c2b7e48543b62e182a97f68c5dbd359100ea"
+        app.launch()
+        XCTAssertTrue(app.staticTexts["overviewTitle"].waitForExistence(timeout: 10))
+        waitForCatalogScan(app)
+        app.typeKey("2", modifierFlags: .command)
+        XCTAssertTrue(app.buttons["smartCleanCleanUp"].waitForExistence(timeout: 10))
+        app.buttons["smartCleanCleanUp"].click()
+        return (app, { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) })
+    }
+
+    /// Within the trial: the review sheet says what's left against the plan, Clean up runs, and Settings › License then
+    /// shows less left.
+    @MainActor func testACleanupWithinTheTrialRunsAndCountsWhatItFreed() throws {
+        continueAfterFailure = false
+        let (app, cleanUp) = try launchGated(usedBytes: 1_999_000_000)
+        defer { cleanUp() }
+        let line = app.staticTexts["reviewTrial"]
+        XCTAssertTrue(line.waitForExistence(timeout: 15))
+        XCTAssertTrue(text(line).hasPrefix("1 MB of free cleanup left · this cleanup uses "), text(line))
+        XCTAssertFalse(app.buttons["reviewEnterLicense"].exists, "No offer while the plan fits")
+        cleanUpFromReview(app)
+        XCTAssertTrue(app.staticTexts["Deleted"].waitForExistence(timeout: 10))
+
+        app.typeKey(",", modifierFlags: .command)
+        let status = app.staticTexts["licenseState"]
+        XCTAssertTrue(status.waitForExistence(timeout: 5))
+        XCTAssertTrue(text(status).hasSuffix(" of free cleanup left"), text(status))
+        XCTAssertNotEqual(text(status), "1 MB of free cleanup left", "The run counted toward the trial")
+        XCTAssertTrue(app.links["licenseBuy"].exists && app.staticTexts["licensePrice"].exists)
+    }
+
+    /// Over the cap: the review says so, Clean up is unavailable, and Enter license and Buy are offered. Enter license opens
+    /// Settings; once a key is active the same review's Clean up runs.
+    @MainActor func testOverTheCapOffersEnterLicenseAndALicenseLetsTheCleanupRun() throws {
+        continueAfterFailure = false
+        let (app, cleanUp) = try launchGated(usedBytes: 1_999_950_000)
+        defer { cleanUp() }
+        let line = app.staticTexts["reviewTrial"]
+        XCTAssertTrue(line.waitForExistence(timeout: 15))
+        XCTAssertTrue(text(line).hasPrefix("This cleanup is "), text(line))
+        XCTAssertTrue(text(line).hasSuffix(", more than the 50 KB of free cleanup left"), text(line))
+        let footer = app.descendants(matching: .any).matching(identifier: "sheetFooter").firstMatch
+        XCTAssertFalse(footer.buttons["Clean up"].isEnabled, "A plan past the cap never runs")
+        XCTAssertTrue(footer.buttons["reviewBuy"].exists)
+        let enter = footer.buttons["reviewEnterLicense"]
+        XCTAssertTrue(enter.exists)
+        enter.click()
+
+        let status = app.staticTexts["licenseState"], field = app.textFields["licenseKeyField"]
+        XCTAssertTrue(status.waitForExistence(timeout: 5))
+        XCTAssertEqual(text(status), "50 KB of free cleanup left")
+        field.click()
+        field.typeText("CD1-AFPQYKUOHMOUY342PYWUXDA6N4YACA2RCZNANLQOLOVBPE7YY2TQLLQHQYCN2NRSAPS25JC6ZXJASXVXWQY6FRAPPNOSR6XEHBQHV2WWO7ZYV6VXQL3AAIERS5UY3GQNOF2UIWIJ")
+        app.links["licenseActivate"].click()
+        let licensed = NSPredicate(format: "value == %@ OR label == %@", "Licensed, up to 3 Macs", "Licensed, up to 3 Macs")
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: licensed, object: status)], timeout: 5), .completed)
+        XCTAssertFalse(app.links["licenseBuy"].exists, "A licensed Mac is offered nothing")
+        app.typeKey("w", modifierFlags: .command)
+
+        XCTAssertTrue(line.waitForNonExistence(timeout: 5), "A licensed Mac's review has no trial line")
+        XCTAssertFalse(footer.buttons["reviewEnterLicense"].exists)
+        cleanUpFromReview(app)
+        XCTAssertTrue(app.staticTexts["Deleted"].waitForExistence(timeout: 10))
     }
 }
