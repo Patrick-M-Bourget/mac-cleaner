@@ -4,7 +4,7 @@
   scripts/issues.py dump 590-645 [601 ...] | --milestone TITLE    raw bodies with labels, parent and blockers
   scripts/issues.py check 590-645 | --milestone TITLE             mechanical ticket problems, one line each
   scripts/issues.py edit N --replace OLD NEW [...] [--title T]    all-or-nothing body edit
-  scripts/issues.py decision N [--site]                           print one whole Decision
+  scripts/issues.py decision N [--site]                           print one whole Decision and what amends it
 
 `--repo owner/name` picks another repository (default: this checkout's, or $ISSUES_REPO). Exit 0 means clean or done,
 1 means problems found or an edit that didn't match, 2 means GitHub or the input failed.
@@ -110,7 +110,23 @@ def decisions(site):
     path, text = decisions_text(site)
     if text is None:
         return path, None
-    return path, {int(m[1]): m[0] for m in re.finditer(r'^(\d+)\. .*$', text, re.M)}
+    # A Decision is its numbered line and the indented lines under it, up to the next numbered line or heading.
+    blocks = re.finditer(r'^(\d+)\. .*(?:\n(?!\d+\. |#).*)*', text, re.M)
+    return path, {int(m[1]): m[0].rstrip() for m in blocks}
+
+
+def amenders(known, number):
+    """Later Decisions whose "amends ..." clauses name `number`: Decisions are append-only (#668)."""
+    found = []
+    for later, text in sorted(known.items()):
+        if later <= number:
+            continue
+        for clause in re.findall(r'\bamends\b([^;)]*)', text.split('\n', 1)[0]):
+            clause = re.sub(r'section \d+', '', clause)
+            if number in {int(n) for n in re.findall(r'(?<![#\d])\b(\d{1,3})\b', clause)}:
+                found.append(later)
+                break
+    return found
 
 
 # check
@@ -217,6 +233,9 @@ def decision(args, _repo=None):
         print(f'Decision {args.number} is not in {path}')
         return 1
     print(known[args.number])
+    later = amenders(known, args.number)
+    if later:
+        print('\nAmended later by Decision' + ('s ' if len(later) > 1 else ' ') + ', '.join(map(str, later)) + '.')
     return 0
 
 

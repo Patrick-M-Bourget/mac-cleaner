@@ -103,6 +103,57 @@ if re.search(os.environ.get('FAIL_PATTERN', r'(?!)'), call):
         self.assertFalse(any('[strict]' in c or 'StorageAlerts' in c or c.startswith(('xcodebuild ', 'check-release.sh ')) for c in calls))
 
 
+class DecisionsCheckTests(CommandTests):
+    """scripts/check-decisions.sh: numbering, and append-only against origin/main (#668)."""
+
+    def setUp(self):
+        super().setUp()
+        self.repo = self.home / 'repo'
+        (self.repo / 'scripts').mkdir(parents=True)
+        (self.repo / 'docs').mkdir()
+        shutil.copy2(ROOT / 'scripts/check-decisions.sh', self.repo / 'scripts/check-decisions.sh')
+        for args in (['init', '-q', '-b', 'main'], ['config', 'user.email', 't@example.com'], ['config', 'user.name', 'T']):
+            self.git(*args)
+        self.reset('1. **One.** First.\n2. **Two.** Second:\n    - a point.\n')
+        self.git('add', '.')
+        self.git('commit', '-q', '-m', 'start')
+        self.git('update-ref', 'refs/remotes/origin/main', 'HEAD')
+
+    def git(self, *args):
+        subprocess.run(['git', *args], cwd=self.repo, check=True, capture_output=True)
+
+    def reset(self, decisions):
+        (self.repo / 'docs/RESET.md').write_text('# Plan\n\n## Decisions\nIntro.\n\n' + decisions)
+
+    def check(self):
+        return self.run_command(['/bin/bash', str(self.repo / 'scripts/check-decisions.sh')])
+
+    def test_appending_passes_and_editing_an_existing_decision_fails(self):
+        self.reset('1. **One.** First.\n2. **Two.** Second:\n    - a point.\n3. **Three (amends 2).** Third.\n')
+        self.assertEqual(self.check().returncode, 0)
+        self.reset('1. **One.** First.\n2. **Two.** Second:\n    - a changed point.\n3. **Three.** Third.\n')
+        result = self.check()
+        self.assertEqual(result.returncode, 1)
+        self.assertIn('Decision 2 was edited', result.stdout)
+
+    def test_a_branch_behind_main_keeps_its_older_copy(self):
+        self.git('checkout', '-q', '-b', 'branch')
+        self.git('checkout', '-q', 'main')
+        self.reset('1. **One.** First.\n2. **Two.** Second:\n    - a point.\n3. **Three.** Third.\n')
+        self.git('commit', '-q', '-am', 'main appends')
+        self.git('update-ref', 'refs/remotes/origin/main', 'HEAD')
+        self.git('checkout', '-q', 'branch')
+        self.assertEqual(self.check().returncode, 0)
+
+    def test_order_still_checked_and_append_only_skipped_without_origin_main(self):
+        self.git('update-ref', '-d', 'refs/remotes/origin/main')
+        self.reset('1. **One.** Edited.\n3. **Three.** Third.\n2. **Two.** Second.\n')
+        result = self.check()
+        self.assertEqual(result.returncode, 1)
+        self.assertIn('Decision 2 follows 3', result.stdout)
+        self.assertNotIn('was edited', result.stdout)
+
+
 class ClosingReferenceTests(CommandTests):
     def setUp(self):
         super().setUp()

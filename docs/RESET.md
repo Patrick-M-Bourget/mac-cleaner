@@ -110,6 +110,8 @@ Phase 0 → 1 → 2 → Tier A (2–3 sessions) → Overview/onboarding → Tier
 - **Real-world check:** a run on your Mac compared against a manual `du`/`df` survey, the field note's method. The pass bar: it finds the categories the field scan found, and its measured freed space matches `df`. #106 ran M1 on the owner's Mac (2026-10-27), but its `df` comparison was never recorded here; that check moves to the acceptance-pass ticket #317.
 
 ## Decisions (grilled 2026-10-26)
+Decisions are append-only (#668). A Decision that changes an earlier one says "amends N" in its own header, and Decision N stays as written; `scripts/issues.py decision N` lists the Decisions that amend it. The "amended by" notes inside older Decisions are history and may be incomplete.
+
 1. Salvage the core; replace bespoke adapters with one catalog-driven layer.
 2. Target: shareable (Developer ID + notarization), but signing is gated to a later "shareable" milestone. M1 = works on the user's Mac.
 3. Regenerable items (caches, build output, updater downloads, leaked app copies) are deleted permanently; user files, models, VM images and installers go to Trash.
