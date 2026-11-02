@@ -1623,7 +1623,8 @@ final class TrashSpaceUITests: XCTestCase {
         XCTAssertEqual(try String(contentsOf: marker, encoding: .utf8), home.appendingPathComponent(".Trash").path)
         XCTAssertTrue(FileManager.default.fileExists(atPath: trashed.path), "Opening the Trash changes nothing in it")
         // #603: the menu bar menu reads the same measurement. The menu is checked, not clicked (see the #131 journey).
-        let size = String(text.dropFirst("Trash holds ".count))
+        // The line's text ends with the separator before its link ("Trash holds 303 KB ·", `TrashLine`).
+        let size = text.dropFirst("Trash holds ".count).replacingOccurrences(of: " ·", with: "")
         XCTAssertTrue(app.menuItems["Trash · " + size].waitForExistence(timeout: 5), "The menu says what the Trash holds: \(size)")
         XCTAssertTrue(app.menuItems["Open Trash"].exists)
     }
