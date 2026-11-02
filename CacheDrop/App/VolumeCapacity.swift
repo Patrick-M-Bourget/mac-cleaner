@@ -13,6 +13,10 @@ struct StartupVolumeCapacity: Sendable {
     static let name: String? = try? URL(fileURLWithPath: "/").resourceValues(forKeys: [.volumeLocalizedNameKey]).volumeLocalizedName
     static func read() -> Self {
         #if DEBUG
+        if LocalStateLocation.isDisposableTest, let pause = ProcessInfo.processInfo.environment["CACHEDROP_TEST_CAPACITY_PAUSE"].flatMap(Double.init) {
+            // Holds each read (up to 5 s, under the refresh's 10 s deadline) so a journey sees "Refreshing…" (#655).
+            Thread.sleep(forTimeInterval: min(max(pause, 0), 5))
+        }
         if let fixture = fixture { return fixture }
         #endif
         let values = try? URL(fileURLWithPath: "/").resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey, .volumeAvailableCapacityKey, .volumeTotalCapacityKey, .volumeUUIDStringKey])
