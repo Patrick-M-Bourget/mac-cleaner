@@ -26,7 +26,9 @@ Options:
   --notary-profile NAME  notarytool keychain profile (see
                          `xcrun notarytool store-credentials`).
                          Env CACHEDROP_NOTARY_PROFILE. Default cachedrop-notary.
-  --sparkle-tools DIR   Sparkle 2.10.1 bin directory; CACHEDROP_SPARKLE_TOOLS.
+  --sparkle-tools DIR    Sparkle 2.10.1 bin directory. Env CACHEDROP_SPARKLE_TOOLS.
+                         Default: .build/sparkle-tools/bin in this checkout,
+                         then in the main checkout (for release worktrees).
   --artifact-base-url URL  Immutable HTTPS directory for this version's DMG.
                          CACHEDROP_ARTIFACT_BASE_URL. Required for signed mode.
   --release-notes FILE   Reviewed HTML fragment embedded in the local appcast.
@@ -89,7 +91,21 @@ echo "Building $commit"
 
 identity="-"
 if ((!adhoc)); then
-  [[ -n "$sparkle_tools" && -n "$artifact_base_url" && -n "$release_notes" ]] || die "signed releases require --sparkle-tools, --artifact-base-url and --release-notes (see docs/RELEASING.md)"
+  [[ -n "$artifact_base_url" && -n "$release_notes" ]] || die "signed releases require --artifact-base-url and --release-notes (see docs/RELEASING.md)"
+  # #657: a fresh release worktree has no .build, so fall back to the main checkout's tools.
+  if [[ -n "$sparkle_tools" ]]; then
+    candidates=("$sparkle_tools")
+  else
+    main_checkout="$(dirname "$(git -C "$repo" rev-parse --path-format=absolute --git-common-dir)")"
+    candidates=("$repo/.build/sparkle-tools/bin")
+    [[ "$main_checkout" == "$repo" ]] || candidates+=("$main_checkout/.build/sparkle-tools/bin")
+  fi
+  sparkle_tools=""
+  for dir in "${candidates[@]}"; do
+    if [[ -f "$dir/generate_keys" && -f "$dir/sign_update" && -f "$dir/generate_appcast" ]]; then sparkle_tools="$dir"; break; fi
+  done
+  [[ -n "$sparkle_tools" ]] || die "no Sparkle 2.10.1 tools (generate_keys, sign_update, generate_appcast) in: ${candidates[*]}; see docs/RELEASING.md, Sparkle prerequisite setup"
+  echo "Sparkle tools: $sparkle_tools"
   python3 "$repo/scripts/sparkle-release.py" preflight --plist "$repo/CacheDrop/UpdateInfo.plist" \
     --tools "$sparkle_tools" --artifact-base-url "$artifact_base_url" --release-notes "$release_notes" --account "$keychain_account"
   # The identity's SHA-1, so a second certificate with the same name can't make codesign ambiguous.
