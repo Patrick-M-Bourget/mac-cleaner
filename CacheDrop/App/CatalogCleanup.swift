@@ -903,25 +903,6 @@ extension CatalogCategory {
         case .apps: .apps
         }
     }
-    /// Overview's row title for a category; the rows themselves come from what the catalog found.
-    var overviewTitle: String {
-        switch self {
-        case .developer: "Developer caches and build files"
-        case .browser: "Browser caches"
-        case .downloads: "Downloads"
-        case .system: "App caches"
-        case .models: "Models and disk images"
-        case .updaters: "App update downloads"
-        case .logs: "Logs and crash reports"
-        case .icloud: "Downloaded iCloud files"
-        case .files: "Large and old files"
-        case .managed: "App-managed storage"
-        case .leftovers: "Files from deleted apps"
-        case .apps: "Apps, plug-ins and their files"
-        }
-    }
-    /// Smart clean's title: it takes only downloads untouched for 7 days (#342), so it says so.
-    var smartCleanTitle: String { self == .downloads ? "Old downloads" : overviewTitle }
     /// The one short line under a category's title on Overview and in the plan, written per category rather than built from rule names.
     var overviewDetail: String {
         switch self {
@@ -939,11 +920,6 @@ extension CatalogCategory {
         case .apps: "Installed apps you chose to uninstall"
         }
     }
-}
-
-extension CatalogOverview.Row {
-    /// The row's size; "Up to" when part of it is copies that share disk blocks.
-    var valueText: String { estimate.text(upperBound: rules.contains(where: \.estimateIsUpperBound)) }
 }
 
 extension CleanupRule {
