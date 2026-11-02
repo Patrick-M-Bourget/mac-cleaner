@@ -53,4 +53,10 @@ extension TrashContents {
         guard bytes > 0 else { return overviewText }
         return (overviewText.map { $0 + " · " } ?? "") + SizeFormatter.text(bytes) + " from CacheDrop"
     }
+    /// The Trash line Overview and the menu bar menu both say (#603, Decision 141): with CacheDrop's own items in the Trash,
+    /// `overviewText(fromCacheDrop:)`; otherwise what the whole Trash holds when it can be read. Nil when there is nothing
+    /// to say, so an empty or unreadable Trash shows no line (Decision 68), never 0. `contents` is nil until measured.
+    public static func line(_ contents: TrashContents?, fromCacheDrop bytes: Int64) -> String? {
+        bytes > 0 ? (contents ?? .unknown).overviewText(fromCacheDrop: bytes) : contents?.overviewText
+    }
 }

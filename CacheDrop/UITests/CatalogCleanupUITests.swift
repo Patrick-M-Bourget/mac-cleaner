@@ -1630,6 +1630,37 @@ final class TrashSpaceUITests: XCTestCase {
         while !FileManager.default.fileExists(atPath: marker.path), Date() < deadline { RunLoop.current.run(until: Date().addingTimeInterval(0.2)) }
         XCTAssertEqual(try String(contentsOf: marker, encoding: .utf8), home.appendingPathComponent(".Trash").path)
         XCTAssertTrue(FileManager.default.fileExists(atPath: trashed.path), "Opening the Trash changes nothing in it")
+        // #603 (Decision 141): the menu bar menu says Overview's line, word for word. The menu is checked, not clicked (see
+        // the #131 journey). Overview's text ends with the separator before its link ("Trash holds 303 KB ·", `TrashLine`).
+        let trashLine = String(text.dropLast(" ·".count))
+        XCTAssertTrue(text.hasSuffix(" ·"), text)
+        XCTAssertTrue(app.menuItems[trashLine].waitForExistence(timeout: 5), "The menu says Overview’s Trash line: \(trashLine)")
+        XCTAssertTrue(app.menuItems["Open Trash"].exists)
+    }
+
+    /// #603 (Decision 141): a Trash CacheDrop can't read, as macOS keeps it without Full Disk Access, has no line on Overview
+    /// (Decision 68) and none in the menu bar menu either, never Unknown or 0.
+    @MainActor func testUnreadableTrashHasNoLineOnOverviewOrInTheMenuBarMenu() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        // A file where the Trash folder should be can't be listed, as a Trash macOS protects without Full Disk Access.
+        try Data(repeating: 5, count: 1_000).write(to: home.appendingPathComponent(".Trash"))
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["overviewTitle"].waitForExistence(timeout: 10))
+        // Only the menu bar menu has Open CacheDrop. The Trash is measured as Overview shows, so its lines would appear within
+        // a moment: none may, through the next 3 seconds.
+        XCTAssertTrue(app.menuItems["Open CacheDrop"].waitForExistence(timeout: 10))
+        let trashLines = app.menuItems.matching(NSPredicate(format: "title BEGINSWITH 'Trash' OR title == 'Open Trash'"))
+        let deadline = Date().addingTimeInterval(3)
+        while Date() < deadline {
+            XCTAssertFalse(trashLines.firstMatch.exists, "No Trash lines in the menu while the Trash can't be read")
+            RunLoop.current.run(until: Date().addingTimeInterval(0.5))
+        }
+        XCTAssertFalse(app.staticTexts["overviewTrash"].exists, "Overview has no Trash line while it can't be read")
     }
 
     /// #164: Overview's disk bar shows what was found inside the used space: a segment per category with an "up to" label for
