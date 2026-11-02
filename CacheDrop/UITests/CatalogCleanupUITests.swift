@@ -1745,12 +1745,13 @@ final class TrashSpaceUITests: XCTestCase {
         let estimateLine = app.staticTexts["resultsEstimate"]
         XCTAssertEqual(estimateLine.value as? String ?? estimateLine.label,
                        "Estimated before cleanup: " + deletedSize + " · measured from the change in free space around each item")
-        let line = app.staticTexts["resultsTrash"]
-        XCTAssertTrue(line.waitForExistence(timeout: 10))
-        let text = [line.label, line.value as? String ?? ""].first { !$0.isEmpty } ?? ""
-        XCTAssertTrue(text.hasSuffix("is in the Trash. Empty it to free the space. ·"), text)
+        // #588: the summary's In the Trash figure says how much once; the line under it is just "Empty from Trash… · Open Trash".
         let empty = app.descendants(matching: .any)["resultsTrashEmpty"]
-        XCTAssertTrue(empty.waitForExistence(timeout: 5))
+        XCTAssertTrue(empty.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.descendants(matching: .any)["resultsTrashOpen"].exists)
+        XCTAssertFalse(app.staticTexts["resultsTrash"].exists, "No size or sentence before the links")
+        XCTAssertTrue(app.staticTexts["In the Trash · Freed when you empty it"].exists)
+        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'is in the Trash' OR value CONTAINS 'is in the Trash'")).firstMatch.exists)
         revealAndClick(empty, in: app)
 
         XCTAssertTrue(app.staticTexts["Empty from the Trash"].waitForExistence(timeout: 5))
