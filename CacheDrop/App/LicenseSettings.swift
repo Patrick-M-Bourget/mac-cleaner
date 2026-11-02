@@ -92,7 +92,7 @@ struct TrialOfferButtons: View {
     var body: some View {
         Button("Enter license") { openSettings() }.accessibilityIdentifier("reviewEnterLicense")
         Button(action: LicensePrice.openBuy) { HStack(spacing: CacheDropDesign.Space.xs) { Text("Buy"); LicensePriceText() } }
-            .accessibilityIdentifier("reviewBuy")
+            .buttonStyle(.borderedProminent).accessibilityIdentifier("reviewBuy")
     }
 }
 

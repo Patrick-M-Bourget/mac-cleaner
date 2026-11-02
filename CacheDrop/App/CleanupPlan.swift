@@ -499,8 +499,13 @@ struct WorkspaceCleanupConfirmationView: View {
             Button("Cancel", action: cancelled).keyboardShortcut(.cancelAction)
             if !trial.fits { TrialOfferButtons() }
             // Applications' review can open during a rescan (Decision 123); Clean up waits for it, as Decision 61 says.
-            Button("Clean up", action: approve).buttonStyle(.borderedProminent).disabled(scanning || !trial.fits)
-                .help(scanning ? CacheDropDesign.waitForScanHelp : "")
+            if trial.fits {
+                Button("Clean up", action: approve).buttonStyle(.borderedProminent).disabled(scanning)
+                    .help(scanning ? CacheDropDesign.waitForScanHelp : "")
+            } else {
+                // Past the trial's cap Clean up can't run, so it isn't the prominent action; Buy is (Decision 137).
+                Button("Clean up", action: approve).disabled(true)
+            }
         }
         // Once at the start too: a holder may have quit while the checks ran, or held rows only through helpers that were closing.
         .task {
