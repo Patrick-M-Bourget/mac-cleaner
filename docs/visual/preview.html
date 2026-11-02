@@ -2384,6 +2384,109 @@ milestonePicker.addEventListener(&#x27;change&#x27;,applyMilestone);
 root.querySelector(&#x27;[data-toolbar-title]&#x27;).insertAdjacentText(&#x27;afterend&#x27;,&#x27;&#x27;);
 applyMilestone();
 
+// Storage map (#612, #684): Explore storage&#x27;s List | Map views and its Large and old files toggle.
+// The map draws the folder on show as a squarified treemap; clicks follow Explore storage&#x27;s rule (a folder opens,
+// a file is inspected) and files are ticked only from the inspector&#x27;s Add to cleanup plan toggle.
+{
+const smStyle=document.createElement(&#x27;style&#x27;);smStyle.textContent=`
+#still-refined .sf-breadcrumb .sm-tools{margin-left:auto;display:flex;align-items:center;gap:14px}
+#still-refined .sf-breadcrumb .sm-tools button.sm-quiet{border:0;background:none;color:var(--st-blue);padding:0;font-size:12px}
+#still-refined .sm-switch{display:inline-flex;border:1px solid var(--st-line);border-radius:7px;overflow:hidden}
+#still-refined .sf-breadcrumb .sm-switch button{border:0;background:none;color:var(--st-text);font-size:11px;padding:3px 11px}
+#still-refined .sf-breadcrumb .sm-switch button[aria-pressed=&quot;true&quot;]{background:var(--st-selected)}
+#still-refined .sm-map{position:relative;height:360px;border:1px solid var(--st-line);border-radius:10px;overflow:hidden;background:var(--st-bg)}
+#still-refined .sm-block{position:absolute;box-sizing:border-box;border:2px solid var(--st-bg);border-radius:8px;padding:8px 9px;margin:0;text-align:left;display:flex;flex-direction:column;align-items:flex-start;gap:2px;overflow:hidden;font:inherit;font-size:12px;color:var(--st-text);background:var(--st-surface)}
+#still-refined .sm-block.sm-folder{background:var(--st-track)}
+#still-refined .sm-block.sm-ticked{background:var(--st-selected)}
+#still-refined .sm-block.sm-inspected{box-shadow:inset 0 0 0 2px var(--st-blue)}
+#still-refined .sm-block.sm-merged{background:var(--st-bg);border:1px dashed var(--st-line);color:var(--st-secondary)}
+#still-refined .sm-block.sm-dimmed{opacity:.35}
+#still-refined .sm-block:focus-visible{outline:2px solid var(--st-blue);outline-offset:-2px}
+#still-refined .sm-block .sm-name{display:flex;align-items:center;gap:5px;max-width:100%;font-weight:500}
+#still-refined .sm-block .sm-name span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#still-refined .sm-block .sm-name svg{flex:none;width:13px;height:13px;color:var(--st-secondary)}
+#still-refined .sm-block small{font-size:11px;color:var(--st-secondary)}
+#still-refined .sm-block .sm-tick{position:absolute;top:6px;right:7px;color:var(--st-blue)}
+#still-refined .sm-block .sm-tick svg{width:14px;height:14px}
+#still-refined .sm-block.sm-unlabeled&gt;*{display:none}
+#still-refined .sm-plan-toggle{display:flex;align-items:center;gap:7px;font-size:12px;margin:0 0 12px}
+#still-refined .sm-plan-toggle input{margin:0}
+@media(max-width:740px){#still-refined .sm-map{height:300px}}
+`;document.head.append(smStyle);
+
+// A real Downloads folder holds many small files; these show the map&#x27;s &quot;N smaller items&quot; block (Decision 83 offers each).
+files.push(...[[&#x27;Screenshot 2026-10-28.png&#x27;,.04],[&#x27;Invoice-1042.pdf&#x27;,.03],[&#x27;Boarding pass.pdf&#x27;,.02],[&#x27;Meeting notes.txt&#x27;,.01],[&#x27;Logo-final.svg&#x27;,.01],[&#x27;Setlist.numbers&#x27;,.02]].map(([name,size],n)=&gt;({id:&#x27;d-small-&#x27;+n,group:&#x27;Downloads&#x27;,name,size,action:&#x27;installers&#x27;,kind:&#x27;File&#x27;})));
+let exploreView=&#x27;list&#x27;,largeOld=false;
+const browserPanel=root.querySelector(&#x27;[data-panel=&quot;browser&quot;]&#x27;);
+const fileList=browserPanel.querySelector(&#x27;.sf-file-list&#x27;);
+const crumbs=browserPanel.querySelector(&#x27;.sf-breadcrumb&#x27;);
+const mapBox=el(&#x27;div&#x27;,&#x27;sm-map&#x27;);mapBox.setAttribute(&#x27;role&#x27;,&#x27;group&#x27;);mapBox.hidden=true;fileList.after(mapBox);
+const tools=el(&#x27;span&#x27;,&#x27;sm-tools&#x27;);
+const largeToggle=button(&#x27;Large and old files&#x27;,&#x27;sm-quiet&#x27;,()=&gt;{largeOld=!largeOld;renderBrowser()});
+const viewSwitch=el(&#x27;span&#x27;,&#x27;sm-switch&#x27;);viewSwitch.setAttribute(&#x27;role&#x27;,&#x27;group&#x27;);viewSwitch.setAttribute(&#x27;aria-label&#x27;,&#x27;View as&#x27;);
+const viewButtons=[[&#x27;list&#x27;,&#x27;List&#x27;],[&#x27;map&#x27;,&#x27;Map&#x27;]].map(([key,label])=&gt;{const b=button(label,&#x27;&#x27;,()=&gt;{exploreView=key;renderBrowser()});b.dataset.view=key;viewSwitch.append(b);return b});
+tools.append(largeToggle,viewSwitch);crumbs.append(tools);
+
+// Ticking from the inspector, as the app&#x27;s inspector does for an offered file.
+const planToggle=el(&#x27;label&#x27;,&#x27;sm-plan-toggle&#x27;);const planBox=el(&#x27;input&#x27;);planBox.type=&#x27;checkbox&#x27;;planToggle.append(planBox,el(&#x27;span&#x27;,&#x27;&#x27;,&#x27;Add to cleanup plan&#x27;));
+browserPanel.querySelector(&#x27;.sf-inspector .sf-inline-controls&#x27;).before(planToggle);
+planBox.addEventListener(&#x27;change&#x27;,()=&gt;{setLiveFile(inspected,planBox.checked);renderBrowser()});
+
+// A block needs room for at least a truncated name and its size; smaller ones merge.
+const SM_MIN_W=64,SM_MIN_H=36;
+const atRoot=()=&gt;location===&#x27;Selected folders&#x27;;
+const gb=n=&gt;n.toFixed(1)+&#x27; GB&#x27;;
+// Sample: Documents is partly unreadable, so its size is a lower bound, as Overview&#x27;s Scanned locations show it.
+const rootFolders=()=&gt;Object.entries({Downloads:10,Documents:172,Developer:28.4}).filter(([name])=&gt;!scanCoverage||scanCoverage.includes(name)).map(([name,size])=&gt;({name,size,folder:true,atLeast:name===&#x27;Documents&#x27;}));
+const largeFiles=()=&gt;{const scanned=rootFolders().map(r=&gt;r.name);return files.filter(f=&gt;f.action&amp;&amp;f.size&gt;=.5&amp;&amp;scanned.includes(f.group)&amp;&amp;(atRoot()||f.group===location)).sort((a,b)=&gt;b.size-a.size)};
+const sizeText=i=&gt;(i.atLeast?&#x27;At least &#x27;:&#x27;&#x27;)+gb(i.size);
+
+function fileRow(f){const row=el(&#x27;div&#x27;,&#x27;sf-file-row&#x27;+(selectedFiles.has(f.id)?&#x27; sf-selected&#x27;:&#x27;&#x27;)+(f.id===inspected?&#x27; sf-inspected&#x27;:&#x27;&#x27;));const cb=el(&#x27;input&#x27;);cb.type=&#x27;checkbox&#x27;;cb.checked=selectedFiles.has(f.id);cb.disabled=!planEligible(f)||scenario===&#x27;stale&#x27;;cb.setAttribute(&#x27;aria-label&#x27;,&#x27;Select &#x27;+f.name);cb.addEventListener(&#x27;change&#x27;,()=&gt;{setLiveFile(f.id,cb.checked);renderBrowser()});const name=button(&#x27;&#x27;,&#x27;sf-file-name&#x27;,()=&gt;{inspector(f);renderBrowser()});name.setAttribute(&#x27;aria-label&#x27;,&#x27;Inspect &#x27;+f.name);name.append(icon(f.action===&#x27;installers&#x27;?&#x27;file&#x27;:&#x27;folder&#x27;),el(&#x27;span&#x27;,&#x27;&#x27;,f.name));row.append(cb,name,el(&#x27;small&#x27;,&#x27;st-numeric&#x27;,gb(f.size)));return row}
+
+function squarify(items,x,y,w,h){const total=items.reduce((s,i)=&gt;s+i.size,0);if(!total)return[];const scale=w*h/total;const rest=items.map(item=&gt;({item,area:item.size*scale}));const out=[];
+  while(rest.length){const side=Math.min(w,h);const worst=r=&gt;{const s=r.reduce((a,b)=&gt;a+b.area,0),mx=Math.max(...r.map(a=&gt;a.area)),mn=Math.min(...r.map(a=&gt;a.area));return Math.max(side*side*mx/(s*s),s*s/(side*side*mn))};
+    const row=[rest.shift()];while(rest.length&amp;&amp;worst([...row,rest[0]])&lt;=worst(row))row.push(rest.shift());const s=row.reduce((a,b)=&gt;a+b.area,0);
+    if(w&gt;=h){const rw=s/h;let yy=y;for(const r of row){const rh=r.area/rw;out.push({item:r.item,x,y:yy,w:rw,h:rh});yy+=rh}x+=rw;w-=rw}
+    else{const rh=s/w;let xx=x;for(const r of row){const rw=r.area/rh;out.push({item:r.item,x:xx,y,w:rw,h:rh});xx+=rw}y+=rh;h-=rh}}
+  return out}
+// Blocks too small to label merge into one &quot;N smaller items&quot; block, laid out last. Merging changes the layout, so it
+// repeats until no other block is too small; a lone small block with nothing to merge into stays, unlabeled.
+function layout(items,w,h){const small=r=&gt;r.w&lt;SM_MIN_W||r.h&lt;SM_MIN_H;let kept=[...items];const tiny=[];
+  const withMerged=()=&gt;tiny.length?[...kept,{merged:true,name:tiny.length+(tiny.length===1?&#x27; smaller item&#x27;:&#x27; smaller items&#x27;),size:tiny.reduce((s,i)=&gt;s+i.size,0)}]:kept;
+  for(;;){const rects=squarify(withMerged(),0,0,w,h);const more=rects.filter(r=&gt;small(r)&amp;&amp;!r.item.merged).map(r=&gt;r.item);
+    if(!more.length||(more.length===1&amp;&amp;!tiny.length))return rects;
+    tiny.push(...more);kept=kept.filter(i=&gt;!more.includes(i))}}
+
+function drawMap(){mapBox.replaceChildren();const query=root.querySelector(&#x27;[data-file-search]&#x27;).value.toLowerCase();
+  const items=largeOld?largeFiles():atRoot()?rootFolders():files.filter(f=&gt;f.group===location).sort((a,b)=&gt;b.size-a.size);
+  mapBox.setAttribute(&#x27;aria-label&#x27;,(largeOld?&#x27;Large and old files&#x27;:location)+&#x27;, storage map&#x27;);
+  const w=mapBox.clientWidth||640,h=mapBox.clientHeight||360;
+  for(const r of layout(items,w,h)){const i=r.item;const b=el(&#x27;button&#x27;,&#x27;sm-block cursor-interaction&#x27;);b.type=&#x27;button&#x27;;
+    Object.assign(b.style,{left:r.x/w*100+&#x27;%&#x27;,top:r.y/h*100+&#x27;%&#x27;,width:r.w/w*100+&#x27;%&#x27;,height:r.h/h*100+&#x27;%&#x27;});
+    const label=i.name+&#x27;, &#x27;+sizeText(i)+&#x27; on disk&#x27;;b.setAttribute(&#x27;aria-label&#x27;,label);b.title=i.name+&#x27; · &#x27;+sizeText(i)+&#x27; on disk&#x27;;
+    const name=el(&#x27;span&#x27;,&#x27;sm-name&#x27;);if(i.folder)name.append(icon(&#x27;folder&#x27;));name.append(el(&#x27;span&#x27;,&#x27;&#x27;,i.name));b.append(name,el(&#x27;small&#x27;,&#x27;st-numeric&#x27;,sizeText(i)));
+    if(i.merged){b.classList.add(&#x27;sm-merged&#x27;);b.title=&#x27;Show them in the list&#x27;;b.addEventListener(&#x27;click&#x27;,()=&gt;{exploreView=&#x27;list&#x27;;renderBrowser()})}
+    else if(i.folder){b.classList.add(&#x27;sm-folder&#x27;);b.addEventListener(&#x27;click&#x27;,()=&gt;browseFolder(i.name))}
+    else{if(selectedFiles.has(i.id)){b.classList.add(&#x27;sm-ticked&#x27;);const t=el(&#x27;span&#x27;,&#x27;sm-tick&#x27;);t.append(icon(&#x27;check&#x27;));b.append(t)}
+      if(i.id===inspected){b.classList.add(&#x27;sm-inspected&#x27;);b.setAttribute(&#x27;aria-current&#x27;,&#x27;true&#x27;)}
+      b.addEventListener(&#x27;click&#x27;,()=&gt;{inspector(i);renderBrowser()})}
+    if(query&amp;&amp;!i.merged&amp;&amp;!i.name.toLowerCase().includes(query))b.classList.add(&#x27;sm-dimmed&#x27;);
+    if(!i.merged&amp;&amp;(r.w&lt;SM_MIN_W||r.h&lt;SM_MIN_H))b.classList.add(&#x27;sm-unlabeled&#x27;);
+    mapBox.append(b)}}
+
+const listRenderBrowser=renderBrowser;renderBrowser=function(){listRenderBrowser();
+  const map=exploreView===&#x27;map&#x27;;viewButtons.forEach(b=&gt;b.setAttribute(&#x27;aria-pressed&#x27;,String(b.dataset.view===exploreView)));
+  largeToggle.textContent=largeOld?&#x27;All files&#x27;:&#x27;Large and old files&#x27;;
+  if(largeOld&amp;&amp;!map){const list=root.querySelector(&#x27;[data-browser-rows]&#x27;);list.replaceChildren(...largeFiles().map(fileRow))}
+  fileList.hidden=map;mapBox.hidden=!map;if(map)drawMap();
+  const hint=browserPanel.querySelector(&#x27;.uf-selection-hint&#x27;);if(map)hint.textContent=&#x27;Click a folder to open it, or a file to see its details and add it to the plan.&#x27;;
+  const f=files.find(f=&gt;f.id===inspected);const showInspector=!(atRoot()&amp;&amp;!largeOld)&amp;&amp;!!f;browserPanel.querySelector(&#x27;.sf-inspector&#x27;).hidden=!showInspector;browserPanel.querySelector(&#x27;.sf-browser&#x27;).style.gridTemplateColumns=showInspector?&#x27;&#x27;:&#x27;minmax(0,1fr)&#x27;;
+  planToggle.hidden=!(f&amp;&amp;f.action&amp;&amp;planEligible(f));planBox.checked=!!f&amp;&amp;selectedFiles.has(f.id);
+  if(atRoot()&amp;&amp;!largeOld&amp;&amp;!map){const docs=[...root.querySelectorAll(&#x27;[data-browser-rows] .sf-file-row&#x27;)].find(r=&gt;r.textContent.startsWith(&#x27;Documents&#x27;));if(docs){docs.style.gridTemplateColumns=&#x27;16px minmax(0,1fr) auto&#x27;;docs.querySelector(&#x27;small&#x27;).textContent=&#x27;At least 172.0 GB&#x27;}}
+  icons()};
+new ResizeObserver(()=&gt;{if(exploreView===&#x27;map&#x27;&amp;&amp;!mapBox.hidden){drawMap();icons()}}).observe(mapBox);
+}
+
 boxes.forEach(b=&gt;b.checked=false);Object.keys(plannedFiles).forEach(k=&gt;delete plannedFiles[k]);restore(window.openai?.widgetState);refreshCategoryChoices();window.addEventListener(&#x27;openai:set_globals&#x27;,e=&gt;{if(e.detail?.globals?.widgetState)restore(e.detail.globals.widgetState)});icons();
 
 })();
