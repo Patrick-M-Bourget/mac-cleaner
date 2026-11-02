@@ -161,11 +161,12 @@ struct RefreshRequest: Sendable {
     func prepareSmartCleanReview() async throws -> WorkspaceCleanupReview {
         guard canReviewSmartClean else { throw PlanReviewError.changed }
         let catalogVersion = catalog.selectionRevision(for: .smartClean)
-        guard let checked = await catalog.smartCleanCheckedNow() else { throw failure }
-        // The sheet closed while Smart clean's items were checked: the review's own pass isn't needed (#463).
-        try Task.checkCancellation()
-        guard !checked.items.isEmpty else { throw PlanReviewError.nothingToClean }
-        return try await review(checked.items, from: .smartClean, catalogVersion: catalogVersion, check: checked.check)
+        // A sheet closed while Smart clean's items were checked skips the review's own pass (#463).
+        return try await ReviewCheckSteps.run({ await catalog.smartCleanCheckedNow() }, then: { checked in
+            guard let checked else { throw failure }
+            guard !checked.items.isEmpty else { throw PlanReviewError.nothingToClean }
+            return try await review(checked.items, from: .smartClean, catalogVersion: catalogVersion, check: checked.check)
+        })
     }
     /// The Applications page's review: its chosen items, through the plan's review and executor.
     func prepareApplicationsReview() async throws -> WorkspaceCleanupReview {
@@ -174,7 +175,7 @@ struct RefreshRequest: Sendable {
     }
     /// A page's review of `items` through the plan's review, refused when the page's choices changed meanwhile.
     private func review(_ items: [Candidate], from source: CleanupSelections.Source, catalogVersion: UInt64, check: CandidateCheck? = nil) async throws -> WorkspaceCleanupReview {
-        let review = await catalog.prepareReview(of: items, using: check)
+        let review = try await catalog.prepareReview(of: items, using: check)
         guard let review else { throw failure }
         guard canReview(source), catalog.selectionRevision(for: source) == catalogVersion else { throw PlanReviewError.changed }
         return WorkspaceCleanupReview(catalog: review, catalogVersion: catalogVersion, source: source, model: catalog)
@@ -182,7 +183,7 @@ struct RefreshRequest: Sendable {
     func prepareWorkspaceReview() async throws -> WorkspaceCleanupReview {
         guard canReview else { throw PlanReviewError.changed }
         let catalogVersion = catalog.selectionRevision(for: .plan)
-        let items = catalog.selectedCount > 0 ? await catalog.prepareReview() : nil
+        let items = catalog.selectedCount > 0 ? try await catalog.prepareReview() : nil
         if catalog.selectedCount > 0, items == nil, catalog.settingsUnreadable { throw PlanReviewError.settingsUnreadable }
         guard canReview, catalog.selectionRevision(for: .plan) == catalogVersion, catalog.selectedCount == 0 || items != nil else { throw PlanReviewError.changed }
         return WorkspaceCleanupReview(catalog: items, catalogVersion: catalogVersion, model: catalog)
