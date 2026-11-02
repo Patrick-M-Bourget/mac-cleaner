@@ -31,7 +31,7 @@ You implement ONE ticket of CacheDrop (Patrick-M-Bourget/mac-cleaner) in your ow
 
 **Done**
 - `swift test --package-path Packages/CacheDropCore` passes: single test files while iterating, the full suite once at the end.
-- `scripts/check.sh` passes, and `xcodebuild build-for-testing` too.
+- `scripts/check.sh` passes, and `xcodebuild build-for-testing` too. Run check.sh in the foreground with a 600000 ms timeout (it takes 8–10 minutes) and report only once it has finished; a backgrounded run leaves your report waiting.
 - Report in 15 lines or fewer:
   - branch, head SHA and commits
   - each acceptance criterion and how it is met and tested
