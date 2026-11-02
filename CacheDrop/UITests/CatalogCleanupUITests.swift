@@ -1385,7 +1385,9 @@ extension CatalogCleanupUITests {
         let choose = app.checkBoxes["explorerInspectorChoose"]
         XCTAssertTrue(choose.waitForExistence(timeout: 10))
         XCTAssertEqual(choose.value as? Int, 0, "a click on a block never adds anything to the plan")
-        choose.click()
+        // The inspector scrolls when it's taller than the page leaves it (#371).
+        revealAndClick(choose, in: app)
+        XCTAssertEqual(choose.value as? Int, 1)
         XCTAssertTrue(actionStrip(app).staticTexts["1 selected"].waitForExistence(timeout: 5))
         XCTAssertTrue(actionStrip(app).buttons["Add to cleanup plan"].isEnabled)
         // The map stays, and the choice lasts while CacheDrop runs.
