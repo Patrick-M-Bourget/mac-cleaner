@@ -25,9 +25,9 @@ struct CacheDropApp: App {
         Window("CacheDrop", id: "workspace") {
             WorkspaceView(alerts: lifecycle.alerts)
                 .frame(minWidth: CacheDropDesign.Size.minimumWindow.width).background { NativeWindowContract() }
-                // The sidebar's material runs under the traffic lights: no title bar band or line above the page (#549).
-                .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
-                .toolbar(removing: .title) // The sidebar header shows the name (#162).
+                // The sidebar's material runs under the traffic lights: no title bar band or line above the page (#549), and
+                // the sidebar header shows the name (#162).
+                .hiddenWindowTitleBar()
                 .cacheDropButtonRule()
         }
         .defaultSize(width: CacheDropDesign.Size.defaultWindow.width, height: CacheDropDesign.Size.defaultWindow.height)

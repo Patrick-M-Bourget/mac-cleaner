@@ -1036,6 +1036,21 @@ struct InspectableItemRow<Selection: View>: View {
 }
 
 /// Enforce the outer-window minimum independently of a destination's intrinsic content size.
+/// No title bar band or title above the page (#549, #162). The SwiftUI modifiers are macOS 15 and later; on macOS 14
+/// `NativeWindowContract` makes the title bar transparent and hides the title instead (Decision 144).
+struct HiddenWindowTitleBar: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(macOS 15, *) {
+            content.toolbarBackgroundVisibility(.hidden, for: .windowToolbar).toolbar(removing: .title)
+        } else {
+            content
+        }
+    }
+}
+extension View {
+    func hiddenWindowTitleBar() -> some View { modifier(HiddenWindowTitleBar()) }
+}
+
 struct NativeWindowContract: NSViewRepresentable {
     func makeNSView(context: Context) -> ContractView { ContractView() }
     func updateNSView(_ nsView: ContractView, context: Context) {}
@@ -1048,6 +1063,8 @@ struct NativeWindowContract: NSViewRepresentable {
             // #162: the sidebar header shows the logo and name, so the title bar doesn't repeat it. The window keeps its
             // title for accessibility, Mission Control and the Window menu; the traffic lights and dragging are unchanged.
             window.titleVisibility = .hidden
+            // macOS 14 has no SwiftUI way to hide the toolbar's background (`hiddenWindowTitleBar`): AppKit does it there.
+            if #unavailable(macOS 15) { window.titlebarAppearsTransparent = true }
             DispatchQueue.main.async { self.fit(window) }
         }
         private func fit(_ window: NSWindow) {
