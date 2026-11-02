@@ -362,17 +362,19 @@ final class ApplicationsUITests: XCTestCase {
         XCTAssertFalse(app.checkBoxes["planCategory-leftovers"].exists)
     }
 
-    /// #303, #306: an uninstall rescans when it ends. After Done, while that scan runs, the bar shows its progress and the
-    /// other app's row stays, dimmed with its checkbox disabled (#308, #375); then it can be clicked again.
-    @MainActor func testApplicationsRescansAfterAnUninstallAndRowsWaitDimmed() throws {
+    /// #303, #306: an uninstall rescans when it ends, and the bar shows its progress. Decision 134 (#647): that rescan reads
+    /// again only what the uninstall touched, so while it runs the uninstalled app's row is gone and the other app's row can be
+    /// ticked and reviewed; Clean up waits for the scan.
+    @MainActor func testTheRescanAfterAnUninstallKeepsOtherAppsUsableAndTheUninstalledRowGone() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
         let state = try configureIsolatedState(app)
         let home = try configureCatalogHome(app)
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
         let synth = try addApp("Synth", id: "com.maker.synth", bytes: 90_000, in: home)
-        let pad = try addApp("Pad", id: "com.maker.pad", bytes: 90_000, in: home)
-        app.launchEnvironment["CACHEDROP_TEST_DISCOVERY_PAUSE"] = "0.5"
+        let pad = try addApp("Pad", id: "com.padmaker.pad", bytes: 90_000, in: home)
+        // The rescan after the run holds, so it is still running while the page is used.
+        app.launchEnvironment["CACHEDROP_TEST_RESCAN_PAUSE"] = "20"
         app.launch()
         waitForCatalogScan(app)
         app.typeKey("4", modifierFlags: .command)
@@ -386,15 +388,28 @@ final class ApplicationsUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 20))
         app.buttons["Done"].click()
 
-        XCTAssertTrue(app.staticTexts["catalogScanProgress"].waitForExistence(timeout: 10), "The run rescans, and the bar shows its progress")
-        // #308, #375: the row stays listed with its checkbox, dimmed and disabled, until the rescan replaces it.
+        let progress = app.staticTexts["catalogScanProgress"]
+        XCTAssertTrue(progress.waitForExistence(timeout: 10), "The run rescans, and the bar shows its progress")
+        XCTAssertTrue(synthRow.waitForNonExistence(timeout: 5), "The uninstalled app's row is gone at once")
         let padRow = element(app, "applicationsApp-" + pad.path, .checkBox)
-        XCTAssertTrue(padRow.waitForExistence(timeout: 5), "The row stays listed during the rescan")
-        XCTAssertFalse(padRow.isEnabled, "It can't be clicked until the scan ends")
-        let enabled = NSPredicate(format: "isEnabled == true")
-        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: enabled, object: padRow)], timeout: 120), .completed,
-                       "It can be clicked again after the scan")
-        XCTAssertTrue(app.staticTexts["catalogScanProgress"].waitForNonExistence(timeout: 120))
+        XCTAssertTrue(padRow.waitForExistence(timeout: 5), "The other app stays listed")
+        XCTAssertTrue(progress.exists, "Still rescanning")
+        XCTAssertTrue(padRow.isEnabled, "Not dimmed: the rescan doesn't read it again")
+        revealAndClick(padRow, in: app)
+        XCTAssertEqual(padRow.value as? Int, 1, "Ticked during the rescan")
+        let review = app.buttons["Review cleanup"]
+        XCTAssertTrue(review.isEnabled, "Review cleanup doesn't wait for the rescan")
+        review.click()
+        XCTAssertTrue(reviewLine(app, "movedToTrash", "apps").waitForExistence(timeout: 10))
+        let footer = app.descendants(matching: .any).matching(identifier: "sheetFooter").firstMatch
+        XCTAssertTrue(progress.exists, "Still rescanning")
+        XCTAssertFalse(footer.buttons["Clean up"].isEnabled, "Clean up waits for the scan")
+        XCTAssertTrue(progress.waitForNonExistence(timeout: 120))
+        let enabled = XCTNSPredicateExpectation(predicate: NSPredicate(format: "isEnabled == true"), object: footer.buttons["Clean up"])
+        XCTAssertEqual(XCTWaiter.wait(for: [enabled], timeout: 10), .completed, "The scan kept Pad's choices: the review stays open and can run")
+        footer.buttons["Cancel"].click()
+        XCTAssertFalse(synthRow.exists, "Still gone after the rescan")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: pad.path), "Pad was only reviewed")
     }
 
     /// #556, Decision 123: a Smart clean that uninstalled nothing leaves Apps and Plug-ins readable and clickable during the

@@ -620,3 +620,23 @@ private func unreadableReceipt(_ id: String, in root: URL) throws {
     #expect(again.allSatisfy { $0.ruleID == PlugInUninstall.formatsRuleID })
     #expect(!again.isEmpty)
 }
+
+/// Decision 134 (#647): the rescan after a run reads again only the products it touched, against the last full scan's inventory,
+/// and finds their items as a full scan would. A product that went keeps sharing what it shared, so nothing becomes another's own.
+@Test func scanningOnlyTouchedProductsFindsTheirItemsAsAFullScanAndNeverMakesASharedItemOwn() throws {
+    let (root, home) = try fixture()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let (inventory, items) = scan(root, home)
+    let synth = try product("Pro Synth", inventory), delay = try product("Pro Delay", inventory)
+    func shape(_ items: [Candidate]) -> [String] { items.map { "\($0.ruleID) \($0.url.path) \($0.sharedBy) \($0.uninstall?.path ?? "")" }.sorted() }
+    let receipts = ReceiptListings.read(under: root)
+
+    let onlyDelay = PlugInUninstall.scan(inventory, apps: [], receipts: receipts, systemRoot: root, only: [delay])
+    #expect(shape(onlyDelay) == shape(items.filter { $0.isUninstalled(with: delay) }))
+
+    // Pro Synth's formats and presets went; the inventory read before the run still lists it.
+    for item in items where item.uninstall?.path == synth && item.sharedBy.isEmpty { try FileManager.default.removeItem(at: item.url) }
+    let afterRun = PlugInUninstall.scan(inventory, apps: [], receipts: receipts, systemRoot: root, only: [synth])
+    #expect(names(afterRun) == ["Shared"], "Only what is left of it")
+    #expect(afterRun.allSatisfy { $0.ruleID == PlugInUninstall.sharedRuleID && $0.sharedBy.count == 2 }, "Still shared with Pro Delay, never its own")
+}

@@ -43,9 +43,10 @@ public enum RemovedAppLeftovers {
     }
 
     /// The leftovers under `home`. Read-only. Offers nothing when the installed apps can't be listed: an app counts as removed
-    /// only when no copy is found, by Launch Services or Spotlight, on any volume.
+    /// only when no copy is found, by Launch Services or Spotlight, on any volume. `only` keeps, and sizes, just the leftovers
+    /// whose tie it accepts (Decision 134).
     public static func scan(home: URL, apps: any AppPresence, receipts: any InstallerReceiptReading, exclusions: ProtectedItemsPolicy = ProtectedItemsPolicy(),
-                            sizer: KnownLocationSizer = KnownLocationSizer(), skipping: Set<String> = []) -> [Candidate] {
+                            sizer: KnownLocationSizer = KnownLocationSizer(), skipping: Set<String> = [], only: ((LeftoverTie) -> Bool)? = nil) -> [Candidate] {
         guard let installed = apps.installedApps() else { return [] }
         let base = home.resolvingSymlinksInPath()
         let catalog = Catalog(rules: rules)
@@ -102,7 +103,7 @@ public enum RemovedAppLeftovers {
             return nil
         }
         return entries.compactMap { url, info in
-            guard !skipping.contains(url.path), let tie = tie(url) else { return nil }
+            guard !skipping.contains(url.path), let tie = tie(url), only?(tie) ?? true else { return nil }
             let rule = tie.isNameOnly ? possiblyRelatedRule : leftoversRule
             let size = sizer.size(url)
             var item = catalog.candidate(rule, url, info, logical: size.logicalBytes, allocated: size.allocatedBytes, complete: size.complete, lastUsed: nil)

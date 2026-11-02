@@ -14,7 +14,7 @@ private let app = item(AppUninstall.appRuleID), leftover = item(RemovedAppLeftov
 private func keptRescan() -> ApplicationsRescan {
     var rescan = ApplicationsRescan()
     rescan.scanStarted(); rescan.scanPrepared(UUID())
-    rescan.runStarted(); rescan.runEnded(keptApplications: true)
+    rescan.runStarted(); rescan.runEnded(touched: TouchedApplications())
     rescan.rescanRequested(afterRun: true, scanning: false); rescan.scanStarted()
     return rescan
 }
@@ -36,7 +36,7 @@ private func keptRescan() -> ApplicationsRescan {
     #expect(!fresh.canChoose([app], scanning: true))
 
     var changed = ApplicationsRescan()
-    changed.runStarted(); changed.runEnded(keptApplications: false)
+    changed.runStarted(); changed.runEnded(touched: nil)
     changed.rescanRequested(afterRun: true, scanning: false)
     #expect(changed.appsWait(scanning: true), "The rescan after an uninstall")
 
@@ -65,7 +65,7 @@ private func keptRescan() -> ApplicationsRescan {
     let full = UUID()
     rescan.scanPrepared(full)
     #expect(rescan.listsScan == full)
-    rescan.runStarted(); rescan.runEnded(keptApplications: true)
+    rescan.runStarted(); rescan.runEnded(touched: TouchedApplications())
     rescan.rescanRequested(afterRun: true, scanning: false); rescan.scanStarted()
     #expect(rescan.listsScan == full, "The kept rescan's lists are the last full scan's, readable during it")
     rescan.scanPrepared(UUID())
@@ -77,4 +77,45 @@ private func keptRescan() -> ApplicationsRescan {
     #expect(rescan.listsScan == next)
     rescan.scanFoundNothing()
     #expect(rescan.listsScan == nil, "A scan that couldn't read the settings: read them again")
+}
+
+/// Decision 134 (#647): after a run that changed Applications, only the rows the rescan reads again wait; the rest stay
+/// readable and can be ticked and reviewed. A row whose app or product went leaves the page at once.
+@Test func theRescanAfterAnUninstallMakesOnlyTheTouchedRowsWait() {
+    var rescan = ApplicationsRescan()
+    rescan.scanStarted()
+    let full = UUID()
+    rescan.scanPrepared(full)
+    var touched = TouchedApplications()
+    touched.rows = [app.url.path]
+    let other = item(PlugInUninstall.formatsRuleID)
+    var ownItem = app
+    ownItem.uninstall = AppUninstall.Target(name: "App", bundleID: "com.maker.app", path: app.url.path)
+    rescan.runStarted(); rescan.runEnded(touched: touched)
+    rescan.runRemoved([app.url.path])
+    rescan.rescanRequested(afterRun: true, scanning: false); rescan.scanStarted()
+
+    #expect(!rescan.appsWait(scanning: true), "Apps and Plug-ins are read during it")
+    #expect(rescan.rowWaits(app.url.path, scanning: true) && !rescan.rowWaits(other.url.path, scanning: true))
+    #expect(!rescan.canChoose([ownItem], scanning: true), "What is left of the touched row waits")
+    #expect(rescan.canChoose([other], scanning: true), "Another row is ticked and reviewed")
+    #expect(rescan.listsScan == full, "Its lists aren't read again")
+    #expect(rescan.hides(app.url.path, loaded: full) && !rescan.hides(other.url.path, loaded: full), "The uninstalled row is gone")
+    rescan.scanPrepared(UUID())
+    #expect(!rescan.rowWaits(app.url.path, scanning: false))
+    #expect(rescan.hides(app.url.path, loaded: full), "and stays gone after it")
+    rescan.rescanRequested(afterRun: false, scanning: false); rescan.scanStarted()
+    #expect(rescan.rowWaits(other.url.path, scanning: true), "Any other scan makes every row wait")
+    let next = UUID()
+    rescan.scanPrepared(next)
+    #expect(!rescan.hides(app.url.path, loaded: next), "Lists read again list only what is there")
+}
+
+@Test func aRowLeavesOnlyWhenNothingOfItsAppOrProductIsLeft() {
+    var touched = TouchedApplications()
+    touched.rows = ["/Applications/Gone.app", "/Applications/Kept.app", "/Library/Audio/Plug-Ins/VST3/A.vst3"]
+    let file = { (path: String) in PlugInFile(url: URL(fileURLWithPath: path), format: .vst3, bundleID: nil, name: "A", maker: nil, version: nil, architectures: [], size: .unknown) }
+    let inventory = PlugInInventory(products: [PlugInProduct(files: [file("/Library/Audio/Plug-Ins/VST3/A.vst3"), file("/Library/Audio/Plug-Ins/VST3/B.vst3")], grouping: .receipt)])
+    #expect(touched.gone(in: inventory) { $0 == "/Applications/Kept.app" } == ["/Applications/Gone.app", "/Library/Audio/Plug-Ins/VST3/A.vst3"])
+    #expect(touched.gone(in: inventory) { $0.hasSuffix("B.vst3") } == ["/Applications/Gone.app", "/Applications/Kept.app"], "A product with a format left stays")
 }

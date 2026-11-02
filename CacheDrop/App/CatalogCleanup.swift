@@ -274,9 +274,7 @@ import SwiftUI
     nonisolated private static func plugIns(home: URL, system: URL, installed: [InstalledApp], receipts: ReceiptListings, offered: [Candidate],
                                             exclusions: ProtectedItemsPolicy) -> (PlugInInventory, [Candidate]) {
         let inventory = PlugInInventory.scan(home: home, systemRoot: system, receipts: receipts)
-        let owners = ApplicationsInventory.plugIns(inventory).map { ContentOwner($0) } + installed.map { ContentOwner($0) }
-        let content = MusicContent.scan(owners: owners, home: home, systemRoot: system).items
-        return (inventory, PlugInUninstall.scan(inventory, apps: installed, receipts: receipts, content: content, systemRoot: system, offered: offered, exclusions: exclusions))
+        return (inventory, PlugInUninstall.scan(inventory, home: home, systemRoot: system, installed: installed, receipts: receipts, offered: offered, exclusions: exclusions))
     }
 
     /// Every owner to close before acting on `candidates`, by name, and each candidate's owners' names.
@@ -337,8 +335,14 @@ import SwiftUI
     /// The space the plan's chosen items would release: Trash-bound items free nothing until the Trash is emptied (#350, SPEC section 6).
     var estimatedBytes: Int64 { selectedCandidates.filter(\.releasesSpace).reduce(0) { $0 + $1.estimatedBytes } }
     var canEdit: Bool { nothingButScanBlocks && !isScanning }
+    /// Whether the Applications row `id` waits for the running scan, dimmed: during the rescan after a run, only a row it reads
+    /// again (Decision 134).
+    func applicationsRowWaits(_ id: String) -> Bool { applicationsRescan.rowWaits(id, scanning: isScanning) }
+    /// Whether Applications no longer lists the row `id`, in the lists read for `loaded`: the last run left nothing of it.
+    func applicationsHides(_ id: String, loaded: UUID?) -> Bool { applicationsRescan.hides(id, loaded: loaded) }
     /// Whether `items` can be ticked, or reviewed together, now: as `canEdit`, except that an installed app's or plug-in
-    /// product's items can be during the rescan after a run that changed none of them (Decision 123). Clean up still waits.
+    /// product's items can be during the rescan after a run that doesn't read their row again (Decisions 123, 134). Clean up
+    /// still waits.
     func canChoose(_ items: [Candidate]) -> Bool { nothingButScanBlocks && applicationsRescan.canChoose(items, scanning: isScanning) }
     private var nothingButScanBlocks: Bool {
         let lifecycle = AppLifecycleController.shared
@@ -414,8 +418,8 @@ import SwiftUI
     /// CacheDrop scans again by itself (#306): at launch, when a run ends and after a Put back, whichever page is open.
     /// Asked while a scan runs, it scans again once that one ends. Each scan it starts rechecks the remembered folders once.
     func rescan() async { await rescan(afterRun: false) }
-    /// The rescan after a run (#306): Applications' apps and plug-ins stay usable while it runs when the run changed none
-    /// of them (Decision 123).
+    /// The rescan after a run (#306): Applications' apps and plug-ins the run didn't touch stay usable while it runs
+    /// (Decisions 123, 134).
     func rescanAfterRun() async {
         await rescan(afterRun: true)
     }
@@ -425,7 +429,7 @@ import SwiftUI
         let run = afterRun ? lastRun : nil
         if afterRun { lastRun = nil }
         if isScanning { rescanPending = true; return }
-        // After a run that changed nothing Applications lists, only what it touched is read again (Decision 133).
+        // After a run whose Applications rows are known, only what it touched is read again (Decisions 133, 134).
         let partial = applicationsRescan.keeps ? run : nil
         partialRescan = partial
         if await scan(rescan: true) { scanRememberedFolders?(partial) }
@@ -490,7 +494,8 @@ import SwiftUI
         guard !cancellation.isCancellationRequested else { return }
         settingsUnreadable = false
         if let partial {
-            await rescanRules(catalog.rescanned(after: partial, shown: discovered), home: home, exclusions: exclusions, cancellation: cancellation)
+            await rescanRules(catalog.rescanned(after: partial, shown: discovered), rows: applicationsRescan.rereads, home: home, exclusions: exclusions,
+                              cancellation: cancellation)
             return
         }
         let catalog = catalog
@@ -565,13 +570,14 @@ import SwiftUI
         await scanAppManaged(home: home, fullDiskAccess: scanned.access, receipts: scanned.receipts)
         finishScan(home: home, took: ContinuousClock.now - started, "Full catalog scan")
     }
-    /// The rescan after a run that changed nothing Applications lists (Decision 133, #556 part 2): only `rules` are read again
-    /// and merged into the rows shown; files from deleted apps, apps, plug-ins and app-managed storage keep what the last full
-    /// scan found, and which owners are running is read again for every row. It records no Storage trends snapshot, and the
-    /// next full scan still counts as one after a cleanup.
-    private func rescanRules(_ rules: Set<String>, home: URL, exclusions: ProtectedItemsPolicy, cancellation: ScanCancellation) async {
+    /// The rescan after a run (Decisions 133 and 134, #556 part 2, #647): only `rules`, the Applications `rows` the run
+    /// touched and their makers' files from deleted apps are read again and merged into the rows shown, against the list of
+    /// installed apps read again; every other app, plug-in and file from a deleted app, app sizes, the plug-in inventory and
+    /// app-managed storage keep what the last full scan found, and which owners are running is read again for every row. It records no Storage trends snapshot, and the next full scan still counts as one after a cleanup.
+    private func rescanRules(_ rules: Set<String>, rows: TouchedApplications, home: URL, exclusions: ProtectedItemsPolicy, cancellation: ScanCancellation) async {
         let catalog = catalog, locate = Self.locateTool, system = Self.systemRoot, userFolder = Self.userFolder, cloud = Self.cloud, quitter = Self.quitter
-        let shown = CatalogDiscovery(candidates: discovered, notes: notes, notAccessible: notAccessibleRules), apps = uninstallable
+        let shown = CatalogDiscovery(candidates: discovered, notes: notes, notAccessible: notAccessibleRules), shownApps = uninstallable, inventory = plugInInventory
+        let presence = Self.appPresence.snapshot(), own = Bundle.main.bundleIdentifier
         let (steps, reporter) = AsyncStream.makeStream(of: CatalogScanStep.self)
         let progress = Task { for await step in steps { scanProgress?.apply(step) } }
         #if DEBUG
@@ -588,22 +594,38 @@ import SwiftUI
                                               #endif
                                           })
             guard !cancellation.isCancellationRequested else { reporter.finish(); return nil }
-            let merged = catalog.merging(fresh, rescanned: rules, into: shown)
+            // Files from deleted apps of the touched makers and receipts, then the touched apps and plug-in products, against
+            // the last full scan's inventory (Decision 134). The installer receipts are read once, only for them.
+            let reads = !rows.rows.isEmpty || rows.readsLeftovers
+            let listings = reads ? ReceiptListings.read(under: system) : ReceiptListings([:])
+            if rows.readsLeftovers { reporter.yield(.phase(.removedAppLeftovers)) }
+            func isLeftover(_ item: Candidate) -> Bool { AppRuleFamily.of(ruleID: item.ruleID) == .removedAppLeftovers }
+            let shownLeftovers = rows.rescanningLeftovers(shown.candidates.filter(isLeftover), home: home, apps: presence,
+                                                          receipts: ReadReceipts(listings, home: home), exclusions: exclusions)
+            let merged = catalog.merging(fresh, rescanned: rules, into: CatalogDiscovery(candidates: shown.candidates.filter { !isLeftover($0) } + shownLeftovers,
+                                                                                       notes: shown.notes, notAccessible: shown.notAccessible))
+            if !rows.rows.isEmpty { reporter.yield(.phase(.appsAndPlugIns)) }
+            let leftovers = merged.candidates.filter(isLeftover)
+            let apps = rows.rescanning(shownApps, home: home, systemRoot: system, apps: presence, receipts: listings,
+                                       plugIns: inventory, excluding: own, leftovers: leftovers,
+                                       offered: merged.candidates.filter { !isLeftover($0) }, exclusions: exclusions)
+            guard !cancellation.isCancellationRequested else { reporter.finish(); return nil }
             reporter.yield(.phase(.openApps))
             let (owners, names) = Self.owners(of: merged.candidates + apps, in: catalog)
             let running = Self.running(owners, quitter: quitter)
             reporter.finish()
-            return PartialScanResult(merged: merged, overriddenRules: catalog.overriddenRules(home: home, systemRoot: system), owners: running.0,
+            return PartialScanResult(merged: merged, uninstallable: apps, overriddenRules: catalog.overriddenRules(home: home, systemRoot: system), owners: running.0,
                                      openOwners: running.1, ownerNames: names, access: access)
         }.value
         await progress.value
         guard let rescan, !cancellation.isCancellationRequested else { return }
         fullDiskAccessRescan.scanned(rescan.access)
-        discovered = rescan.merged.candidates; notes = rescan.merged.notes; notAccessibleRules = rescan.merged.notAccessible
+        discovered = rescan.merged.candidates; uninstallable = rescan.uninstallable; notes = rescan.merged.notes; notAccessibleRules = rescan.merged.notAccessible
         overriddenRules = rescan.overriddenRules
+        applicationsRescan.runRemoved(rows.gone(in: inventory))
         setRunning(rescan.owners, open: rescan.openOwners); ownerNames = rescan.ownerNames
         keepOnlyCurrentChoices()
-        finishScan(home: home, took: ContinuousClock.now - started, "Scan after a run read \(rules.count) rules")
+        finishScan(home: home, took: ContinuousClock.now - started, "Scan after a run read \(rules.count) rules and \(rows.rows.count) Applications rows")
     }
     /// The end of every catalog scan: a prepared catalog, how long it took in the log, and one more scan if Full Disk Access
     /// was granted while it ran (#310).
@@ -615,6 +637,8 @@ import SwiftUI
     }
     private struct PartialScanResult: Sendable {
         let merged: CatalogDiscovery
+        /// Installed apps' and plug-in products' items, the touched rows read again (Decision 134).
+        let uninstallable: [Candidate]
         let overriddenRules: [CleanupRule]
         let owners: [String: RuleOwner]
         let openOwners: Set<String>
@@ -778,8 +802,9 @@ import SwiftUI
                 #endif
             }
             result = outcome; lastRun = outcome
-            // Before the rows the run cleaned leave: what Applications listed (Decision 123).
-            applicationsRescan.runEnded(keptApplications: !outcome.changesApplications(listing: uninstallable.map(\.url)))
+            // Before the rows the run cleaned leave: the Applications rows it touched, among those listed (Decisions 123, 134).
+            let touched = outcome.touchedApplications(shown: discovered + uninstallable, plugIns: plugInInventory)
+            applicationsRescan.runEnded(touched: touched)
             measureStoppedWorkAgain(outcome, of: approval, run: run)
             if !approval.dryRun { rescanFollowsCleanup = true }
             // What the run cleaned leaves every page; what it skipped keeps its tick (#349). Picked folders keep the large and old files this run didn't act on (#125).
@@ -787,6 +812,8 @@ import SwiftUI
             selections.finishRun(cleaned: outcome.cleanedCandidateIDs); selections.revise()
             discovered = outcome.keptDuringRescan(discovered); uninstallable = outcome.keptDuringRescan(uninstallable); pickedFiles = pickedFiles.mapValues { UserFiles.remaining($0, after: outcome) }
             projectBuilds = projectBuilds.mapValues { UserFiles.remaining($0, after: outcome) }; noteChoices()
+            // A row the run left nothing of leaves Applications at once (Decision 134).
+            if let touched { applicationsRescan.runRemoved(touched.gone(in: plugInInventory)) }
         } catch { message = "CacheDrop couldn’t open its cleanup history, so nothing was changed." }
     }
     /// A stopped daemon-backed tool's work may still be finishing, so its item is measured again a minute later, and

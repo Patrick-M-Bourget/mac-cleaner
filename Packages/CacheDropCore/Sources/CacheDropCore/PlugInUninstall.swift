@@ -44,9 +44,10 @@ public enum PlugInUninstall {
 
     /// Every product's items, ready to tick. `receipts` is every installer receipt's listing (`ReceiptListings.read`); `content`
     /// the vendor content tied to products (`MusicContent`, by product ID). What `offered` already holds stays there.
+    /// `only` reads just those products' items, own and shared, while every product still counts as a sharer (Decision 134).
     public static func scan(_ inventory: PlugInInventory, apps: [InstalledApp], receipts: ReceiptListings, content: [MusicContentItem] = [],
                             systemRoot: URL, offered: [Candidate] = [], exclusions: ProtectedItemsPolicy = ProtectedItemsPolicy(),
-                            sizer: KnownLocationSizer = KnownLocationSizer()) -> [Candidate] {
+                            sizer: KnownLocationSizer = KnownLocationSizer(), only: Set<String>? = nil) -> [Candidate] {
         let products = inventory.products.filter { !$0.isApple }
         let catalog = Catalog(rules: rules)
         // Every product whose receipts list a path, or anything in it, shares it (#288); so does any other receipt, one that
@@ -90,7 +91,7 @@ public enum PlugInUninstall {
             target.plugIn?.hosts += ids.compactMap { targets[$0] }.filter { $0.path != target.path }.map(\.owner)
             return target
         }
-        for product in products {
+        for product in products where only?.contains(product.id) ?? true {
             guard var target = targets[product.id] else { continue }
             var own: [Candidate] = []
             for file in product.files {
@@ -128,6 +129,7 @@ public enum PlugInUninstall {
         let productReceipts = Set(products.flatMap(\.receipts))
         for piece in content where piece.kind == .installed && receipts.unread.isEmpty {
             let ids = piece.owners.filter { id in products.contains { $0.id == id } }
+            guard only.map({ !$0.isDisjoint(with: ids) }) ?? true else { continue }
             // Every receipt that lists anything in it and isn't one of its owners' shares it (#291): a vendor's content pkg or a
             // standalone app's; another product's refuses it. Only those may list it before acting.
             let owners = Set(products.filter { ids.contains($0.id) }.flatMap(\.receipts))
