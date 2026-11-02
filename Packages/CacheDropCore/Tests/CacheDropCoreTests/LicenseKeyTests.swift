@@ -91,11 +91,28 @@ enum LicenseKeyTesting {
     #expect(LicenseVerifier(publicKey: otherSigner, revoked: []).state(of: LicenseTestKeyPair.vector) == .invalid)
 }
 
-/// Until the owner supplies the production public key, the app's placeholder rejects every key, the test vector included.
-@Test func thePlaceholderPublicKeyRejectsEveryKey() {
+/// A missing public key rejects every key, the test vector included.
+@Test func noPublicKeyRejectsEveryKey() {
     #expect(LicenseVerifier(publicKey: nil, revoked: []).state(of: LicenseTestKeyPair.vector) == .invalid)
-    #expect(LicensePublicKey.production == nil)
-    #expect(LicenseVerifier.production.state(of: LicenseTestKeyPair.vector) == .invalid)
+}
+
+/// The key from the first live purchase (2026-11-02, #652), refunded and so revoked: it proves the app carries the
+/// production public key (the signature verifies, #653), and that the revocation list holds its ID.
+let refundedLivePurchaseKey = "CD1-AESGWSDTR2UUDDNBQFCUXZKFBUJACA2RC77FNFGXVYPTIN26UZRTSOCUAUNCQTHNTI3JNULIZF2AFT7YFGROQHPGWXYKTE2VR7W7XJ6JC6FI5RZN5OS6RBJT4MIMJT7BHWYY7JAJ"
+
+@Test func theAppCarriesTheProductionPublicKey() throws {
+    let key = try #require(LicensePublicKey.production)
+    guard case .active(let license) = LicenseVerifier(publicKey: key, revoked: []).state(of: refundedLivePurchaseKey) else {
+        Issue.record("a production-signed key doesn't verify"); return
+    }
+    #expect(license.id == UUID(uuidString: "246b4873-8ea9-418d-a181-454be5450d12"))
+    #expect(LicenseVerifier.production.state(of: LicenseTestKeyPair.vector) == .invalid, "the test key pair isn't trusted")
+}
+
+@Test func theRefundedLivePurchaseIsRevoked() {
+    guard case .revoked = LicenseVerifier.production.state(of: refundedLivePurchaseKey) else {
+        Issue.record("the refunded live purchase isn't revoked"); return
+    }
 }
 
 private func payload(version: UInt8 = 1, id: UUID = LicenseTestKeyPair.vectorID, edition: UInt8 = 1, macs: UInt8 = 3, days: UInt16 = 20758) -> [UInt8] {
