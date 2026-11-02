@@ -729,10 +729,15 @@ struct VolumeSummary: View {
                 HStack(alignment: .firstTextBaseline, spacing: CacheDropDesign.Space.md) {
                     Text(used.map { SizeFormatter.text($0) + " used" } ?? "Used space unknown").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).monospacedDigit()
                     Spacer(minLength: CacheDropDesign.Space.sm)
-                    Text(observation).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
-                        .help(observation).accessibilityValue(observation).accessibilityIdentifier("capacityObservation")
+                    // A refresh says so in this line's slot, never on a line of its own, so the page below never jumps when a
+                    // scan or cleanup ends (#655).
+                    // With no reading yet the observation already says it's checking, as the free-space column does.
+                    let line = refreshing && !status.isEmpty && available != nil ? status : observation
+                    Text(line).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                        .help(line).accessibilityValue(line).accessibilityIdentifier("capacityObservation")
                 }
-                if !status.isEmpty {
+                // Only a failed refresh takes a line, for its Try again button.
+                if !refreshing, !status.isEmpty {
                     HStack(spacing: CacheDropDesign.Space.md) {
                         Text(status).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).accessibilityIdentifier("capacityRefreshStatus")
                         Spacer(minLength: CacheDropDesign.Space.sm)
