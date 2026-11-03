@@ -229,3 +229,60 @@ private func names(_ items: [Candidate]) -> Set<String> { Set(items.map(\.url.la
     #expect(merged.candidates.filter { $0.url == container.url }.map(\.ruleID) == [rule.id], "Still in the plan rule's row, once")
     #expect(!mergedApps.contains { $0.isUninstalled(with: pad.path) }, "Pad's row left")
 }
+
+/// Synth installed, a driver the user can move, and two of Reason's additional devices, all in the home (Decision 154).
+private func withAudioSoftware() throws -> (home: URL, synth: InstalledApp, driver: URL, devices: [URL]) {
+    let (home, synth, _) = try twoApps()
+    let driver = home.appendingPathComponent("Library/Audio/Plug-Ins/HAL/Loopback.driver")
+    try FileManager.default.createDirectory(at: driver.appendingPathComponent("Contents/MacOS"), withIntermediateDirectories: true)
+    try PropertyListSerialization.data(fromPropertyList: ["CFBundleIdentifier": "com.loop.back"], format: .xml, options: 0)
+        .write(to: driver.appendingPathComponent("Contents/Info.plist"))
+    try Data(count: 1_000).write(to: driver.appendingPathComponent("Contents/MacOS/code"))
+    let devices = ["Humana", "Pangea"].map { home.appendingPathComponent(AudioSoftware.optionalDevices).appendingPathComponent($0).standardizedFileURL }
+    for device in devices {
+        try FileManager.default.createDirectory(at: device, withIntermediateDirectories: true)
+        try Data(count: 2_000).write(to: device.appendingPathComponent("data.bin"))
+    }
+    return (home, synth, driver.standardizedFileURL, devices)
+}
+/// The drivers' and devices' items, as the full scan offers them.
+private func audioItems(_ home: URL) -> [Candidate] {
+    AudioSoftware.uninstallItems(AudioSoftware.drivers(home: home, systemRoot: home.appendingPathComponent("root")), hosts: [])
+        + AudioSoftware.uninstallItems(AudioSoftware.optionalDevices(home: home), hosts: AudioSoftware.reasonHosts)
+}
+
+/// #716: uninstalling a driver or one of Reason's devices reads again only its row, as an app's uninstall does, never a full scan.
+@Test func uninstallingADriverOrAReasonDeviceTouchesOnlyItsRow() async throws {
+    let (home, synth, driver, devices) = try withAudioSoftware()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let apps = Apps(installed: [synth])
+    let shown = uninstallable(home, apps) + audioItems(home)
+    for gone in [driver, devices[0]] {
+        let uninstalled = try await runAny(shown.filter { $0.isUninstalled(with: gone.path) }, rules: [], home: home, apps: apps)
+        try #require(uninstalled.records.count == 1 && uninstalled.records.allSatisfy { $0.state == .succeeded })
+        let touched = try #require(uninstalled.touchedApplications(shown: shown, plugIns: nil), "\(gone.lastPathComponent): no full scan")
+        #expect(touched.rows == [gone.path])
+        #expect(touched.gone(in: nil) == [gone.path], "Its row leaves at once")
+    }
+}
+
+/// #716: the rescan reads a touched driver's or device's row again as the full scan would; every other row stays as shown.
+@Test func theRescanReadsATouchedDriverOrDeviceAgainAndKeepsTheOthers() throws {
+    let (home, synth, driver, devices) = try withAudioSoftware()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let apps = Apps(installed: [synth])
+    let shown = uninstallable(home, apps) + audioItems(home)
+    var touched = TouchedApplications()
+    touched.rows = [driver.path, devices[0].path]
+    // The device grew meanwhile; the run left both where they were (refused, say).
+    try Data(count: 50_000).write(to: devices[0].appendingPathComponent("more.bin"))
+
+    let merged = touched.rescanning(shown, home: home, systemRoot: home.appendingPathComponent("root"), apps: apps, receipts: ReceiptListings([:]), plugIns: nil, excluding: nil,
+                                    leftovers: [], offered: [])
+
+    #expect(merged.filter { $0.isUninstalled(with: driver.path) }.count == 1, "The driver keeps its checkbox")
+    let device = try #require(merged.first { $0.isUninstalled(with: devices[0].path) })
+    #expect(device.estimatedBytes > shown.first { $0.isUninstalled(with: devices[0].path) }!.estimatedBytes, "Measured again")
+    #expect(device.uninstall?.plugIn?.hosts == AudioSoftware.reasonHosts, "Still never while Reason runs")
+    #expect(merged.filter { !touched.touches($0) } == shown.filter { !touched.touches($0) }, "Every other row as it was")
+}
