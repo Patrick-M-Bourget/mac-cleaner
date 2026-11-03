@@ -200,6 +200,19 @@ final class LaunchSmokeUITests: XCTestCase {
         XCTAssertFalse(app.descendants(matching: .any)["weeklyReminderStatus"].exists)
         // #600: weekly update checks are on by default.
         XCTAssertEqual(app.descendants(matching: .any)["automaticUpdateChecksToggle"].value as? Int, 1, "Automatic update checks are on by default")
+        // #689 (Decision 156): Settings opens with no field focused; the License key field takes focus when clicked,
+        // and opening Settings again clears it.
+        let licenseKey = app.textFields["licenseKeyField"]
+        XCTAssertTrue(licenseKey.exists)
+        let focused = { licenseKey.value(forKey: "hasKeyboardFocus") as? Bool ?? false }
+        XCTAssertFalse(focused(), "Settings opens with no field focused")
+        licenseKey.click()
+        XCTAssertTrue(focused(), "Clicking the License key field focuses it")
+        app.typeKey("w", modifierFlags: .command)
+        XCTAssertTrue(alerts.waitForNonExistence(timeout: 5), "Settings closed")
+        app.typeKey(",", modifierFlags: .command)
+        XCTAssertTrue(licenseKey.waitForExistence(timeout: 5))
+        XCTAssertFalse(focused(), "Settings opens again with no field focused")
     }
 
     /// A relaunch after a previous session must still open the main window, whatever state macOS saved.
