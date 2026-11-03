@@ -108,7 +108,7 @@ public enum AppDataCaches {
     /// "Managing Files and Sets": Decoding Cache). A cache folder moved in Settings > File & Folder isn't found. The
     /// bundle identifier and executable are from Live 12's Info.plist (`com.ableton.live`, `Live`).
     static let abletonCache = CleanupRule(
-        id: "ableton-cache", category: .system, title: "Ableton Live cache",
+        id: "ableton-cache", category: .audio, title: "Ableton Live cache",
         detail: "WAV files Live decoded from your MP3, AAC and other compressed samples.",
         consequence: "Your Sets, samples and Packs are kept, and Live decodes samples again when it next plays them.",
         regen: .cache, action: .delete, locations: ["Library/Caches/Ableton/Cache"],

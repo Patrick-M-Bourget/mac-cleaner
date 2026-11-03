@@ -53,6 +53,23 @@ private func keys(_ json: String) throws -> Set<String> {
         #expect(scan.text.hasSuffix("Read-only · Nothing was changed"))
     }
 
+    /// Decision 151: the Audio software category is a row like any other, with its own id.
+    @Test func scanListsAudioSoftwareWithAbletonsCache() throws {
+        let (home, sources) = try fixture()
+        defer { try? FileManager.default.removeItem(at: home) }
+        let empty = CommandLineReport.Scan(catalog: sources.catalog, discovery: SmartCleanReport.discover(sources), home: home, access: .granted)
+        #expect(empty.categories.first { $0.id == "audio" }?.status == "empty")
+        let file = home.appendingPathComponent("Library/Caches/Ableton/Cache/Decoding/loop.mp3.wav")
+        try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data(repeating: 1, count: 8_192).write(to: file)
+        let scan = CommandLineReport.Scan(catalog: sources.catalog, discovery: SmartCleanReport.discover(sources), home: home, access: .granted)
+        let audio = try #require(scan.categories.first { $0.id == "audio" })
+        #expect(audio.title == "Audio software" && audio.status == "found" && audio.items == 1)
+        // Smart clean recommends the cache as it did under App caches, so `plan` lists it under Audio software.
+        let plan = CommandLineReport.Plan(SmartCleanReport.run(sources))
+        #expect(plan.categories.first { $0.id == "audio" }?.items.map(\.path) == [file.deletingLastPathComponent().deletingLastPathComponent().path])
+    }
+
     @Test func planSaysWhatSmartCleanWouldClean() throws {
         let (home, sources) = try fixture()
         defer { try? FileManager.default.removeItem(at: home) }
