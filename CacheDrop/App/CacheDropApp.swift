@@ -538,7 +538,11 @@ private struct WorkspaceView: View {
                 : row.rules.allSatisfy { $0.action == .delete } ? "Rebuildable" : row.rules.allSatisfy { $0.action == .evict } ? "Local copies" : "Review files",
             actionTitle: "Review " + StorageTrendsPresentation.inSentence(row.category) + (onApplications ? " in Applications" : " in the Cleanup plan"),
             // Files from deleted apps are on the Applications page (Decision 51).
-            action: { if onApplications { navigate(.applications) } else { navigate(.plan); planPresentation.expandedCategories.insert(row.category) } },
+            action: { if onApplications {
+                // Like the plan's category, the row opens its own section there (Decision 153).
+                if row.category == .leftovers { ApplicationsModel.shared.openSections.insert(.leftovers) }
+                navigate(.applications)
+            } else { navigate(.plan); planPresentation.expandedCategories.insert(row.category) } },
             identifier: "overviewCategory-" + row.id)
     }
     /// Opens the Cleanup plan from Smart clean's "Not included" note, with the category open when one is named.

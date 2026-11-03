@@ -66,7 +66,7 @@ final class RemovedAppLeftoversUITests: XCTestCase {
         }
         app.launch()
         waitForCatalogScan(app)
-        app.typeKey("4", modifierFlags: .command)
+        openApplications(app)
 
         XCTAssertTrue(app.checkBoxes["planCategory-leftovers"].waitForExistence(timeout: 10))
         expandDisclosures(in: app)

@@ -2,8 +2,12 @@ import AppKit
 import CacheDropCore
 import SwiftUI
 
+/// The page's sections (Decision 153); the raw value ends their accessibility identifiers.
+enum ApplicationsSection: String { case apps, plugIns, leftovers }
+
 /// The apps and plug-in products the Applications page lists (Decision 51), read after each catalog scan. Apps are uninstalled
 /// and plug-in products through the catalog's items (#177, #176). Where it reads is injected: apps from `appPresence`, plug-ins from `home` and `systemRoot`.
+
 @MainActor @Observable final class ApplicationsModel {
     /// The app's model, reading what the catalog reads (test runs inject a fixture home there).
     static let shared = ApplicationsModel(home: CatalogCleanupModel.home, appPresence: CatalogCleanupModel.appPresence, systemRoot: CatalogCleanupModel.systemRoot)
@@ -18,6 +22,8 @@ import SwiftUI
     private(set) var plugIns: [InventoryEntry] = []
     /// The page's Sort and search (#295): kept while CacheDrop runs, never across launches.
     var listing = ApplicationsListing()
+    /// The sections open on the page (Decision 151): all closed at first, kept open or closed until CacheDrop quits.
+    var openSections: Set<ApplicationsSection> = []
     private(set) var hasLoaded = false
     private(set) var isLoading = false
     /// The list of apps couldn't be read (Spotlight didn't answer): unknown, never "no apps" (#310).
@@ -85,7 +91,6 @@ struct ApplicationsView: View {
     /// Opens the Cleanup plan with these categories revealed, for the review's "Clean in the Cleanup plan" (#354).
     var openPlan: (([CatalogCategory]) -> Void)? = nil
     @State private var expanded: Set<String> = []
-    @State private var leftoversExpanded = false
     @State private var approvalError: String?
     @State private var reviewFocusRequest = 0
     private var catalog: CatalogCleanupModel { selection.catalog }
@@ -120,8 +125,9 @@ struct ApplicationsView: View {
         .task(id: catalog.isScanning) {
             if !appsWaitForScan { await model.load(plugIns: catalog.plugInInventory, scanID: catalog.applicationsScan) }
         }
-        // A search opens Files from deleted apps, so its matching groups show.
-        .onChange(of: model.listing.isSearching) { _, searching in if searching { leftoversExpanded = true } }
+        // A search opens every section with a match in it (Decision 151), also when the match arrives after the search was
+        // typed (a list still loading); one closed during the search stays closed until its matches change.
+        .onChange(of: sectionsWithMatches) { _, matching in model.openSections.formUnion(matching) }
     }
 
     /// A staying line's link (#354): the plan closes the review and opens there; Finder shows the files over it.
@@ -152,25 +158,58 @@ struct ApplicationsView: View {
             } else {
             // Nothing listed yet: no Name and Size over empty states (#427).
             if !model.apps.isEmpty || !model.plugIns.isEmpty || catalog.leftoversRow != nil { columnHeader }
-            section("Apps", id: "apps", entries: listed(model.apps), category: .apps, identifier: "applicationsApp-",
-                    empty: ("No apps to list", "Only Apple’s apps are in the Applications folders."))
-            section("Plug-ins", id: "plugIns", entries: listed(model.plugIns), category: .audioSoftware, identifier: "applicationsPlugIn-",
-                    empty: ("No plug-ins to list", "No audio plug-ins other than Apple’s were found."))
-            sectionHeader("Files from deleted apps")
-            if let row = catalog.leftoversRow {
-                if model.listing.isSearching, !row.rules.flatMap(catalog.candidates(for:)).contains(where: model.listing.matches) { noMatches("leftovers") }
-                else { PlanCategoryRow(model: catalog, row: row, expanded: $leftoversExpanded, listing: model.listing).waitingForScan(catalog.isScanning) }
-            } else if catalog.settingsUnreadable {
-                EmptyView() // The notice above says why nothing was read (#310).
-            } else if catalog.hasScanned && !catalog.isScanning && model.listing.isSearching {
-                noMatches("leftovers")
-            } else if catalog.hasScanned && !catalog.isScanning {
-                state("No files from deleted apps", "Apps you removed left nothing behind that CacheDrop can tie to them.", symbol: "checkmark.circle", id: "applicationsEmpty-leftovers")
-            } else {
-                loading("leftovers")
-            }
+            section("Apps", id: .apps, detail: "Apps in your Applications folders", noun: "apps", entries: listed(model.apps), category: .apps,
+                    identifier: "applicationsApp-", empty: ("No apps to list", "Only Apple’s apps are in the Applications folders."))
+            section("Plug-ins", id: .plugIns, detail: "Audio plug-ins, one row per product", noun: "plug-ins", entries: listed(model.plugIns),
+                    category: .audioSoftware, identifier: "applicationsPlugIn-", empty: ("No plug-ins to list", "No audio plug-ins other than Apple’s were found."))
+            leftovers
             }
         }.padding(CacheDropDesign.Space.page).frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// Files from deleted apps: the plan's category row (Decision 51), its "Choose items" the section's open state (Decision 153),
+    /// or its heading and why nothing is listed.
+    @ViewBuilder private var leftovers: some View {
+        if let row = catalog.leftoversRow, !model.listing.isSearching || leftoversMatch {
+            PlanCategoryRow(model: catalog, row: row, expanded: sectionOpen(.leftovers), listing: model.listing).waitingForScan(catalog.isScanning)
+        } else {
+            VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
+                sectionHeading(.leftovers, category: .leftovers, title: CatalogCategory.leftovers.overviewTitle,
+                               detail: CatalogCategory.leftovers.overviewDetail)
+                leftoversEmpty
+            }
+        }
+    }
+    /// Why Files from deleted apps lists nothing.
+    @ViewBuilder private var leftoversEmpty: some View {
+        if catalog.leftoversRow != nil {
+            noMatches("leftovers")
+        } else if catalog.settingsUnreadable {
+            EmptyView() // The notice above says why nothing was read (#310).
+        } else if catalog.hasScanned && !catalog.isScanning && model.listing.isSearching {
+            noMatches("leftovers")
+        } else if catalog.hasScanned && !catalog.isScanning {
+            state("No files from deleted apps", "Apps you removed left nothing behind that CacheDrop can tie to them.", symbol: "checkmark.circle", id: "applicationsEmpty-leftovers")
+        } else {
+            loading("leftovers")
+        }
+    }
+    /// Whether the search matches a file from deleted apps; during a rescan, one from the last scan (its row stays, dimmed).
+    private var leftoversMatch: Bool {
+        catalog.leftoversRow.map { $0.rules.flatMap(catalog.candidates(for:)).contains(where: model.listing.matches) } ?? false
+    }
+    /// Whether a section is open, kept by the page's model.
+    private func sectionOpen(_ id: ApplicationsSection) -> Binding<Bool> {
+        Binding(get: { model.openSections.contains(id) }, set: { if $0 { model.openSections.insert(id) } else { model.openSections.remove(id) } })
+    }
+    /// The sections a search has a match in.
+    private var sectionsWithMatches: Set<ApplicationsSection> {
+        guard model.listing.isSearching else { return [] }
+        var ids = Set<ApplicationsSection>()
+        if model.apps.contains(where: { model.listing.matches(name: $0.name, maker: $0.maker) }) { ids.insert(.apps) }
+        if model.plugIns.contains(where: { model.listing.matches(name: $0.name, maker: $0.maker) }) { ids.insert(.plugIns) }
+        if leftoversMatch { ids.insert(.leftovers) }
+        return ids
     }
 
     /// The title and description, with the one search for Apps, Plug-ins and Files from deleted apps on their right (#295, #352),
@@ -202,18 +241,11 @@ struct ApplicationsView: View {
         ColumnHeader(nameTitle: "Name", sizeTitle: "Size", sort: Bindable(model).listing.sort, identifier: "applicationsSort",
                      insets: EdgeInsets(top: 0, leading: CacheDropDesign.Size.categoryContentIndent, bottom: 0, trailing: 0))
     }
-    /// A section's heading on the names' column, under "Name", so the header, the headings and the rows' titles share one
-    /// line; the checkboxes and icons sit left of it.
-    private func sectionHeader(_ title: String) -> some View {
-        Text(title).font(CacheDropDesign.TypeStyle.section).padding(.leading, CacheDropDesign.Size.categoryContentIndent)
-    }
     private var searchText: String { model.listing.search.trimmingCharacters(in: .whitespaces) }
     /// A search that matches nothing in any section, once the lists are read (#468).
     private var nothingMatches: Bool {
         guard model.listing.isSearching, !listsLoading, !model.appsUnreadable, !catalog.settingsUnreadable else { return false }
-        let leftovers = catalog.leftoversRow.map { $0.rules.flatMap(catalog.candidates(for:)).contains(where: model.listing.matches) } ?? false
-        let listed = (model.apps + model.plugIns).contains { model.listing.matches(name: $0.name, maker: $0.maker) }
-        return !leftovers && !listed
+        return sectionsWithMatches.isEmpty
     }
     private func noMatches(_ id: String) -> some View {
         state("No matches", "Nothing here has “\(searchText)” in its name or maker.", symbol: "magnifyingglass",
@@ -230,14 +262,36 @@ struct ApplicationsView: View {
     /// apps always does (Decision 123).
     private var appsWaitForScan: Bool { catalog.applicationsWaitForScan }
 
-    @ViewBuilder private func section(_ title: String, id: String, entries: [InventoryEntry], category: StorageCategory, identifier: String,
+    @ViewBuilder private func section(_ title: String, id section: ApplicationsSection, detail: String, noun: String, entries: [InventoryEntry], category: StorageCategory, identifier: String,
                                       empty: (title: String, detail: String)) -> some View {
         let shown = model.listing.arranged(entries, name: \.name, maker: \.maker, bytes: { size(of: $0).sortBytes })
-        sectionHeader(title)
+        if shown.isEmpty {
+            VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
+                sectionHeading(section, category: category, title: title, detail: detail)
+                sectionBody(id: section, entries: entries, shown: shown, category: category, identifier: identifier, empty: empty)
+            }
+        } else {
+            // A category row like the plan's (Decision 153), with no checkbox: a section is never ticked whole (Decision 51). During
+            // a rescan it keeps its rows and its open state, dimmed (#308).
+            CategoryRow(category: category, state: nil, title: title, detail: detail, size: SizeEstimate(sum: shown.map(size(of:))).text, enabled: true,
+                        identifier: "applicationsSection-" + section.rawValue, itemCount: shown.count, chooseNoun: noun,
+                        expanded: sectionOpen(section), toggle: {}) { EmptyView() } items: {
+                sectionBody(id: section, entries: entries, shown: shown, category: category, identifier: identifier, empty: empty)
+            }
+        }
+    }
+    /// A section's category row while it lists nothing: no size and no "Choose"; why follows it.
+    private func sectionHeading(_ section: ApplicationsSection, category: StorageCategory, title: String, detail: String) -> some View {
+        CategoryRow(category: category, state: nil, title: title, detail: detail, size: "", enabled: true, identifier: "applicationsSection-" + section.rawValue,
+                    itemCount: nil, expanded: .constant(false), toggle: {}) { EmptyView() } items: { EmptyView() }
+    }
+    @ViewBuilder private func sectionBody(id section: ApplicationsSection, entries: [InventoryEntry], shown: [InventoryEntry], category: StorageCategory, identifier: String,
+                                          empty: (title: String, detail: String)) -> some View {
+        let id = section.rawValue
         if entries.isEmpty {
             if listsLoading { loading(id) }
-            else if model.listing.isSearching, !(id == "apps" && model.appsUnreadable) { noMatches(id) }
-            else if id == "apps", model.appsUnreadable {
+            else if model.listing.isSearching, !(section == .apps && model.appsUnreadable) { noMatches(id) }
+            else if section == .apps, model.appsUnreadable {
                 // Spotlight didn't answer: unknown, never "Only Apple’s apps" (#310), as the one empty state (#321). Scan again
                 // scans again, so uninstalls are read too.
                 EmptyState(title: "CacheDrop couldn’t read the list of apps", detail: "Spotlight didn’t answer.", symbol: "exclamationmark.triangle",

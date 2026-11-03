@@ -143,6 +143,24 @@ import AppKit
     revealAndClick(link, in: app)
 }
 
+/// Opens Applications with ⌘4 and the sections named ("apps", "plug-ins"), which start closed and stay as left until CacheDrop
+/// quits (Decision 151), each behind its "Choose" (Decision 153). A section that lists nothing has no "Choose" to open.
+@MainActor func openApplications(_ app: XCUIApplication, _ sections: [String] = []) {
+    app.typeKey("4", modifierFlags: .command)
+    openApplicationsSections(app, sections)
+}
+/// Opens each named section's "Choose <section> · N" when it is closed.
+@MainActor func openApplicationsSections(_ app: XCUIApplication, _ sections: [String]) {
+    for section in sections {
+        let choose = applicationsSection(app, section)
+        XCTAssertTrue(choose.waitForExistence(timeout: 60), "Applications lists its \(section)")
+        if choose.value as? Int != 1 { choose.click() }
+    }
+}
+/// A section's "Choose apps · N" or "Choose plug-ins · N" disclosure.
+@MainActor func applicationsSection(_ app: XCUIApplication, _ section: String) -> XCUIElement {
+    app.disclosureTriangles.matching(NSPredicate(format: "label BEGINSWITH %@", "Choose \(section) · ")).firstMatch
+}
 /// An element by an identifier longer than XCUITest's 128-character limit for identifier queries: a fixture folder's
 /// path makes `overviewLocation:` identifiers that long.
 @MainActor func element(identifier: String, in app: XCUIApplication) -> XCUIElement {
