@@ -334,10 +334,10 @@ struct ApplicationsView: View {
     }
     /// Rows from the last scan stay, dimmed, until the rescan says what can go with each (#303, #308); after a run, only
     /// the rows it reads again (Decision 134).
-    private func rows(_ shown: [InventoryEntry], category: StorageCategory, identifier: String) -> some View {
+    private func rows(_ shown: [InventoryEntry], category: StorageCategory, identifier: String, revealsPlace: Bool = false) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             ForEach(shown) { entry in
-                row(entry, category: category, identifier: identifier + entry.id)
+                row(entry, category: category, identifier: identifier + entry.id, revealsPlace: revealsPlace)
                     .waitingForScan(!listsLoading && catalog.applicationsRowWaits(entry.id))
                 Divider().padding(.vertical, CacheDropDesign.Space.md)
             }
@@ -376,7 +376,7 @@ struct ApplicationsView: View {
                     if !drivers.isEmpty {
                         let tickable = drivers.contains { !catalog.uninstallItems(ofRow: $0.id).isEmpty }
                         group("Drivers", .drivers, verb: tickable ? "Choose" : "Show", noun: "drivers", entries: drivers) {
-                            rows(drivers, category: .audioSoftware, identifier: "applicationsDriver-")
+                            rows(drivers, category: .audioSoftware, identifier: "applicationsDriver-", revealsPlace: true)
                         }
                     }
                 }
@@ -465,8 +465,8 @@ struct ApplicationsView: View {
 
     /// A row; an app CacheDrop can uninstall (#177) has a checkbox for the app and its files, the rest have none. One that
     /// needs a password says so (Decision 50). Its identifiers carry the entry's path, never its name, so same-named apps on
-    /// two volumes stay apart (#271).
-    private func row(_ entry: InventoryEntry, category: StorageCategory, identifier: String) -> some View {
+    /// two volumes stay apart (#271). `revealsPlace` gives a row with no password line its place and Reveal in Finder (a driver, #715).
+    private func row(_ entry: InventoryEntry, category: StorageCategory, identifier: String, revealsPlace: Bool = false) -> some View {
         let isExpanded = Binding(get: { expanded.contains(entry.id) }, set: { if $0 { expanded.insert(entry.id) } else { expanded.remove(entry.id) } })
         let uninstall = catalog.uninstallItems(ofRow: entry.id)
         // A partly removable product also lists what stays (#176, #288): formats and support files that need a password, and AUv3s.
@@ -513,6 +513,12 @@ struct ApplicationsView: View {
             } else if catalog.hasScanned, !appsWaitForScan {
                 // A removable app the scan didn't offer says why, rather than showing a bare row (#281).
                 StatusRow(text: "Not offered: in Protected items, or changed since the scan", identifier: "applicationsNotOffered-" + entry.id)
+            }
+            // Where it lives, before it's ticked; a locked one's password line already reveals it (Decisions 151, 158).
+            if revealsPlace, !entry.needsPassword {
+                StatusRow(text: PathDisplay.shortLocation(of: URL(fileURLWithPath: entry.id), home: CatalogCleanupModel.checkHome), symbol: "folder",
+                          identifier: "applicationsPlace-" + entry.id,
+                          action: StatusAction(title: "Reveal in Finder", identifier: "applicationsReveal-" + entry.id) { model.reveal(entry.name, entry.parts.map(\.url)) })
             }
             // Until the scan says what can go with it, the row is dimmed rather than looking final (#303, #308).
         } items: {

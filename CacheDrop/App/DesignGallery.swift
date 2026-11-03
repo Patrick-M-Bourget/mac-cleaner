@@ -229,6 +229,11 @@ struct DesignGallery: View {
                     StatusRow(text: "Example manager can remove or move it", symbol: "shippingbox", identifier: "gallerySoundManager",
                               action: StatusAction(title: "Open Example manager", identifier: "gallerySoundOpen") {})
                         .padding(.leading, CacheDropDesign.Space.md * 2 + CacheDropDesign.Size.itemIcon)
+                    // A driver the user can move: its place and Reveal in Finder before it's ticked (Decision 158).
+                    CategoryRow(category: .audioSoftware, state: .unchecked, title: "Example driver", detail: "Example maker", size: "4 MB", enabled: true,
+                                identifier: "galleryDriverRow", itemCount: nil, expanded: .constant(false), toggle: {}) {
+                        StatusRow(text: "…/Plug-Ins/HAL", symbol: "folder", action: StatusAction(title: "Reveal in Finder", action: {}))
+                    } items: { EmptyView() }
                     VolumeSummary(available: 40_000_000_000, total: 512_000_000_000, observation: "Example disk space")
                     VolumeSummary(available: nil, total: nil, observation: "Free space unknown")
                     // Every segment kind at the tip, as the cleaning bar draws a run (#343, #355): categories, going to the Trash, in Trash.
