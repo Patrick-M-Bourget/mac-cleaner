@@ -69,6 +69,9 @@ public struct ReviewHeldItems: Sendable {
                         isUpperBound: items.contains { catalog.rule($0.ruleID)?.estimateIsUpperBound == true }, quitOwner: holder(of: items[0]))
         }
     }
+    /// The review sheet's skipped lines, shown once above its consequence groups (#564, Decision 162): a holder whose rows sit
+    /// in several groups gets one line covering all of them, in the sheet's group order.
+    public func lines(in groups: [ReviewGroup]) -> [Line] { lines(in: groups.flatMap(\.candidates)) }
     private static func text(_ refusal: CheckRefusal, items: [Candidate], catalog: Catalog) -> String {
         switch refusal {
         case .ownerRunning(let name):
