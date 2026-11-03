@@ -40,6 +40,10 @@ public struct SmartCleanReport: Sendable {
                            systemRoot: URL(fileURLWithPath: "/"), cloud: SystemUbiquitousItems(), inUse: SystemInUseChecker(), running: SystemRunningAppChecker(),
                            access: FullDiskAccessProbe(home: home).status())
         }
+        /// The checks Clean up runs just before acting, over what these sources read (#627).
+        public var check: CandidateCheck {
+            CandidateCheck(catalog: catalog, running: running, exclusions: exclusions, inUse: inUse, cloud: cloud, home: home, apps: apps, systemRoot: systemRoot)
+        }
         #if DEBUG
         /// The owner's opt-in report test; the name stays Debug only, which `release.sh` checks (#334).
         public static func thisMac() throws -> Sources { try currentUser() }
@@ -82,9 +86,7 @@ public struct SmartCleanReport: Sendable {
     /// Scans, builds the plan and runs the full checks, as Clean up would, without acting.
     public static func run(_ sources: Sources, now: Date = Date()) -> SmartCleanReport {
         let found = scan(sources)
-        let check = CandidateCheck(catalog: sources.catalog, running: sources.running, exclusions: sources.exclusions, inUse: sources.inUse, cloud: sources.cloud,
-                                   home: sources.home, apps: sources.apps, systemRoot: sources.systemRoot).snapshotted()
-        return SmartCleanReport(catalog: sources.catalog, home: sources.home, found: found, now: now, check: check.check)
+        return SmartCleanReport(catalog: sources.catalog, home: sources.home, found: found, now: now, check: sources.check.snapshotted().check)
     }
 
     /// Why Smart clean takes `candidate`, from the plan's own `RecommendedPlan.Basis` so the two never disagree.
