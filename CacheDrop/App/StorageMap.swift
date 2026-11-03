@@ -1,3 +1,4 @@
+import AppKit
 import CacheDropCore
 import SwiftUI
 
@@ -33,7 +34,7 @@ struct StorageMap: View {
     var body: some View {
         let layout = Layout(items: items.map { Layout.Item(id: $0.id, name: $0.name, bytes: $0.bytes ?? 0, isAtLeast: $0.isAtLeast) },
                             width: size.width, height: size.height,
-                            minimumLabelWidth: CacheDropDesign.Size.storageMapLabel.width, minimumLabelHeight: CacheDropDesign.Size.storageMapLabel.height)
+                            minimumLabelWidth: CacheDropDesign.Size.storageMapLabelWidth, minimumLabelHeight: Self.labelHeight)
         let byID = Dictionary(items.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
             blocks(layout, byID: byID).frame(maxHeight: CacheDropDesign.Size.storageMap)
@@ -41,9 +42,17 @@ struct StorageMap: View {
         }
     }
 
+    /// A labelled block holds a list row's two lines, the name in body and the size in `note`, `Space.xs` apart, inside its padding.
+    static let labelHeight: CGFloat = {
+        let line = { (style: NSFont.TextStyle) in NSLayoutManager().defaultLineHeight(for: NSFont.preferredFont(forTextStyle: style)) }
+        return line(.body) + CacheDropDesign.Space.xs + line(.callout) + StorageMapBlock.padding * 2
+    }()
+
     private func blocks(_ layout: Layout, byID: [String: StorageMapItem]) -> some View {
+        // Every block gives up one gap on its trailing and bottom sides, so the area starts one gap in: blocks sit one gap
+        // apart and one gap from each edge.
         Color.clear
-            .onGeometryChange(for: CGSize.self) { $0.size } action: { size = $0 }
+            .onGeometryChange(for: CGSize.self) { $0.size } action: { size = CGSize(width: $0.width - StorageMapBlock.gap, height: $0.height - StorageMapBlock.gap) }
             .overlay(alignment: .topLeading) {
                 ZStack(alignment: .topLeading) {
                     ForEach(Array(layout.blocks.enumerated()), id: \.element.id) { order, block in
@@ -51,7 +60,7 @@ struct StorageMap: View {
                             // VoiceOver reads the blocks in size order, as they're drawn.
                             .accessibilitySortPriority(Double(layout.blocks.count - order))
                     }
-                }
+                }.padding([.top, .leading], StorageMapBlock.gap)
             }
             .background(CacheDropDesign.reading, in: RoundedRectangle(cornerRadius: CacheDropDesign.Radius.surface))
             .overlay(RoundedRectangle(cornerRadius: CacheDropDesign.Radius.surface).stroke(CacheDropDesign.separator, lineWidth: CacheDropDesign.Stroke.regular))
@@ -82,6 +91,8 @@ private struct StorageMapBlock: View {
     let item: StorageMapItem?
     let showSmaller: () -> Void
 
+    static let gap = CacheDropDesign.Space.xs
+    static let padding = CacheDropDesign.Space.sm
     static func smallerName(_ count: Int) -> String { count == 1 ? "1 smaller item" : "\(count) smaller items" }
 
     private var name: String {
@@ -103,18 +114,17 @@ private struct StorageMapBlock: View {
     private var accessibilityName: String { name + ", " + sizeText + " on disk" }
     private var identifier: String { item == nil ? "explorerMapSmaller" : "explorerMapBlock-" + name }
     private var isInspected: Bool { item?.isInspected ?? false }
-    private var opacity: Double { item?.isDimmed == true ? CacheDropDesign.Opacity.searchDimmed : 1 }
+    /// Search dims what doesn't match as a rescan dims the list's rows.
+    private var opacity: Double { item?.isDimmed == true ? CacheDropDesign.Opacity.waiting : 1 }
     private var shape: RoundedRectangle { RoundedRectangle(cornerRadius: CacheDropDesign.Radius.row) }
 
     var body: some View {
         let frame = block.frame
-        // Half the gap on each side, so neighbours sit one gap apart.
-        let inset: CGFloat = CacheDropDesign.Space.xs / 2
-        let width: CGFloat = max(0, CGFloat(frame.width) - inset * 2), height: CGFloat = max(0, CGFloat(frame.height) - inset * 2)
+        let width: CGFloat = max(0, CGFloat(frame.width) - Self.gap), height: CGFloat = max(0, CGFloat(frame.height) - Self.gap)
         Button(action: item?.action ?? showSmaller) { label }
             .buttonStyle(.plain)
             .frame(width: width, height: height)
-            .offset(x: CGFloat(frame.x) + inset, y: CGFloat(frame.y) + inset)
+            .offset(x: CGFloat(frame.x), y: CGFloat(frame.y))
             .opacity(opacity)
             .help(tooltip)
             .accessibilityLabel(accessibilityName)
@@ -125,24 +135,24 @@ private struct StorageMapBlock: View {
     private var label: some View {
         ZStack(alignment: .topLeading) {
             shape.fill(fill)
-            if item == nil {
-                shape.strokeBorder(CacheDropDesign.separator, style: StrokeStyle(lineWidth: CacheDropDesign.Stroke.regular, dash: [CacheDropDesign.Space.xs]))
-            }
+            // The inspected block takes the list's inspected tint.
+            if isInspected { shape.fill(CacheDropDesign.focus.opacity(CacheDropDesign.Opacity.inspectedItem)) }
+            if item == nil { shape.strokeBorder(CacheDropDesign.separator, lineWidth: CacheDropDesign.Stroke.regular) }
             if block.isLabeled {
-                VStack(alignment: .leading, spacing: CacheDropDesign.Space.xs / 2) {
+                // A list row's two lines: the name in body, the size in note (InspectableItemRow).
+                VStack(alignment: .leading, spacing: CacheDropDesign.Space.xs) {
                     HStack(spacing: CacheDropDesign.Space.xs) {
                         if item?.isFolder == true { Image(cacheDropSymbol: "folder").foregroundStyle(.secondary) }
-                        Text(name).fontWeight(.medium).lineLimit(1).truncationMode(.tail)
-                    }.font(CacheDropDesign.TypeStyle.note).foregroundStyle(item == nil ? .secondary : .primary)
-                    Text(sizeText).font(CacheDropDesign.TypeStyle.caption).monospacedDigit().foregroundStyle(.secondary).lineLimit(1)
-                }.padding(CacheDropDesign.Space.sm)
+                        Text(name).foregroundStyle(item == nil ? .secondary : .primary).lineLimit(1).truncationMode(.tail)
+                    }
+                    Text(sizeText).font(CacheDropDesign.TypeStyle.note).monospacedDigit().foregroundStyle(.secondary).lineLimit(1)
+                }.padding(Self.padding)
             }
             if item?.isTicked == true {
-                Image(systemName: "checkmark").font(CacheDropDesign.TypeStyle.caption.weight(.semibold)).foregroundStyle(CacheDropDesign.focus)
-                    .padding(CacheDropDesign.Space.sm).frame(maxWidth: .infinity, alignment: .topTrailing)
+                Image(systemName: "checkmark").foregroundStyle(CacheDropDesign.focus)
+                    .padding(Self.padding).frame(maxWidth: .infinity, alignment: .topTrailing)
             }
         }
-        .overlay { if item?.isInspected == true { shape.strokeBorder(CacheDropDesign.focus, lineWidth: CacheDropDesign.Stroke.regular * 2) } }
         .contentShape(shape)
     }
 }
@@ -196,7 +206,7 @@ struct StorageMapGalleryExamples: View {
     }
     var body: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
-            Text("Synthetic storage map examples · Inert, no scans").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+            Text("Inert, no scans").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
             example("A plain map", [Self.folder("Music", 96), Self.folder("Developer", 28.4), Self.folder("Downloads", 10), Self.file("Backup.sparsebundle", 18)])
             example("Scanned folders · At least", [Self.folder("Documents", 172, atLeast: true), Self.folder("Developer", 28.4), Self.folder("Downloads", 10)])
             example("Downloads · N smaller items", Self.downloads())
