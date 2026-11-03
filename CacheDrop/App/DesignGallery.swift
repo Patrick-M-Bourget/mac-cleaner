@@ -14,6 +14,7 @@ struct DesignGallery: View {
     @State private var mapExamplesExpanded = false
     @State private var alertExamplesExpanded = false
     @State private var categoryRowExpanded = false
+    @State private var listSectionExpanded = true
     var body: some View {
         VStack(spacing: 0) {
             HStack {
@@ -204,6 +205,12 @@ struct DesignGallery: View {
                                 identifier: "galleryNoDetailRow", itemCount: nil, expanded: .constant(false), toggle: {}) {
                         StatusRow(text: "Needs your password to remove", symbol: "lock", action: StatusAction(title: "Reveal in Finder", action: {}))
                     } items: { EmptyView() }
+                    // Applications' sections open and close (Decision 151): heading, count and size; no checkbox.
+                    ListSection(title: "Example section", count: "2", size: "812 MB", isExpanded: $listSectionExpanded, identifier: "galleryListSection") {
+                        CategoryRow(category: .apps, state: nil, title: "Example app in a section", detail: "Example maker", size: "800 MB", enabled: true,
+                                    identifier: "galleryListSectionRow", itemCount: nil, expanded: .constant(false), toggle: {}) { EmptyView() } items: { EmptyView() }
+                    }
+                    ListSection(title: "Example closed section", count: "14", size: "3.1 GB", isExpanded: .constant(false), identifier: "galleryListSectionClosed") { EmptyView() }
                     VolumeSummary(available: 40_000_000_000, total: 512_000_000_000, observation: "Example disk space")
                     VolumeSummary(available: nil, total: nil, observation: "Free space unknown")
                     // Every segment kind at the tip, as the cleaning bar draws a run (#343, #355): categories, going to the Trash, in Trash.

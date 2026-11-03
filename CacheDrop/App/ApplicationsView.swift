@@ -4,6 +4,9 @@ import SwiftUI
 
 /// The apps and plug-in products the Applications page lists (Decision 51), read after each catalog scan. Apps are uninstalled
 /// and plug-in products through the catalog's items (#177, #176). Where it reads is injected: apps from `appPresence`, plug-ins from `home` and `systemRoot`.
+/// The page's sections (Decision 151); the raw value ends their accessibility identifiers.
+enum ApplicationsSection: String { case apps, plugIns, leftovers }
+
 @MainActor @Observable final class ApplicationsModel {
     /// The app's model, reading what the catalog reads (test runs inject a fixture home there).
     static let shared = ApplicationsModel(home: CatalogCleanupModel.home, appPresence: CatalogCleanupModel.appPresence, systemRoot: CatalogCleanupModel.systemRoot)
@@ -18,6 +21,8 @@ import SwiftUI
     private(set) var plugIns: [InventoryEntry] = []
     /// The page's Sort and search (#295): kept while CacheDrop runs, never across launches.
     var listing = ApplicationsListing()
+    /// The sections open on the page (Decision 151): all closed at first, kept open or closed until CacheDrop quits.
+    var openSections: Set<ApplicationsSection> = []
     private(set) var hasLoaded = false
     private(set) var isLoading = false
     /// The list of apps couldn't be read (Spotlight didn't answer): unknown, never "no apps" (#310).
@@ -122,6 +127,9 @@ struct ApplicationsView: View {
         }
         // A search opens Files from deleted apps, so its matching groups show.
         .onChange(of: model.listing.isSearching) { _, searching in if searching { leftoversExpanded = true } }
+        // A search opens every section with a match in it (Decision 151), also when the match arrives after the search was
+        // typed (a list still loading); one closed during the search stays closed until its matches change.
+        .onChange(of: sectionsWithMatches) { _, matching in model.openSections.formUnion(matching) }
     }
 
     /// A staying line's link (#354): the plan closes the review and opens there; Finder shows the files over it.
@@ -152,13 +160,21 @@ struct ApplicationsView: View {
             } else {
             // Nothing listed yet: no Name and Size over empty states (#427).
             if !model.apps.isEmpty || !model.plugIns.isEmpty || catalog.leftoversRow != nil { columnHeader }
-            section("Apps", id: "apps", entries: listed(model.apps), category: .apps, identifier: "applicationsApp-",
+            section("Apps", id: .apps, entries: listed(model.apps), category: .apps, identifier: "applicationsApp-",
                     empty: ("No apps to list", "Only Apple’s apps are in the Applications folders."))
-            section("Plug-ins", id: "plugIns", entries: listed(model.plugIns), category: .audioSoftware, identifier: "applicationsPlugIn-",
+            section("Plug-ins", id: .plugIns, entries: listed(model.plugIns), category: .audioSoftware, identifier: "applicationsPlugIn-",
                     empty: ("No plug-ins to list", "No audio plug-ins other than Apple’s were found."))
-            sectionHeader("Files from deleted apps")
+            ListSection(title: "Files from deleted apps", count: leftoversShown.map { String($0.count) },
+                        size: leftoversShown.flatMap { $0.isEmpty ? nil : SizeEstimate(sum: $0.map(SizeEstimate.init)).text },
+                        isExpanded: sectionOpen(.leftovers), identifier: "applicationsSection-leftovers") { leftovers }
+            }
+        }.padding(CacheDropDesign.Space.page).frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// Files from deleted apps: the plan's category row (Decision 51), or why nothing is listed.
+    @ViewBuilder private var leftovers: some View {
             if let row = catalog.leftoversRow {
-                if model.listing.isSearching, !row.rules.flatMap(catalog.candidates(for:)).contains(where: model.listing.matches) { noMatches("leftovers") }
+                if model.listing.isSearching, leftoversShown?.isEmpty != false { noMatches("leftovers") }
                 else { PlanCategoryRow(model: catalog, row: row, expanded: $leftoversExpanded, listing: model.listing).waitingForScan(catalog.isScanning) }
             } else if catalog.settingsUnreadable {
                 EmptyView() // The notice above says why nothing was read (#310).
@@ -169,8 +185,26 @@ struct ApplicationsView: View {
             } else {
                 loading("leftovers")
             }
-            }
-        }.padding(CacheDropDesign.Space.page).frame(maxWidth: .infinity, alignment: .leading)
+    }
+    /// The files from deleted apps the search leaves listed, counted as the plan's "Choose items" counts them; nil while the
+    /// scan reads them. Nothing found reads as none.
+    private var leftoversShown: [Candidate]? {
+        guard !catalog.isScanning else { return nil }
+        guard let row = catalog.leftoversRow else { return catalog.hasScanned ? [] : nil }
+        return row.rules.flatMap(catalog.candidates(for:)).filter(model.listing.matches)
+    }
+    /// Whether a section is open, kept by the page's model.
+    private func sectionOpen(_ id: ApplicationsSection) -> Binding<Bool> {
+        Binding(get: { model.openSections.contains(id) }, set: { if $0 { model.openSections.insert(id) } else { model.openSections.remove(id) } })
+    }
+    /// The sections a search has a match in.
+    private var sectionsWithMatches: Set<ApplicationsSection> {
+        guard model.listing.isSearching else { return [] }
+        var ids = Set<ApplicationsSection>()
+        if model.apps.contains(where: { model.listing.matches(name: $0.name, maker: $0.maker) }) { ids.insert(.apps) }
+        if model.plugIns.contains(where: { model.listing.matches(name: $0.name, maker: $0.maker) }) { ids.insert(.plugIns) }
+        if leftoversShown?.isEmpty == false { ids.insert(.leftovers) }
+        return ids
     }
 
     /// The title and description, with the one search for Apps, Plug-ins and Files from deleted apps on their right (#295, #352),
@@ -202,11 +236,6 @@ struct ApplicationsView: View {
         ColumnHeader(nameTitle: "Name", sizeTitle: "Size", sort: Bindable(model).listing.sort, identifier: "applicationsSort",
                      insets: EdgeInsets(top: 0, leading: CacheDropDesign.Size.categoryContentIndent, bottom: 0, trailing: 0))
     }
-    /// A section's heading on the names' column, under "Name", so the header, the headings and the rows' titles share one
-    /// line; the checkboxes and icons sit left of it.
-    private func sectionHeader(_ title: String) -> some View {
-        Text(title).font(CacheDropDesign.TypeStyle.section).padding(.leading, CacheDropDesign.Size.categoryContentIndent)
-    }
     private var searchText: String { model.listing.search.trimmingCharacters(in: .whitespaces) }
     /// A search that matches nothing in any section, once the lists are read (#468).
     private var nothingMatches: Bool {
@@ -230,10 +259,17 @@ struct ApplicationsView: View {
     /// apps always does (Decision 123).
     private var appsWaitForScan: Bool { catalog.applicationsWaitForScan }
 
-    @ViewBuilder private func section(_ title: String, id: String, entries: [InventoryEntry], category: StorageCategory, identifier: String,
+    @ViewBuilder private func section(_ title: String, id section: ApplicationsSection, entries: [InventoryEntry], category: StorageCategory, identifier: String,
                                       empty: (title: String, detail: String)) -> some View {
         let shown = model.listing.arranged(entries, name: \.name, maker: \.maker, bytes: { size(of: $0).sortBytes })
-        sectionHeader(title)
+        ListSection(title: title, count: listsLoading ? nil : String(shown.count),
+                    size: listsLoading || shown.isEmpty ? nil : SizeEstimate(sum: shown.map(size(of:))).text,
+                    isExpanded: sectionOpen(section), identifier: "applicationsSection-" + section.rawValue) {
+            sectionBody(id: section.rawValue, entries: entries, shown: shown, category: category, identifier: identifier, empty: empty)
+        }
+    }
+    @ViewBuilder private func sectionBody(id: String, entries: [InventoryEntry], shown: [InventoryEntry], category: StorageCategory, identifier: String,
+                                          empty: (title: String, detail: String)) -> some View {
         if entries.isEmpty {
             if listsLoading { loading(id) }
             else if model.listing.isSearching, !(id == "apps" && model.appsUnreadable) { noMatches(id) }

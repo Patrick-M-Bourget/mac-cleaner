@@ -760,7 +760,7 @@ final class FirstRunWelcomeUITests: XCTestCase {
         XCTAssertEqual(app.sheets.staticTexts.matching(NSPredicate(format: "label == %@", "Your results are ready")).count, 1, "The ready step says it once (#546)")
         done.click()
         XCTAssertTrue(app.staticTexts["overviewTitle"].waitForExistence(timeout: 5))
-        app.typeKey("4", modifierFlags: .command)
+        openApplications(app)
         XCTAssertFalse(app.descendants(matching: .any)["applicationsLoading-apps"].exists, "Applications was prepared before unlocking")
         app.terminate(); app.launch()
         XCTAssertTrue(app.progressIndicators["welcomeScanProgress"].waitForExistence(timeout: 10))
@@ -791,7 +791,7 @@ final class FirstRunWelcomeUITests: XCTestCase {
         app.buttons["welcomeCancel"].click()
         XCTAssertTrue(app.staticTexts["catalogScanProgress"].waitForExistence(timeout: 5), "Cancel onboarding does not stop the scan")
         waitForCatalogScan(app)
-        app.typeKey("4", modifierFlags: .command)
+        openApplications(app)
         XCTAssertTrue(app.buttons["Applications"].isSelected, "Navigation is available after the explicit bypass")
         app.terminate()
         let rules = state.appendingPathComponent("Exclusions/rules-v1.json")
@@ -800,7 +800,7 @@ final class FirstRunWelcomeUITests: XCTestCase {
         app.launch()
         XCTAssertTrue(app.buttons["welcomeAvailableResults"].waitForExistence(timeout: 30))
         app.buttons["welcomeAvailableResults"].click()
-        app.typeKey("4", modifierFlags: .command)
+        openApplications(app)
         XCTAssertTrue(app.staticTexts["settingsUnreadable"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.descendants(matching: .any)["applicationsLoading-apps"].waitForNonExistence(timeout: 15),
                       "Failed initial preparation must not leave Applications in an endless loading state")
@@ -837,7 +837,7 @@ final class FirstRunWelcomeUITests: XCTestCase {
         XCTAssertTrue(app.buttons["welcomeAvailableResults"].waitForExistence(timeout: 120))
         app.buttons["welcomeAvailableResults"].click()
         XCTAssertTrue(app.staticTexts["overviewTitle"].waitForExistence(timeout: 5))
-        app.typeKey("4", modifierFlags: .command)
+        openApplications(app)
         XCTAssertTrue(app.descendants(matching: .any)["applicationsUnreadable"].waitForExistence(timeout: 10), "The workspace explains the limitation")
     }
 

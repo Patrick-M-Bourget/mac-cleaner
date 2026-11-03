@@ -55,6 +55,8 @@ final class ApplicationsUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["applicationsHeader"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["Applications"].isSelected)
         XCTAssertTrue(app.checkBoxes["planCategory-leftovers"].waitForExistence(timeout: 5))
+        // The row opened its own section (Decision 151); open the others for the checks below.
+        openApplicationsSections(app)
 
         // Apps: largest first, read-only, never Apple's or CacheDrop. Identifiers carry each entry's path, not its name (#271).
         let big = element(app, "applicationsApp-" + bigApp.path), small = element(app, "applicationsApp-" + smallApp.path)
@@ -85,9 +87,48 @@ final class ApplicationsUITests: XCTestCase {
         app.typeKey("3", modifierFlags: .command)
         XCTAssertTrue(app.staticTexts["Cleanup plan"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.checkBoxes["planCategory-leftovers"].exists, "Leftovers leave the Cleanup plan")
-        app.typeKey("4", modifierFlags: .command)
+        openApplications(app)
         XCTAssertTrue(app.descendants(matching: .any)["applicationsHeader"].waitForExistence(timeout: 5), "⌘4 opens Applications")
         XCTAssertTrue(FileManager.default.fileExists(atPath: leftover.path))
+    }
+
+    /// Decision 151: sections start closed with their count and size; a search opens the ones with a match, and they stay open.
+    @MainActor func testApplicationsSectionsStartClosedAndASearchOpensTheOnesWithAMatch() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        let big = try addApp("Big Synth", id: "com.maker.bigsynth", bytes: 900_000, in: home)
+        _ = try addApp("Zed Tool", id: "com.third.zed", bytes: 300_000, in: home)
+        app.launch()
+        waitForCatalogScan(app)
+        app.typeKey("4", modifierFlags: .command)
+
+        let apps = app.buttons["applicationsSection-apps"], leftovers = app.buttons["applicationsSection-leftovers"]
+        XCTAssertTrue(apps.waitForExistence(timeout: 10))
+        XCTAssertEqual(apps.value as? String, "Collapsed", "Sections start closed")
+        let row = element(app, "applicationsApp-" + big.path)
+        XCTAssertFalse(row.exists, "A closed section shows no rows")
+
+        let search = app.textFields["applicationsSearch"]
+        search.click(); search.typeText("bi")
+        XCTAssertTrue(row.waitForExistence(timeout: 5), "A search opens the section its match is in")
+        XCTAssertEqual(apps.value as? String, "Expanded")
+        XCTAssertEqual(leftovers.value as? String, "Collapsed", "A section with no match stays closed")
+        apps.click()
+        XCTAssertTrue(row.waitForNonExistence(timeout: 5))
+        search.click(); search.typeText("g")
+        XCTAssertEqual(apps.value as? String, "Collapsed", "Closed during a search, it stays closed while its matches don't change")
+        apps.click()
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        search.typeKey("a", modifierFlags: .command); search.typeKey(.delete, modifierFlags: [])
+        XCTAssertEqual(apps.value as? String, "Expanded", "Clearing the search leaves it open")
+
+        apps.click()
+        XCTAssertTrue(row.waitForNonExistence(timeout: 5), "The heading closes it again")
+        app.typeKey("1", modifierFlags: .command); app.typeKey("4", modifierFlags: .command)
+        XCTAssertEqual(apps.value as? String, "Collapsed", "It stays as it was left")
     }
 
     /// #295, #352: one sortable column header (Name or Size, either way round) and one search order and filter every section;
@@ -106,7 +147,7 @@ final class ApplicationsUITests: XCTestCase {
         try Data(repeating: 4, count: 60_000).write(to: leftover)
         app.launch()
         waitForCatalogScan(app)
-        app.typeKey("4", modifierFlags: .command)
+        openApplications(app)
 
         let rows = [big, apex, zed].map { element(app, "applicationsApp-" + $0.path, .checkBox) }
         XCTAssertTrue(rows[0].waitForExistence(timeout: 10))
@@ -177,7 +218,7 @@ final class ApplicationsUITests: XCTestCase {
         }
         app.launch()
         waitForCatalogScan(app)
-        app.typeKey("4", modifierFlags: .command)
+        openApplications(app)
 
         let row = element(app, "applicationsApp-" + synth.path, .checkBox)
         XCTAssertTrue(row.waitForExistence(timeout: 10), "An app CacheDrop can uninstall has a checkbox")
@@ -232,7 +273,7 @@ final class ApplicationsUITests: XCTestCase {
         verification.waitUntilExit()
         XCTAssertEqual(verification.terminationStatus, 0, "The fixture app needs a valid bundle signature before launch (#383)")
         waitForCatalogScan(app)
-        app.typeKey("4", modifierFlags: .command)
+        openApplications(app)
         let row = element(app, "applicationsApp-" + synth.path, .checkBox)
         XCTAssertTrue(row.waitForExistence(timeout: 10))
         revealAndClick(row, in: app)
@@ -332,7 +373,7 @@ final class ApplicationsUITests: XCTestCase {
         }
         app.launch()
         waitForCatalogScan(app)
-        app.typeKey("4", modifierFlags: .command)
+        openApplications(app)
 
         let synthRow = element(app, "applicationsApp-" + synth.path, .checkBox)
         XCTAssertTrue(synthRow.waitForExistence(timeout: 10))
@@ -377,7 +418,7 @@ final class ApplicationsUITests: XCTestCase {
         app.launchEnvironment["CACHEDROP_TEST_RESCAN_PAUSE"] = "20"
         app.launch()
         waitForCatalogScan(app)
-        app.typeKey("4", modifierFlags: .command)
+        openApplications(app)
 
         let synthRow = element(app, "applicationsApp-" + synth.path, .checkBox)
         XCTAssertTrue(synthRow.waitForExistence(timeout: 10))
@@ -438,7 +479,7 @@ final class ApplicationsUITests: XCTestCase {
         let progress = app.staticTexts["catalogScanProgress"]
         XCTAssertTrue(progress.waitForExistence(timeout: 10), "The run rescans")
 
-        app.typeKey("4", modifierFlags: .command)
+        openApplications(app)
         let row = element(app, "applicationsApp-" + synth.path, .checkBox)
         XCTAssertTrue(row.waitForExistence(timeout: 10), "The apps are listed during the rescan")
         XCTAssertTrue(progress.exists, "Still rescanning")
@@ -469,7 +510,7 @@ final class ApplicationsUITests: XCTestCase {
         let synth = try addApp("Synth", id: "com.maker.synth", bytes: 90_000, in: home)
         app.launch()
         waitForCatalogScan(app)
-        app.typeKey("4", modifierFlags: .command)
+        openApplications(app)
 
         let row = element(app, "applicationsApp-" + synth.path, .checkBox)
         XCTAssertTrue(row.waitForExistence(timeout: 10))
@@ -492,7 +533,7 @@ final class ApplicationsUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["putBackDone-Synth.app"].waitForExistence(timeout: 10))
         XCTAssertTrue(FileManager.default.fileExists(atPath: synth.path), "The app is back where it was")
 
-        app.typeKey("4", modifierFlags: .command)
+        openApplications(app)
         XCTAssertTrue(row.waitForExistence(timeout: 120), "The app is listed on Applications again")
     }
 
@@ -523,7 +564,7 @@ final class ApplicationsUITests: XCTestCase {
         try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: au.path)
         app.launch()
         waitForCatalogScan(app)
-        app.typeKey("4", modifierFlags: .command)
+        openApplications(app)
 
         let row = element(app, "applicationsPlugIn-" + au.path, .checkBox)
         XCTAssertTrue(row.waitForExistence(timeout: 10), "A product CacheDrop can partly uninstall has a checkbox")
@@ -565,7 +606,7 @@ final class ApplicationsUITests: XCTestCase {
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
         app.launch()
         XCTAssertTrue(app.staticTexts["overviewTitle"].waitForExistence(timeout: 10))
-        app.typeKey("4", modifierFlags: .command)
+        openApplications(app)
         XCTAssertTrue(app.descendants(matching: .any)["applicationsLoading-apps"].waitForExistence(timeout: 5), "Apps say they are loading")
         XCTAssertTrue(app.descendants(matching: .any)["applicationsLoading-leftovers"].exists)
         XCTAssertTrue(app.descendants(matching: .any)["applicationsSummary"].exists, "While the lists load, the summary waits with them")
@@ -590,7 +631,7 @@ final class ApplicationsUITests: XCTestCase {
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
         app.launch()
         XCTAssertTrue(app.staticTexts["overviewTitle"].waitForExistence(timeout: 10))
-        app.typeKey("4", modifierFlags: .command)
+        openApplications(app)
         let notice = element(app, "applicationsUnreadable")
         XCTAssertTrue(notice.waitForExistence(timeout: 60), "Apps say the list couldn't be read")
         XCTAssertFalse(element(app, "applicationsEmpty-apps").exists, "Never \"Only Apple's apps\"")
@@ -616,7 +657,7 @@ final class ApplicationsUITests: XCTestCase {
         app.launch()
         waitForCatalogScan(app)
 
-        app.typeKey("4", modifierFlags: .command)
+        openApplications(app)
         let category = app.checkBoxes["planCategory-leftovers"]
         XCTAssertTrue(category.waitForExistence(timeout: 10))
         // Tied to its removed app by its container, so it arrives ticked: the recommended default, not "Selected".
@@ -633,7 +674,7 @@ final class ApplicationsUITests: XCTestCase {
         XCTAssertTrue(row.waitForExistence(timeout: 5))
         XCTAssertFalse((row.value as? String ?? "").contains("Selected"), String(describing: row.value))
 
-        app.typeKey("4", modifierFlags: .command)
+        openApplications(app)
         XCTAssertEqual(app.checkBoxes["planCategory-leftovers"].value as? Int, 1, "Its tick is kept")
         app.buttons["Review cleanup"].click()
         XCTAssertTrue(reviewLine(app, "movedToTrash", "leftovers").waitForExistence(timeout: 5))
@@ -659,7 +700,7 @@ final class ApplicationsUITests: XCTestCase {
         try Data(repeating: 4, count: 100_000).write(to: leftover)
         app.launchEnvironment["CACHEDROP_TEST_DISCOVERY_PAUSE"] = "0.1"
         app.launch(); waitForCatalogScan(app)
-        app.typeKey("4", modifierFlags: .command)
+        openApplications(app)
         let count = app.staticTexts["applicationsSummary"], size = app.staticTexts["applicationsSummaryValue"]
         XCTAssertTrue(size.waitForExistence(timeout: 5))
         func text(_ element: XCUIElement) -> String { element.value as? String ?? element.label }
@@ -693,7 +734,7 @@ final class ApplicationsUITests: XCTestCase {
         search.typeKey("a", modifierFlags: .command); search.typeKey(.delete, modifierFlags: [])
         app.typeKey("2", modifierFlags: .command)
         revealAndClick(app.checkBoxes["smartCleanCategory-leftovers"], in: app)
-        app.typeKey("4", modifierFlags: .command)
+        openApplications(app)
         XCTAssertEqual(text(count), "2 items selected", "Another page changes the same selection")
         XCTAssertNotEqual(text(size), selectedSize)
         revealAndClick(synthRow, in: app); revealAndClick(plugInRow, in: app)

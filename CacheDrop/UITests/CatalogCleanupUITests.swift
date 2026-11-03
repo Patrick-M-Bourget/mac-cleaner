@@ -143,6 +143,19 @@ import AppKit
     revealAndClick(link, in: app)
 }
 
+/// Opens Applications with ⌘4 and every section on it, which start closed and stay as left until CacheDrop quits (Decision 151).
+@MainActor func openApplications(_ app: XCUIApplication) {
+    app.typeKey("4", modifierFlags: .command)
+    openApplicationsSections(app)
+}
+/// Opens every closed section on Applications.
+@MainActor func openApplicationsSections(_ app: XCUIApplication) {
+    for id in ["apps", "plugIns", "leftovers"] {
+        let header = app.buttons["applicationsSection-" + id]
+        XCTAssertTrue(header.waitForExistence(timeout: 5), "Applications lists its \(id) section")
+        if header.value as? String == "Collapsed" { header.click() }
+    }
+}
 /// An element by an identifier longer than XCUITest's 128-character limit for identifier queries: a fixture folder's
 /// path makes `overviewLocation:` identifiers that long.
 @MainActor func element(identifier: String, in app: XCUIApplication) -> XCUIElement {
