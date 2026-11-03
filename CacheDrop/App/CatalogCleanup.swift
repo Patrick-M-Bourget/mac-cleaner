@@ -549,8 +549,7 @@ import SwiftUI
                                                     offered: discovered.candidates + found + apps,
                                                     exclusions: exclusions)
             // Audio software's drivers and Reason's additional devices the user can move (Decision 151, #701).
-            let audio = AudioSoftware.uninstallItems(AudioSoftware.drivers(home: home, systemRoot: system), hosts: [], exclusions: exclusions)
-                + AudioSoftware.uninstallItems(AudioSoftware.optionalDevices(home: home), hosts: AudioSoftware.reasonHosts, exclusions: exclusions)
+            let audio = AudioSoftware.uninstallItems(home: home, systemRoot: system, exclusions: exclusions)
             let (owners, names) = Self.owners(of: discovered.candidates + leftovers + apps + plugIns + audio, in: catalog)
             enter(.openApps)
             let running = Self.running(owners, quitter: quitter)
