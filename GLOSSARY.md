@@ -71,6 +71,7 @@ The names CacheDrop shows, what they mean, and where they live in code. Copy fol
 | Remove local copies | Frees iCloud files' space on this Mac | action `evict` |
 | Check for Updates… | A requested update check through standard Sparkle dialogs | `ManualUpdater` |
 | `cachedrop scan`, `cachedrop plan` | The read-only command line: Overview's categories, and what Smart clean would clean | `CommandLineReport`, `Sources/cachedrop` |
+| `cachedrop clean` | Cleans what `cachedrop plan` lists through the app's executor, checks and journal; `--dry-run` changes nothing, `--yes` skips the question | `CommandLineClean`, `CommandLineReport.Clean` |
 | Check for updates automatically | The Settings toggle for Sparkle's weekly check, on by default; it never downloads or installs by itself | `AutomaticUpdateChecks`, `ManualUpdater` |
 | Cancel update | Stop waiting for installation while current cleanup and maintenance keep running | `UpdateInstallation.cancel` |
 | Move to Applications | Copy CacheDrop opened from a disk image into Applications, open that copy and quit; **Not now** keeps it where it is for this launch | `MoveToApplicationsModel`, `ApplicationsMove`, `AppBundleLocation` |

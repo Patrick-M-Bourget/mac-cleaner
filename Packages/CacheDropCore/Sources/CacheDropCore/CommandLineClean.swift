@@ -30,7 +30,7 @@ public enum CommandLineClean {
         // The trial, as the review sheet applies it (Decisions 135, 137): a plan bigger than what's left never runs.
         let allowance = trial.allowance(for: license), size = approval.trialBytes(skipping: [], catalog: sources.catalog)
         if !allowance.permits(size, dryRun: dryRun) {
-            return .refused((allowance.reviewLine(plan: size, dryRun: false) ?? "Free trial used") + ". Enter a license in CacheDrop's Settings, or buy one at "
+            return .refused((allowance.reviewLine(plan: size, dryRun: false) ?? "Free trial used") + ". Enter a license in CacheDrop’s Settings, or buy one at "
                             + LicensePrice.buyURL.absoluteString + ".")
         }
         let executor = CleanupExecutor(journal: journal, check: sources.check, measure: measure, trash: trash)
