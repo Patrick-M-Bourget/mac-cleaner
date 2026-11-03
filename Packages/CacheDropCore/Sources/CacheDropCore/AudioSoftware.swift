@@ -108,16 +108,7 @@ public enum AudioSoftware {
     /// largest first, each with who it is from; read-only (#705 decides removing them). One on a drive that isn't connected
     /// names that drive and has no size.
     public static func sounds(home: URL, systemRoot: URL = URL(fileURLWithPath: "/"), sizer: KnownLocationSizer = KnownLocationSizer()) -> [InventoryEntry] {
-        let content = MusicContent.scan(owners: [], home: home, systemRoot: systemRoot, sizer: sizer).items.map { item -> InventoryEntry in
-            let (size, volume): (SizeEstimate, String?) = switch item.state {
-            case .present(let size): (size, nil)
-            case .offline(let drive): (.unknown, drive)
-            }
-            // The user's own content (Ableton's User Library, their Apple Loops) is labelled as theirs (Decision 151).
-            let from = item.vendors.joined(separator: ", ") + (item.kind == .yours ? " · Yours" : "")
-            return InventoryEntry(id: item.url.path, name: item.name, maker: from, volume: volume,
-                                  parts: [.init(name: item.name, url: item.url, size: size, removable: false)])
-        }
+        let content = MusicContent.scan(owners: [], home: home, systemRoot: systemRoot, sizer: sizer).items.map(sound)
         let others = [("Splice sounds", "Splice", spliceSounds), ("Rack Extensions", "Reason Studios", rackExtensions)].compactMap { name, maker, path -> InventoryEntry? in
             let url = home.appendingPathComponent(path).standardizedFileURL
             guard FileManager.default.fileExists(atPath: url.path) else { return nil }
@@ -125,5 +116,24 @@ public enum AudioSoftware {
                                   parts: [.init(name: name, url: url, size: Catalog.estimate(sizer.size(url)), removable: false)])
         }
         return ApplicationsInventory.largestFirst(content + others)
+    }
+
+    /// One vendor library's row: who it is from, the user's own marked "Yours" (Decision 151), and the managers that installed it.
+    static func sound(_ item: MusicContentItem) -> InventoryEntry {
+        let (size, volume): (SizeEstimate, String?) = switch item.state {
+        case .present(let size): (size, nil)
+        case .offline(let drive): (.unknown, drive)
+        }
+        let from = item.vendors.joined(separator: ", ") + (item.kind == .yours ? " · Yours" : "")
+        var entry = InventoryEntry(id: item.url.path, name: item.name, maker: from, volume: volume,
+                                   parts: [.init(name: item.name, url: item.url, size: size, removable: false)])
+        // The user's own content isn't the manager's to remove or move (#714).
+        if item.kind == .installed { entry.managers = item.vendors.compactMap { name in MusicVendor.known.first { $0.name == name }?.tool } }
+        return entry
+    }
+
+    /// The installed app that manages a sound library (#714): its vendor's manager, when it is among `apps`, by bundle ID only (41).
+    public static func manager(of sound: InventoryEntry, among apps: [InventoryEntry]) -> InventoryEntry? {
+        sound.managers.lazy.compactMap { tool in apps.first { $0.bundleID?.lowercased() == tool.bundleID } }.first
     }
 }
