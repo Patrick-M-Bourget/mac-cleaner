@@ -1,10 +1,10 @@
 import Foundation
 
 /// What a run changed on the Applications page, so the rescan after it reads again only that (Decision 134, #647): the Apps
-/// and Plug-ins rows whose items it acted on, or that list something it acted on, and the files from deleted apps of their
-/// makers and of the leftovers it acted on. Every other row keeps what the last full scan found.
+/// and Audio software rows (apps, plug-in products, drivers, Reason devices; Decision 159) whose items it acted on, or that
+/// list something it acted on, and the files from deleted apps of their makers and of the leftovers it acted on. Every other row keeps what the last full scan found.
 public struct TouchedApplications: Sendable, Equatable {
-    /// The rows read again, by id (`AppUninstall.Target.path`): an app's path, or a plug-in product's ID.
+    /// The rows read again, by id (`AppUninstall.Target.path`): an app's, driver's or Reason device's path, or a plug-in product's ID.
     public internal(set) var rows: Set<String> = []
     /// The makers (`com.maker`) whose files from deleted apps are read again: those of the touched rows, whose files may
     /// now be a deleted app's, and of the leftovers the run acted on.
@@ -57,8 +57,9 @@ extension CatalogExecutionResult {
         for item in shown where Self.overlaps(item.url.resolvingSymlinksInPath().standardizedFileURL.path, paths) {
             if item.uninstall != nil { touch(item) } else if AppRuleFamily.of(ruleID: item.ruleID) == .removedAppLeftovers, !touchLeftover(item) { return nil }
         }
-        // A product is read again against the inventory it was found in.
-        let products = Set(shown.compactMap { $0.uninstall?.plugIn == nil ? nil : $0.uninstall?.path } + shown.flatMap(\.sharedBy))
+        // A product is read again against the inventory it was found in; a Reason device, as the full scan reads it (#716).
+        let products = Set(shown.compactMap { $0.uninstall?.plugIn == nil ? nil : $0.uninstall?.path }.filter { !AudioSoftware.isDevice($0) }
+                           + shown.flatMap(\.sharedBy))
         guard touched.rows.intersection(products).isSubset(of: Set(plugIns?.products.map(\.id) ?? [])) else { return nil }
         return touched
     }
@@ -87,7 +88,9 @@ extension TouchedApplications {
                                                          offered: offered + leftovers + kept.filter { $0.uninstall?.plugIn == nil } + appItems,
                                                          exclusions: exclusions, only: products)
         } ?? []
-        return kept + appItems + plugInItems
+        // A driver or Reason device read again (#716): its item, as the full scan finds it now; nothing once it is gone.
+        let audioItems = AudioSoftware.uninstallItems(home: home, systemRoot: systemRoot, exclusions: exclusions, only: rows)
+        return kept + appItems + plugInItems + audioItems
     }
 }
 

@@ -70,6 +70,15 @@ private func driver(_ relative: String, in root: URL, id: String, copyright: Str
     #expect(drivers.first?.bundleID == "com.maker.interface.driver")
 }
 
+/// A driver folder read as both the system's and the home's (the same folder) lists each driver once.
+@Test func aDriverFolderReadTwiceListsEachDriverOnce() throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("AudioSoftwareTests-" + UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: root) }
+    try driver("Library/Audio/Plug-Ins/HAL/Loopback.driver", in: root, id: "com.loop.back", bytes: 1_000)
+
+    #expect(AudioSoftware.drivers(home: root, systemRoot: root).map(\.name) == ["Loopback"])
+}
+
 private func product(_ name: String, maker: String?, bytes: Int64) -> InventoryEntry {
     let url = URL(fileURLWithPath: "/Library/Audio/Plug-Ins/VST3/\(name).vst3")
     return InventoryEntry(id: url.path, name: name, maker: maker, volume: nil, parts: [.init(name: "VST3", url: url, size: .measured(bytes), removable: true)])
@@ -158,4 +167,35 @@ private struct RunningNamed: RunningAppChecking {
     try FileManager.default.createDirectory(at: preset.deletingLastPathComponent(), withIntermediateDirectories: true)
     try Data(repeating: 1, count: 1_000).write(to: preset)
     #expect(AudioSoftware.sounds(home: home, systemRoot: home).first { $0.name == "User Library" }?.maker == "Ableton · Yours")
+}
+
+/// #714: a sound row offers its vendor's manager (`VendorTool`) when that app is installed; none when it isn't, and none for a
+/// vendor with no known manager (Reason Studios, Splice).
+@Test func soundsOfferTheirVendorsManagerOnlyWhenItIsInstalled() throws {
+    let home = FileManager.default.temporaryDirectory.appendingPathComponent("AudioSoftwareTests-" + UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: home) }
+    for path in ["Applications/Waves/Data/Instrument Data/Waves Sample Libraries/a.wav", "Library/Arturia/Presets/a.preset",
+                 "Splice/sounds/kick.wav", AudioSoftware.rackExtensions + "/SomeDevice/data.bin"] {
+        let file = home.appendingPathComponent(path)
+        try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data(repeating: 1, count: 1_000).write(to: file)
+    }
+    let sounds = AudioSoftware.sounds(home: home, systemRoot: home)
+    let apps = [app("Waves Central", "com.wavesaudio.wavescentral"), app("Slack", "com.tinyspeck.slackmacgap")]
+    let managers: [String: String?] = Dictionary(uniqueKeysWithValues: sounds.map { ($0.name, AudioSoftware.manager(of: $0, among: apps)?.name) })
+    #expect(managers == ["Sample libraries": "Waves Central", "Resources": nil, "Splice sounds": nil, "Rack Extensions": nil])
+    #expect(sounds.allSatisfy { AudioSoftware.manager(of: $0, among: []) == nil })
+}
+
+/// #714: the user's own content ("· Yours") never offers a manager, even from a vendor whose manager is installed. No vendor
+/// CacheDrop knows has both today, so the row is built from a synthetic item.
+@Test func yourSoundsNeverOfferAManager() {
+    let item = { (kind: MusicContentItem.Kind) in
+        MusicContentItem(name: "Presets", vendors: ["Waves"], url: URL(fileURLWithPath: "/Users/Shared/Waves Presets"), kind: kind,
+                         state: .present(.measured(1_000)), owners: [], tie: .vendor)
+    }
+    let apps = [app("Waves Central", "com.wavesaudio.wavescentral")]
+    #expect(AudioSoftware.manager(of: AudioSoftware.sound(item(.installed)), among: apps)?.name == "Waves Central")
+    #expect(AudioSoftware.sound(item(.yours)).maker == "Waves · Yours")
+    #expect(AudioSoftware.manager(of: AudioSoftware.sound(item(.yours)), among: apps) == nil)
 }

@@ -205,3 +205,68 @@ private func chromeProfiles() throws -> (URL, Catalog, [Candidate]) {
     #expect(held.ownersToCheckAgain(isOpen: synthQuit).isEmpty)
     #expect(held.lines(in: items).map(\.text) == ["Browser is using 1 item, so it will be skipped"])
 }
+
+// #564, Decision 162: an app holding items in two consequence groups gets one line, above the groups, covering its items in
+// every group with their total skipped size and one Quit link; the lines follow the sheet's group order.
+@Test func aHolderWithItemsInTwoGroupsGetsOneLineAboveThem() {
+    let trashRule = CleanupRule(id: "synth-trash", category: .developer, title: "synth-trash", detail: "", consequence: "", regen: .cache, action: .trash,
+                                locations: ["synth-trash"], owner: synth)
+    let catalog = Catalog(rules: [trashRule, rule("synth-cache", owner: synth), rule("browser-copies", owner: nil, copies: browser)])
+    let trashed = Candidate(ruleID: "synth-trash", action: .trash, url: fixtureNoHome.appendingPathComponent("synth-trash"), resourceID: "1:synth-trash",
+                            isDirectory: true, toolURL: nil, volumeID: nil, modifiedSeconds: 0, modifiedNanoseconds: 0, logicalBytes: 500,
+                            allocatedBytes: 500, sizeComplete: true, lastUsed: nil, observedAt: Date(), profile: nil)
+    // Review order puts the Trash item first; the sheet shows Delete permanently first.
+    let items = [trashed, item("browser-copies"), item("synth-cache")]
+    let refusals: [String: CheckRefusal] = [items[0].id: .ownerRunning("Synth"), items[1].id: .inUse("Browser"), items[2].id: .ownerRunning("Synth")]
+    let held = ReviewHeldItems(candidates: items, refusals: refusals, catalog: catalog, isOpen: open)
+    let groups = ReviewGroup.groups(catalog: catalog, candidates: items, skipped: Set(refusals.keys))
+    #expect(groups.map(\.consequence) == [.permanentlyRemoved, .movedToTrash])
+
+    let lines = held.lines(in: groups)
+    #expect(lines.map(\.text) == ["Browser is using 1 item, so it will be skipped", "Synth is open, so its caches will be skipped"])
+    #expect(lines.map { $0.items.map(\.ruleID) } == [["browser-copies"], ["synth-cache", "synth-trash"]])
+    #expect(lines.map(\.quitTitle) == ["Quit Browser", "Quit Synth"], "One Quit link per holder")
+    #expect(lines.map(\.size) == [.measured(1_000), .measured(1_500)], "Synth's skipped size counts both groups")
+}
+
+// #564 review: one app is one holder however its rules describe it. Chat's app cache names it by its bundle (`installedOwner`)
+// and its Squirrel update download by its bundle, job label and folder too (`updaterOwner`): two owner values, one app, so one
+// line with one Quit link, and the quit rechecks both rows. Real app-cache and updater rules; Chat is a fixture lookup.
+private struct ChatInstalled: AppLookup {
+    static let chat = InstalledApp(name: "Chat", bundleID: "com.example.Chat", path: "/Applications/Chat.app")
+    func app(bundleID: String) -> InstalledApp? { bundleID == Self.chat.bundleID ? Self.chat : nil }
+    func app(updaterCacheDirName name: String) -> InstalledApp? { nil }
+}
+private struct ChatRunning: RunningAppChecking {
+    func isRunning(_ owner: RuleOwner) -> Bool? { owner.bundleIDs.contains("com.example.Chat") }
+}
+
+@Test func oneAppsCacheAndUpdateDownloadAreOneLineThoughTheirOwnersDiffer() throws {
+    let home = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropHeldChat-\(UUID())").resolvingSymlinksInPath()
+    defer { try? FileManager.default.removeItem(at: home) }
+    for (path, bytes) in [("Library/Caches/com.example.Chat/Cache.db", 3_000), ("Library/Caches/com.example.Chat.ShipIt/update.Xyz/Chat.zip", 7_000)] {
+        let file = home.appendingPathComponent(path)
+        try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data(repeating: 1, count: bytes).write(to: file)
+    }
+    let catalog = Catalog(rules: BuiltInCatalog.rules(apps: ChatInstalled()))
+    let found = catalog.discover(fixture: home)
+    try #require(Set(found.map(\.ruleID)) == ["app-caches", "updater-downloads"])
+    let owners = found.compactMap(catalog.owner(for:))
+    try #require(owners.count == 2 && owners[0] != owners[1], "Two owner values for one app")
+    let refusals = CandidateCheck(catalog: catalog, running: ChatRunning(), inUse: FixtureNothingInUse(), home: home).refusals(of: found)
+    try #require(refusals.count == 2)
+    var held = ReviewHeldItems(candidates: found, refusals: refusals, catalog: catalog, isOpen: { $0.contains("com.example.Chat") })
+    let lines = held.lines(in: ReviewGroup.groups(catalog: catalog, candidates: found, skipped: Set(refusals.keys)))
+    #expect(lines.map(\.text) == ["Chat is open, so its items will be skipped"])
+    #expect(lines.map(\.items.count) == [2])
+    #expect(lines.map(\.quitTitle) == ["Quit Chat"])
+    #expect(lines.first?.size == SizeEstimate(sum: found.map(SizeEstimate.init)))
+
+    // Quitting through that one link checks both rows again.
+    let owner = try #require(lines.first?.quitOwner)
+    #expect(Set(held.candidates(heldBy: owner).map(\.ruleID)) == ["app-caches", "updater-downloads"])
+    held.quitEnded(owner, outcome: .quit, isOpen: { _ in false }) { _ in nil }
+    #expect(held.lines(in: found).isEmpty)
+    #expect(held.ownersToCheckAgain(isOpen: { _ in false }).isEmpty)
+}

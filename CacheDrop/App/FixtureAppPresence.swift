@@ -22,10 +22,12 @@ struct FixtureAppPresence: AppPresence {
     func isRegistered(bundleID: String) -> Bool { false }
 
     /// The fixture apps a journey may open, each behind its own opt-in switch: its bundle's name, identifier and executable.
-    /// Synth holds its own uninstall (#377); the Google Chrome stand-in holds Chrome's per-profile caches (#566).
+    /// Synth holds its own uninstall (#377); the Google Chrome stand-in holds Chrome's per-profile caches (#566); the Android
+    /// Studio stand-in, run as `emulator`, holds Android's system images and virtual devices, in two review groups (#564).
     private static let quitJourneyApps: [(env: String, name: String, bundleID: String, executable: String)] = [
         ("CACHEDROP_TEST_PREPARE_SYNTH_APP", "Synth", "com.maker.synth", "main"),
         ("CACHEDROP_TEST_PREPARE_CHROME_APP", "Google Chrome", "com.google.Chrome", "Google Chrome"),
+        ("CACHEDROP_TEST_PREPARE_ANDROID_STUDIO_APP", "Android Studio", "com.google.android.studio", "emulator"),
     ]
 
     /// #383: only an opt-in journey's disposable fixture bundle (`quitJourneyApps`) is made launchable outside the sandboxed

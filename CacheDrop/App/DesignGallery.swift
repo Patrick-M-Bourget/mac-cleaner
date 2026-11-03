@@ -59,6 +59,13 @@ struct DesignGallery: View {
                         AlertThresholdEditor(draft: .constant("invalid"), canApply: false, invalidDraft: true, apply: {})
                         AlertPermissionDetails(authorization: .denied, checked: true, settingsFeedback: "System Settings could not be opened.", openSettings: {})
                     }
+                    // Help → What’s New (#553, Decision 161): the notes, and a development build without its version's notes.
+                    Text("Synthetic What’s New · Inert examples").font(.headline)
+                    WhatsNewContent(notes: .success(ReleaseNotes(version: "9.9.9", summary: "An example summary sentence about this version.",
+                                                                 changes: ["An example change that wraps onto a second line because it is long enough to.", "A second example change."])),
+                                    version: "9.9.9").frame(width: CacheDropDesign.Size.sheetNarrow).background(CacheDropDesign.reading)
+                    WhatsNewContent(notes: .failure(ReleaseNotesError.notBundled), version: "9.9.9")
+                        .frame(width: CacheDropDesign.Size.sheetNarrow).background(CacheDropDesign.reading)
                     CapacityGalleryExamples()
                     Text("Synthetic Saved data entry · Inert example").font(.headline)
                     SavedDataEntry(action: {})
@@ -68,7 +75,7 @@ struct DesignGallery: View {
                     SavedDataMaintenanceControls(clear: {}, reset: {})
                     StatusRow(text: "Reset waits until the interrupted cleanup is reviewed.", symbol: "exclamationmark.triangle", role: .caution)
                     StatusRow(text: "Downloads · Access unavailable", role: .caution, action: StatusAction(title: "Choose again…") {})
-                    StatusRow(text: "Synth will be skipped: Synth is running. Quit it, then scan again.", symbol: "exclamationmark.circle", role: .caution,
+                    StatusRow(text: "Synth is open, so its caches will be skipped · 1.2 GB", symbol: "exclamationmark.circle", role: .caution,
                               action: StatusAction(title: "Quitting…", isDisabled: true) {})
                     Text("Synthetic unavailable controls · Cleanup or maintenance in progress").font(.headline)
                     SavedDataMaintenanceControls(enabled: false, clear: {}, reset: {})
@@ -223,6 +230,17 @@ struct DesignGallery: View {
                     // A group where nothing can be ticked says Show (Decision 154).
                     CategoryRow(category: .audioSoftware, state: nil, title: "Example read-only group", detail: "", size: "6.3 GB", enabled: true,
                                 identifier: "galleryShowGroup", itemCount: 3, chooseVerb: "Show", chooseNoun: "sounds", expanded: .constant(false), toggle: {}) { EmptyView() } items: { EmptyView() }
+                    // A read-only sound row; its vendor's installed manager can remove or move it (Decision 157).
+                    InspectableItemRow(name: "Example sample library", detail: "Example maker", size: "4.1 GB", symbol: "waveform", inspected: false, inspect: nil,
+                                       reveal: {}, revealIdentifier: "gallerySoundReveal") { EmptyView() }
+                    StatusRow(text: "Example manager can remove or move it", symbol: "shippingbox", identifier: "gallerySoundManager",
+                              action: StatusAction(title: "Open Example manager", identifier: "gallerySoundOpen") {})
+                        .padding(.leading, CacheDropDesign.Space.md * 2 + CacheDropDesign.Size.itemIcon).padding(.bottom, CacheDropDesign.Space.md)
+                    // A driver the user can move: its place and Reveal in Finder before it's ticked (Decision 158).
+                    CategoryRow(category: .audioSoftware, state: .unchecked, title: "Example driver", detail: "Example maker", size: "4 MB", enabled: true,
+                                identifier: "galleryDriverRow", itemCount: nil, expanded: .constant(false), toggle: {}) {
+                        StatusRow(text: "…/Plug-Ins/HAL", symbol: "folder", action: StatusAction(title: "Reveal in Finder", action: {}))
+                    } items: { EmptyView() }
                     VolumeSummary(available: 40_000_000_000, total: 512_000_000_000, observation: "Example disk space")
                     VolumeSummary(available: nil, total: nil, observation: "Free space unknown")
                     // Every segment kind at the tip, as the cleaning bar draws a run (#343, #355): categories, going to the Trash, in Trash.
