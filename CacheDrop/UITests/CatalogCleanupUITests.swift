@@ -42,9 +42,9 @@ import AppKit
                   "Overview shows the scanned folder", file: file, line: line)
 }
 
-/// The explorer's quiet Large and old files toggle (#320), a text link.
+/// The explorer's Large and old files filter (#320), a checkbox (Decision 150).
 @MainActor func explorerMode(_ app: XCUIApplication) -> XCUIElement {
-    app.descendants(matching: .any)["explorerMode"]
+    app.checkBoxes["explorerMode"]
 }
 
 /// The review sheet has two buttons, Cancel and Clean up, and no preview mode. Its footer is right-aligned, Cancel then
@@ -1074,14 +1074,23 @@ extension CatalogCleanupUITests {
         let explore = app.links["Explore storage"]
         XCTAssertTrue(explore.waitForExistence(timeout: 20))
         revealAndClick(explore, in: app)
-        // #222: inside a folder, back names where it goes, then leaves the explorer.
+        // Decision 150: back only leaves the explorer, naming the caller at every depth; the breadcrumb goes up.
         let back = app.buttons["explorerBack"]
         assertBackButton(back, isAbove: "Explore storage", in: app)
         XCTAssertEqual(back.label, "Back to Overview")
         app.buttons["Open folder " + folder.lastPathComponent].click()
-        XCTAssertTrue(app.textFields["explorerSearch"].waitForExistence(timeout: 5))
-        XCTAssertEqual(back.label, "Back to Scanned folders")
-        back.click()
+        let search = app.textFields["explorerSearch"]
+        XCTAssertTrue(search.waitForExistence(timeout: 5))
+        XCTAssertEqual(back.label, "Back to Overview", "Inside a folder, back still names the caller")
+        XCTAssertFalse(search.value(forKey: "hasKeyboardFocus") as? Bool ?? false, "Nothing is focused when a folder opens")
+        // Search sits in the header, above the breadcrumb row, as on Applications.
+        let rootCrumb = app.buttons["explorerCrumbRoot"]
+        XCTAssertTrue(rootCrumb.exists)
+        XCTAssertLessThanOrEqual(search.frame.maxY, rootCrumb.frame.minY, "Search is in the header, above the breadcrumb")
+        // A long folder name stays on one line.
+        let current = app.staticTexts["explorerCrumbCurrent"]
+        XCTAssertEqual(current.frame.height, rootCrumb.frame.height, accuracy: 4, "The breadcrumb is one line")
+        rootCrumb.click()
         XCTAssertTrue(app.buttons["Open folder " + folder.lastPathComponent].waitForExistence(timeout: 5))
         XCTAssertEqual(back.label, "Back to Overview")
         let mode = explorerMode(app)
@@ -1235,7 +1244,7 @@ extension CatalogCleanupUITests {
         // #228's plan back button ("‹ Explore storage") is checked from Add to cleanup plan (#320) in
         // testExploreFromLocationsAddsALargeFileToThePlan; nothing here can be ticked.
 
-        // #227: a subfolder is gone after a recheck; only the shared back button leads to the list of locations.
+        // #227: a subfolder is gone after a recheck; the breadcrumb leads to the list of locations (Decision 150).
         // (Removing the scanned folder itself keeps its last observation, so the subfolder is what goes away.)
         app.buttons["Open folder Inner"].click()
         XCTAssertTrue(app.buttons["Inspect entry.zip"].firstMatch.waitForExistence(timeout: 5))
@@ -1244,9 +1253,9 @@ extension CatalogCleanupUITests {
         XCTAssertTrue(app.staticTexts["This folder is no longer there"].waitForExistence(timeout: 20))
         XCTAssertFalse(app.buttons["Return to selected locations"].exists)
         let explorerBack = app.buttons["explorerBack"]
-        XCTAssertEqual(explorerBack.label, "Back to Scanned folders")
+        XCTAssertEqual(explorerBack.label, "Back to Overview")
         assertBackButton(explorerBack, isAbove: "Explore storage", in: app)
-        explorerBack.click()
+        app.buttons["explorerCrumbRoot"].click()
         XCTAssertFalse(app.staticTexts["This folder is no longer there"].waitForExistence(timeout: 2))
         XCTAssertEqual(explorerBack.label, "Back to Overview")
     }
@@ -1282,10 +1291,10 @@ extension CatalogCleanupUITests {
         XCTAssertFalse(back.exists, "Opened from the sidebar, Explore storage has no back button")
         openFolder.click()
         XCTAssertTrue(app.textFields["explorerSearch"].waitForExistence(timeout: 5))
-        XCTAssertEqual(back.label, "Back to Scanned folders", "Inside a folder, back still leads up")
-        back.click()
+        XCTAssertFalse(back.exists, "Opened from the sidebar, no back button at any depth (Decision 150)")
+        app.buttons["explorerCrumbRoot"].click()
         XCTAssertTrue(openFolder.waitForExistence(timeout: 5))
-        XCTAssertFalse(back.exists, "Back at Scanned folders, nothing leads out")
+        XCTAssertFalse(back.exists)
 
         // Opened inside a folder, the sidebar item starts again at Scanned folders.
         openFolder.click()
@@ -1381,9 +1390,7 @@ extension CatalogCleanupUITests {
         XCTAssertFalse(app.staticTexts["This folder is no longer there"].exists)
 
         // The list of locations marks it the same way and doesn't offer to open its old contents.
-        let explorerBack = app.buttons["explorerBack"]
-        XCTAssertEqual(explorerBack.label, "Back to Scanned folders")
-        explorerBack.click()
+        app.buttons["explorerCrumbRoot"].click()
         XCTAssertTrue(row.waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["Open folder " + folder.lastPathComponent].exists)
     }
@@ -1437,7 +1444,7 @@ extension CatalogCleanupUITests {
         XCTAssertTrue(mediaBlock.label.hasPrefix("Media, "), "a block reads its name and size on disk: \(mediaBlock.label)")
         XCTAssertTrue(mediaBlock.label.hasSuffix(" on disk"))
         mediaBlock.click()
-        XCTAssertTrue(app.links[folder.lastPathComponent].waitForExistence(timeout: 5), "the picked folder is a breadcrumb link")
+        XCTAssertEqual(app.buttons["explorerCrumb-0"].label, folder.lastPathComponent, "the picked folder is a breadcrumb step")
 
         // A file's block inspects it and ticks nothing; the inspector's toggle does.
         let file = app.buttons["explorerMapBlock-large-video.mov"]
@@ -1520,14 +1527,16 @@ extension CatalogCleanupUITests {
         XCTAssertEqual(back.label, "Back to Locations")
 
         // A file's name shows it in the inspector. At the list of locations nothing is picked, so there is
-        // no inspector and the list takes the width (#371); back returns to the folder and its picked file.
+        // no inspector and the list takes the width (#371). Back still names Locations: the breadcrumb goes up (Decision 150).
         app.buttons["Inspect large-video.mov"].firstMatch.click()
         XCTAssertTrue(inspector.staticTexts["large-video.mov"].waitForExistence(timeout: 5))
-        app.links["Scanned folders"].click()
-        XCTAssertTrue(app.buttons["Open folder " + folder.lastPathComponent].waitForExistence(timeout: 5))
+        app.buttons["explorerCrumbRoot"].click()
+        let reopen = app.buttons["Open folder " + folder.lastPathComponent]
+        XCTAssertTrue(reopen.waitForExistence(timeout: 5))
         XCTAssertFalse(inspector.exists)
-        back.click()
-        XCTAssertTrue(inspector.staticTexts["large-video.mov"].waitForExistence(timeout: 5))
+        XCTAssertEqual(back.label, "Back to Locations")
+        reopen.click()
+        XCTAssertTrue(inspector.waitForExistence(timeout: 5), "the folder on show has its inspector again")
     }
 
     /// Opens Explore storage from Overview in its Large and old files mode; returns the fixture's old file toggle.
@@ -1539,7 +1548,7 @@ extension CatalogCleanupUITests {
         let mode = explorerMode(app)
         XCTAssertTrue(mode.waitForExistence(timeout: 20))
         // The explorer keeps its mode within a run; turn it on only when it's off.
-        if mode.label == "Large and old files" { mode.click() }
+        if (mode.value as? Int) != 1 { mode.click() }
         return app.checkBoxes["explorerChoose-old-archive.zip"]
     }
 }

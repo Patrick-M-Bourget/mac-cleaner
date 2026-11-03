@@ -354,6 +354,31 @@ struct BackButton: View {
             .modifier(OptionalIdentifier(identifier: identifier))
     }
 }
+/// A navigation trail's step (Decision 150), such as Explore storage's breadcrumb: secondary text like `BackButton`, the
+/// step on show in primary; a step you can go to underlines with the pointing hand on hover, never in the accent. One line,
+/// truncated in the middle. Actions stay `.buttonStyle(.link)`.
+struct QuietLink: View {
+    let title: String
+    var current = false
+    var identifier: String? = nil
+    let action: () -> Void
+    @State private var hovering = false
+    var body: some View {
+        Group {
+            if current {
+                Text(title).lineLimit(1).truncationMode(.middle).foregroundStyle(.primary)
+            } else {
+                Button(action: action) { Text(title).underline(hovering).lineLimit(1).truncationMode(.middle) }
+                    .buttonStyle(.plain).foregroundStyle(.secondary)
+                    .onHover { inside in
+                        hovering = inside
+                        if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+                    }
+                    .onDisappear { if hovering { hovering = false; NSCursor.pop() } }
+            }
+        }.modifier(OptionalIdentifier(identifier: identifier))
+    }
+}
 /// Sets an accessibility identifier only when there is one, so the element keeps its default otherwise.
 private struct OptionalIdentifier: ViewModifier {
     let identifier: String?
