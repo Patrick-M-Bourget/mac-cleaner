@@ -36,7 +36,7 @@ struct StorageMap: View {
                             minimumLabelWidth: CacheDropDesign.Size.storageMapLabel.width, minimumLabelHeight: CacheDropDesign.Size.storageMapLabel.height)
         let byID = Dictionary(items.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
-            blocks(layout, byID: byID)
+            blocks(layout, byID: byID).frame(maxHeight: CacheDropDesign.Size.storageMap)
             TooSmallToLabelLine(blocks: layout.tooSmallToLabel.compactMap { label(for: $0, byID: byID) })
         }
     }
@@ -155,14 +155,15 @@ private struct TooSmallToLabelLine: View {
     var body: some View {
         if !blocks.isEmpty {
             HStack(spacing: 0) {
-                Text("Too small to label: ")
+                Text("Too small to label: ").foregroundStyle(.secondary)
                 ForEach(Array(blocks.enumerated()), id: \.offset) { n, entry in
-                    if n > 0 { Text(", ") }
+                    if n > 0 { Text(", ").foregroundStyle(.secondary) }
+                    // The name keeps the link colour: it does what a click on its block does.
                     Button(entry.name, action: entry.action).buttonStyle(.link).accessibilityIdentifier("explorerMapTooSmall-" + entry.name)
-                    Text(" · " + entry.size).monospacedDigit()
+                    Text(" · " + entry.size).monospacedDigit().foregroundStyle(.secondary)
                 }
             }
-            .font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).lineLimit(1)
+            .font(CacheDropDesign.TypeStyle.caption).lineLimit(1)
             .accessibilityElement(children: .contain).accessibilityIdentifier("explorerMapTooSmall")
         }
     }
@@ -189,7 +190,8 @@ struct StorageMapGalleryExamples: View {
     private func example(_ title: String, _ items: [StorageMapItem]) -> some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
             Text(title).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
-            StorageMap(title: "Synthetic", items: items, showSmaller: {}).frame(height: 260)
+            // A scroll view proposes no height, so the example takes the map's full one.
+            StorageMap(title: "Synthetic", items: items, showSmaller: {}).frame(height: CacheDropDesign.Size.storageMap + CacheDropDesign.Space.xl)
         }
     }
     var body: some View {

@@ -305,7 +305,7 @@ struct StorageExplorerView: View {
                 if context.position.folder == nil && !showsLargeAndOld {
                     ForEach(goneLocations, id: \.location.scope) { recoveryRow($0.location, lastObserved: $0.lastObserved) }
                 }
-            }
+            }.frame(maxHeight: .infinity, alignment: .top)
         }
     }
     /// One block per child of the folder on show, a scanned folder at the top, or each large and old file as one flat map.
