@@ -228,7 +228,7 @@ struct DesignGallery: View {
                                        reveal: {}, revealIdentifier: "gallerySoundReveal") { EmptyView() }
                     StatusRow(text: "Example manager can remove or move it", symbol: "shippingbox", identifier: "gallerySoundManager",
                               action: StatusAction(title: "Open Example manager", identifier: "gallerySoundOpen") {})
-                        .padding(.leading, CacheDropDesign.Space.md * 2 + CacheDropDesign.Size.itemIcon)
+                        .padding(.leading, CacheDropDesign.Space.md * 2 + CacheDropDesign.Size.itemIcon).padding(.bottom, CacheDropDesign.Space.md)
                     // A driver the user can move: its place and Reveal in Finder before it's ticked (Decision 158).
                     CategoryRow(category: .audioSoftware, state: .unchecked, title: "Example driver", detail: "Example maker", size: "4 MB", enabled: true,
                                 identifier: "galleryDriverRow", itemCount: nil, expanded: .constant(false), toggle: {}) {

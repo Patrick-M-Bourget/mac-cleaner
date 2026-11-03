@@ -228,7 +228,7 @@ final class ApplicationsUITests: XCTestCase {
         XCTAssertTrue(status.waitForExistence(timeout: 5))
         XCTAssertEqual(status.value as? String ?? status.label, "Test run: would open Waves Central.")
         let arturia = home.appendingPathComponent("Library/Arturia").path
-        XCTAssertTrue(element(app, "applicationsSoundReveal-" + arturia, .link).exists, "Arturia's resources are listed")
+        XCTAssertTrue(element(app, "applicationsSoundReveal-" + arturia, .link).waitForExistence(timeout: 5), "Arturia's resources are listed, so a missing link below is really missing")
         XCTAssertFalse(element(app, "applicationsSoundOpen-" + arturia, .link).exists, "No link when the manager isn't installed")
         XCTAssertFalse(element(app, "applicationsSoundOpen-" + splice, .link).exists, "No link for a vendor with no known manager")
         openApplicationsSections(app, ["drivers", "plug-ins"])
@@ -236,7 +236,7 @@ final class ApplicationsUITests: XCTestCase {
         XCTAssertTrue(driverBox.waitForExistence(timeout: 5), "A driver the user can move has a checkbox")
         XCTAssertEqual(driverBox.value as? Int, 0, "Never pre-ticked")
         // #715: before ticking it, the user can see where it lives.
-        XCTAssertTrue(app.links.matching(NSPredicate(format: "identifier == %@", "applicationsReveal-" + driver.path)).firstMatch.exists,
+        XCTAssertTrue(element(app, "applicationsReveal-" + driver.path, .link).waitForExistence(timeout: 5),
                       "A driver the user can move has Reveal in Finder")
         let pangea = home.appendingPathComponent("Library/Application Support/Propellerhead Software/Optional REs/Pangea").path
         let device = app.descendants(matching: .checkBox).matching(NSPredicate(format: "identifier == %@", "applicationsPlugIn-" + pangea)).firstMatch
