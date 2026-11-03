@@ -228,3 +228,45 @@ private func chromeProfiles() throws -> (URL, Catalog, [Candidate]) {
     #expect(lines.map(\.quitTitle) == ["Quit Browser", "Quit Synth"], "One Quit link per holder")
     #expect(lines.map(\.size) == [.measured(1_000), .measured(1_500)], "Synth's skipped size counts both groups")
 }
+
+// #564 review: one app is one holder however its rules describe it. Chat's app cache names it by its bundle (`installedOwner`)
+// and its Squirrel update download by its bundle, job label and folder too (`updaterOwner`): two owner values, one app, so one
+// line with one Quit link, and the quit rechecks both rows. Real app-cache and updater rules; Chat is a fixture lookup.
+private struct ChatInstalled: AppLookup {
+    static let chat = InstalledApp(name: "Chat", bundleID: "com.example.Chat", path: "/Applications/Chat.app")
+    func app(bundleID: String) -> InstalledApp? { bundleID == Self.chat.bundleID ? Self.chat : nil }
+    func app(updaterCacheDirName name: String) -> InstalledApp? { nil }
+}
+private struct ChatRunning: RunningAppChecking {
+    func isRunning(_ owner: RuleOwner) -> Bool? { owner.bundleIDs.contains("com.example.Chat") }
+}
+
+@Test func oneAppsCacheAndUpdateDownloadAreOneLineThoughTheirOwnersDiffer() throws {
+    let home = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropHeldChat-\(UUID())").resolvingSymlinksInPath()
+    defer { try? FileManager.default.removeItem(at: home) }
+    for (path, bytes) in [("Library/Caches/com.example.Chat/Cache.db", 3_000), ("Library/Caches/com.example.Chat.ShipIt/update.Xyz/Chat.zip", 7_000)] {
+        let file = home.appendingPathComponent(path)
+        try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data(repeating: 1, count: bytes).write(to: file)
+    }
+    let catalog = Catalog(rules: BuiltInCatalog.rules(apps: ChatInstalled()))
+    let found = catalog.discover(fixture: home)
+    try #require(Set(found.map(\.ruleID)) == ["app-caches", "updater-downloads"])
+    let owners = found.compactMap(catalog.owner(for:))
+    try #require(owners.count == 2 && owners[0] != owners[1], "Two owner values for one app")
+    let refusals = CandidateCheck(catalog: catalog, running: ChatRunning(), inUse: FixtureNothingInUse(), home: home).refusals(of: found)
+    try #require(refusals.count == 2)
+    var held = ReviewHeldItems(candidates: found, refusals: refusals, catalog: catalog, isOpen: { $0.contains("com.example.Chat") })
+    let lines = held.lines(in: ReviewGroup.groups(catalog: catalog, candidates: found, skipped: Set(refusals.keys)))
+    #expect(lines.map(\.text) == ["Chat is open, so its items will be skipped"])
+    #expect(lines.map(\.items.count) == [2])
+    #expect(lines.map(\.quitTitle) == ["Quit Chat"])
+    #expect(lines.first?.size == SizeEstimate(sum: found.map(SizeEstimate.init)))
+
+    // Quitting through that one link checks both rows again.
+    let owner = try #require(lines.first?.quitOwner)
+    #expect(Set(held.candidates(heldBy: owner).map(\.ruleID)) == ["app-caches", "updater-downloads"])
+    held.quitEnded(owner, outcome: .quit, isOpen: { _ in false }) { _ in nil }
+    #expect(held.lines(in: found).isEmpty)
+    #expect(held.ownersToCheckAgain(isOpen: { _ in false }).isEmpty)
+}
