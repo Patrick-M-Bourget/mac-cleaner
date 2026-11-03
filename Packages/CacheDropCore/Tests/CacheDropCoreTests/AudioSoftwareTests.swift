@@ -26,6 +26,21 @@ private func app(_ name: String, _ bundleID: String, at path: String? = nil) -> 
     #expect(split.audio.map(\.name) == ["Ableton Live 12 Suite", "REAPER", "Native Access", "Pro Synth"])
 }
 
+/// #704: a host listed from a primary source (Ardour's own build script) leaves Apps by its exact bundle ID; an app with its
+/// name and executable but another bundle ID stays in Apps, and an Ardour version not listed stays too (never by name, 41).
+@Test func newlyListedHostsAreRecognisedByTheirExactBundleIDOnly() {
+    let apps = [
+        app("Ardour9", "org.ardour.Ardour9"),
+        app("Ardour8", "org.ardour.Ardour8"),
+        app("Ardour", "com.example.ardour"),         // the same name, another maker's ID
+        app("Ardour7", "org.ardour.Ardour7"),       // a version the list doesn't name
+    ]
+    let split = AudioSoftware.split(apps, plugIns: PlugInInventory(products: []))
+    #expect(split.audio.map(\.name) == ["Ardour9", "Ardour8"])
+    #expect(split.apps.map(\.name) == ["Ardour", "Ardour7"])
+    #expect(PlugInUninstall.hosts.first { $0.name == "Ardour" }?.bundleIDs == ["org.ardour.Ardour8", "org.ardour.Ardour9"])
+}
+
 private func driver(_ relative: String, in root: URL, id: String, copyright: String? = nil, bytes: Int = 0) throws -> URL {
     let url = root.appendingPathComponent(relative)
     try FileManager.default.createDirectory(at: url.appendingPathComponent("Contents/MacOS"), withIntermediateDirectories: true)
