@@ -3,8 +3,11 @@ import Security
 
 /// One generic password in the login Keychain. The app has no Keychain entitlements, so this uses the file-based login
 /// Keychain, whose item only CacheDrop's signed app reads without asking. Neither Reset nor a reinstall touches it.
+/// Without `createsItem` a missing item is an error on write, never created: the `cachedrop` tool is signed apart from the
+/// app, and an item it created would trust only the tool, so the app would be asked for it (#627).
 struct KeychainItem {
     let service: String, account: String, label: String
+    var createsItem = true
 
     private var query: [CFString: Any] {
         [kSecClass: kSecClassGenericPassword, kSecAttrService: service, kSecAttrAccount: account]
@@ -18,10 +21,17 @@ struct KeychainItem {
         return data
     }
     func write(_ data: Data) throws {
-        let status = SecItemUpdate(query as CFDictionary, [kSecValueData: data] as CFDictionary)
-        if status == errSecItemNotFound {
+        try Self.write(createsItem: createsItem, update: { SecItemUpdate(query as CFDictionary, [kSecValueData: data] as CFDictionary) }, add: {
             var item = query; item[kSecValueData] = data; item[kSecAttrLabel] = label
-            let added = SecItemAdd(item as CFDictionary, nil)
+            return SecItemAdd(item as CFDictionary, nil)
+        })
+    }
+    /// Updates the item; adds it only when it's missing and `createsItem` allows.
+    static func write(createsItem: Bool, update: () -> OSStatus, add: () -> OSStatus) throws {
+        let status = update()
+        if status == errSecItemNotFound {
+            guard createsItem else { throw KeychainError(status: status) }
+            let added = add()
             guard added == errSecSuccess else { throw KeychainError(status: added) }
         } else if status != errSecSuccess { throw KeychainError(status: status) }
     }
@@ -35,8 +45,11 @@ struct KeychainItem {
 @MainActor public final class KeychainLicenseKeyStore: LicenseKeyStore {
     /// Stored names: a rename would lose the key on every Mac, so they never change (#448).
     public static let service = "com.patrickbourget.CacheDrop.license", account = "license-key"
-    private let item = KeychainItem(service: service, account: account, label: "CacheDrop license key")
-    public init() {}
+    private let item: KeychainItem
+    /// `createsItem: false` only updates an item the app made; the command line uses it.
+    public init(createsItem: Bool = true) {
+        item = KeychainItem(service: Self.service, account: Self.account, label: "CacheDrop license key", createsItem: createsItem)
+    }
 
     public func read() throws -> String? { try item.read().map { String(decoding: $0, as: UTF8.self) } }
     public func write(_ value: String) throws { try item.write(Data(value.utf8)) }
@@ -48,8 +61,11 @@ struct KeychainItem {
 @MainActor public final class KeychainTrialStore: TrialStore {
     /// Stored names: a rename would start every Mac's trial over, so they never change (#448).
     public static let service = "com.patrickbourget.CacheDrop.trial", account = "freed-bytes"
-    private let item = KeychainItem(service: service, account: account, label: "CacheDrop free trial")
-    public init() {}
+    private let item: KeychainItem
+    /// `createsItem: false` only updates the item the app made at its first launch; the command line uses it.
+    public init(createsItem: Bool = true) {
+        item = KeychainItem(service: Self.service, account: Self.account, label: "CacheDrop free trial", createsItem: createsItem)
+    }
 
     public func read() throws -> Int64? { try item.read().map(Self.count(from:)) }
     public func write(_ value: Int64) throws { try item.write(Data(String(value).utf8)) }

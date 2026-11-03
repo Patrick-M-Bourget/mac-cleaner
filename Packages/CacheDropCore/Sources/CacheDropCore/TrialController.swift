@@ -24,7 +24,13 @@ import Observation
     public init(store: any TrialStore, gating: Bool) {
         self.store = store; self.gating = gating
         guard gating else { return }
-        do { used = max(0, try store.read() ?? 0); loaded = true } catch { notice = .unreadable }
+        do {
+            let stored = try store.read()
+            used = max(0, stored ?? 0); loaded = true
+            // The first launch makes the item, so the command line, which never creates one (#627), has one to update.
+            // A failure here changes nothing: the next run's save tries again.
+            if stored == nil { try? store.write(0) }
+        } catch { notice = .unreadable }
     }
 
     public func allowance(for license: LicenseState) -> CleanupAllowance {

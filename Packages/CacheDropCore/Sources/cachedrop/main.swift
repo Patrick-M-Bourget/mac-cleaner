@@ -69,9 +69,9 @@ do {
         // The app's trial (Decisions 135, 138): gated in builds with LICENSE_GATING, as the Release app is.
         // Without it, as in Debug, nothing reads or writes the Keychain.
         #if LICENSE_GATING
-        let license = LicenseController(store: KeychainLicenseKeyStore()).state, trial = TrialController(store: KeychainTrialStore(), gating: true)
+        let license = LicenseController(store: KeychainLicenseKeyStore(createsItem: false)).state, trial = TrialController(store: KeychainTrialStore(createsItem: false), gating: true)
         #else
-        let license = LicenseState.none, trial = TrialController(store: KeychainTrialStore(), gating: false)
+        let license = LicenseState.none, trial = TrialController(store: KeychainTrialStore(createsItem: false), gating: false)
         #endif
         switch await CommandLineClean.run(report, sources: sources, dryRun: dryRun, journal: journal, trash: FinderTrash(), trial: trial, license: license) {
         case .refused(let reason): fail(reason, code: 1)
