@@ -223,6 +223,12 @@ struct DesignGallery: View {
                     // A group where nothing can be ticked says Show (Decision 154).
                     CategoryRow(category: .audioSoftware, state: nil, title: "Example read-only group", detail: "", size: "6.3 GB", enabled: true,
                                 identifier: "galleryShowGroup", itemCount: 3, chooseVerb: "Show", chooseNoun: "sounds", expanded: .constant(false), toggle: {}) { EmptyView() } items: { EmptyView() }
+                    // A read-only sound row; its vendor's installed manager can remove or move it (Decision 157).
+                    InspectableItemRow(name: "Example sample library", detail: "Example maker", size: "4.1 GB", symbol: "waveform", inspected: false, inspect: nil,
+                                       reveal: {}, revealIdentifier: "gallerySoundReveal") { EmptyView() }
+                    StatusRow(text: "Example manager can remove or move it", symbol: "shippingbox", identifier: "gallerySoundManager",
+                              action: StatusAction(title: "Open Example manager", identifier: "gallerySoundOpen") {})
+                        .padding(.leading, CacheDropDesign.Space.md * 2 + CacheDropDesign.Size.itemIcon)
                     VolumeSummary(available: 40_000_000_000, total: 512_000_000_000, observation: "Example disk space")
                     VolumeSummary(available: nil, total: nil, observation: "Free space unknown")
                     // Every segment kind at the tip, as the cleaning bar draws a run (#343, #355): categories, going to the Trash, in Trash.

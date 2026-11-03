@@ -92,6 +92,8 @@ enum AudioGroup: Hashable {
     }
     /// The app's own uninstaller or the maker's tool, when it is installed (Decisions 41, 50).
     func uninstaller(for entry: InventoryEntry) -> InventoryEntry? { ApplicationsInventory.uninstaller(for: entry, among: apps + audioApps) }
+    /// The vendor's manager that can remove or move a sound library, when it is installed (Decision 157).
+    func manager(of sound: InventoryEntry) -> InventoryEntry? { AudioSoftware.manager(of: sound, among: apps + audioApps) }
     /// Shows the entry's files selected in Finder. A debug test run reveals nothing.
     func reveal(_ name: String, _ urls: [URL]) {
         #if DEBUG
@@ -381,7 +383,8 @@ struct ApplicationsView: View {
             }
         }
     }
-    /// Sounds and samples: each with who it is from and its size, revealed in Finder, never chosen (Decision 151).
+    /// Sounds and samples: each with who it is from and its size, revealed in Finder, never chosen (Decision 151); one its
+    /// vendor's installed manager can remove or move offers Open <tool> (Decision 157).
     private func soundRows(_ sounds: [InventoryEntry]) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             ForEach(sounds) { sound in
@@ -389,6 +392,12 @@ struct ApplicationsView: View {
                                    size: sound.size.text, symbol: "waveform", inspected: false, inspect: nil,
                                    reveal: { model.reveal(sound.name, sound.parts.map(\.url)) }, revealIdentifier: "applicationsSoundReveal-" + sound.id) { EmptyView() }
                     .help(sound.id)
+                if let tool = model.manager(of: sound) {
+                    // Under the row's name, as a plug-in's "<tool> can uninstall it" line.
+                    StatusRow(text: "\(tool.name) can remove or move it", symbol: "shippingbox", identifier: "applicationsSoundManager-" + sound.id,
+                              action: StatusAction(title: "Open " + tool.name, identifier: "applicationsSoundOpen-" + sound.id) { model.open(tool) })
+                        .padding(.leading, CacheDropDesign.Space.md * 2 + CacheDropDesign.Size.itemIcon).padding(.bottom, CacheDropDesign.Space.md)
+                }
             }
         }.padding(.bottom, CacheDropDesign.Space.md)
     }
