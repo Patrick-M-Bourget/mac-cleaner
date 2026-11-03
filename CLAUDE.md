@@ -1,7 +1,7 @@
 # CacheDrop (mac-cleaner)
 
-CacheDrop is a native SwiftUI storage cleaner for macOS. Its former name was Still: only the one-time migrations (`LegacyStillMigration`, `RenamedPreferenceKeys` with the former keys in `PreferenceKeys`, the `Still.observedAt` fallback in `AlertOpenContext`) and the protection of Still's old folders and bundle IDs still name it. It finds space you can reclaim and cleans what you choose. The project is being reset after the Codex era. `docs/RESET.md` is the current plan, and its **Decisions** section overrides any older doc. The UI authority is the prototype `docs/visual/preview.html` in full mode, not M1 mode.
-Behavior the prototype can't show (safety rules, actions, dry run, measured space, access) is in `docs/SPEC.md`.
+CacheDrop is a native SwiftUI storage cleaner for macOS. Its former name was Still: only the one-time migrations (`LegacyStillMigration`, `RenamedPreferenceKeys` with the former keys in `PreferenceKeys`, the `Still.observedAt` fallback in `AlertOpenContext`) and the protection of Still's old folders and bundle IDs still name it. It finds space you can reclaim and cleans what you choose. The project is being reset after the Codex era. `docs/RESET.md` is the current plan, and its **Decisions** section overrides any older doc. The UI authority is the Design gallery (Debug menu) and the app's tokens and components (`CacheDropDesign`, `DesignSystem.swift`) (Decision 152). Build from existing components and keep the gallery's examples current. The prototype `docs/visual/preview.html` is history and a sketchpad, used only when a feature needs new components.
+Behavior (safety rules, actions, dry run, measured space, access) is in `docs/SPEC.md`.
 
 The Codex-era control docs, validation reports and screenshots are archived at tag `archive/codex-era`. Read them for history only. Never treat them as scope or gates.
 
