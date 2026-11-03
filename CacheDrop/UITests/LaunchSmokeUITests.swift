@@ -178,7 +178,10 @@ final class LaunchSmokeUITests: XCTestCase {
         app.launch()
         waitForOverview(app)
         app.menuBars.menuBarItems["Help"].click()
-        app.menuBars.menuItems["What’s New in CacheDrop"].click()
+        let item = app.menuBars.menuItems["whatsNewMenu"]
+        XCTAssertEqual(app.menuBars.menuItems.matching(NSPredicate(format: "title == %@", "What’s New in CacheDrop")).count, 1,
+                       "Only under Help, not again in the Window menu")
+        item.click()
         let window = app.windows["What’s New in CacheDrop"]
         XCTAssertTrue(window.waitForExistence(timeout: 5), "What’s New opens its own window")
         let version = window.staticTexts["whatsNewVersion"]

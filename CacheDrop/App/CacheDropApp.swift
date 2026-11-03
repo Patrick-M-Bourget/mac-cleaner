@@ -52,6 +52,8 @@ struct CacheDropApp: App {
         }
         Window("What’s New in CacheDrop", id: WhatsNewWindow.id) { WhatsNewWindow() }
             .windowResizability(.contentSize).defaultPosition(.center)
+            // Opened from Help only: no second item in the Window menu.
+            .commandsRemoved()
         #if DEBUG
         Window("Design gallery", id: "design-gallery") { DesignGallery() }
             .defaultSize(width: CacheDropDesign.Size.defaultWindow.width, height: CacheDropDesign.Size.defaultWindow.height)
