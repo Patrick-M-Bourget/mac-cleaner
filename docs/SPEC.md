@@ -184,6 +184,10 @@ None. The first six were answered on 2026-10-26 and are folded in above (RESET D
 
 `cachedrop scan` and `cachedrop plan` (Decision 146) print, read-only, what Overview and Smart clean show, as text or `--json`. They scan as the app does, with the user's Protected items, and change nothing. Cleaning from the command line is #627.
 
+## What’s New
+
+Help → **What’s New in CacheDrop** opens a small window with the release notes of the version that's running: its summary, then the changes, as Sparkle's update window shows them (Decision 122), drawn natively in both themes (Decision 161). Every Release build bundles its version's notes. It opens only when asked.
+
 ## Manual updates
 
 Check for Updates… in Settings and the app menu uses the same Sparkle updater and its standard dialogs. Checks happen on request, and once a week while **Check for updates automatically** is on in Settings (on by default, #600, Decision 145). Automatic downloads/installations, the automatic-check permission prompt and system profiling stay off (Decision 102): a check that finds an update shows Sparkle's standard dialog, and nothing is downloaded or installed until you choose.

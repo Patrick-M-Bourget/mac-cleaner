@@ -59,6 +59,13 @@ struct DesignGallery: View {
                         AlertThresholdEditor(draft: .constant("invalid"), canApply: false, invalidDraft: true, apply: {})
                         AlertPermissionDetails(authorization: .denied, checked: true, settingsFeedback: "System Settings could not be opened.", openSettings: {})
                     }
+                    // Help → What’s New (#553, Decision 161): the notes, and a development build without its version's notes.
+                    Text("Synthetic What’s New · Inert examples").font(.headline)
+                    WhatsNewContent(notes: .success(ReleaseNotes(version: "9.9.9", summary: "An example summary sentence about this version.",
+                                                                 changes: ["An example change that wraps onto a second line because it is long enough to.", "A second example change."])),
+                                    version: "9.9.9").frame(width: CacheDropDesign.Size.sheetNarrow).background(CacheDropDesign.reading)
+                    WhatsNewContent(notes: .failure(ReleaseNotesError.notBundled), version: "9.9.9")
+                        .frame(width: CacheDropDesign.Size.sheetNarrow).background(CacheDropDesign.reading)
                     CapacityGalleryExamples()
                     Text("Synthetic Saved data entry · Inert example").font(.headline)
                     SavedDataEntry(action: {})

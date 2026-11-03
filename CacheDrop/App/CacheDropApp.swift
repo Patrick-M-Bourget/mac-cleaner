@@ -47,8 +47,11 @@ struct CacheDropApp: App {
             }
             CommandGroup(after: .help) {
                 Button("Welcome to CacheDrop") { lifecycle.openWorkspace?(); WelcomeModel.shared.reopen() }
+                WhatsNewMenuItem()
             }
         }
+        Window("What’s New in CacheDrop", id: WhatsNewWindow.id) { WhatsNewWindow() }
+            .windowResizability(.contentSize).defaultPosition(.center)
         #if DEBUG
         Window("Design gallery", id: "design-gallery") { DesignGallery() }
             .defaultSize(width: CacheDropDesign.Size.defaultWindow.width, height: CacheDropDesign.Size.defaultWindow.height)

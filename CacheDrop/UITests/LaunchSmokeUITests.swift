@@ -169,6 +169,29 @@ final class LaunchSmokeUITests: XCTestCase {
         XCTAssertGreaterThan(app.images.count, imagesBefore, "The About panel shows the app icon")
     }
 
+    /// #553, Decision 161: Help → What’s New in CacheDrop opens the running version's notes, summary first, then the changes.
+    @MainActor func testWhatsNewShowsTheRunningVersionsNotes() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state) }
+        app.launch()
+        waitForOverview(app)
+        app.menuBars.menuBarItems["Help"].click()
+        app.menuBars.menuItems["What’s New in CacheDrop"].click()
+        let window = app.windows["What’s New in CacheDrop"]
+        XCTAssertTrue(window.waitForExistence(timeout: 5), "What’s New opens its own window")
+        let version = window.staticTexts["whatsNewVersion"]
+        XCTAssertTrue(version.waitForExistence(timeout: 5))
+        let eyebrow = (version.value as? String).flatMap { $0.isEmpty ? nil : $0 } ?? version.label
+        XCTAssertNotNil(eyebrow.range(of: "^What’s new in [0-9]+\\.[0-9]+\\.[0-9]+$", options: [.regularExpression, .caseInsensitive]), eyebrow)
+        let summary = window.staticTexts["whatsNewSummary"]
+        XCTAssertTrue(summary.exists, "The summary is the heading")
+        XCTAssertFalse(((summary.value as? String) ?? "").isEmpty && summary.label.isEmpty)
+        XCTAssertGreaterThan(window.staticTexts.matching(identifier: "whatsNewChange").count, 0, "The changes follow")
+        XCTAssertFalse(window.otherElements["whatsNewEmpty"].exists, "This build bundles its version's notes")
+    }
+
     /// #131: the menu bar item shows free space and keeps CacheDrop running after its window closes.
     /// Low-space alerts are off by default, in the Settings window. Nothing here changes either preference.
     @MainActor func testMenuBarItemShowsFreeSpaceAndAlertsStartOff() throws {
