@@ -108,6 +108,7 @@ The same checks run once when the review sheet opens, so it can say which items 
 - With dry run on, the whole flow runs as normal: scan, plan, review, confirm, per-item checks, results.
 - Instead of acting, CacheDrop logs each action it would take (item, action, size, check outcome) and changes nothing on disk. Tool actions are not run; the command is logged.
 - Results make clear it was a dry run. No freed space is reported, because none was freed.
+- `cachedrop clean --dry-run` is the same dry run from the command line (Decision 160): it needs no confirmation and changes nothing on disk.
 
 ## 6. Estimated vs measured freed space
 
@@ -182,7 +183,9 @@ None. The first six were answered on 2026-10-26 and are folded in above (RESET D
 
 ## Command line
 
-`cachedrop scan` and `cachedrop plan` (Decision 146) print, read-only, what Overview and Smart clean show, as text or `--json`. They scan as the app does, with the user's Protected items, and change nothing. Cleaning from the command line is #627.
+`cachedrop scan` and `cachedrop plan` (Decision 146) print, read-only, what Overview and Smart clean show, as text or `--json`. They scan as the app does, with the user's Protected items, and change nothing.
+
+`cachedrop clean` (Decision 160) cleans what `plan` lists through the same executor, checks just before acting and journal as the app, so History shows its runs. It asks on the terminal unless `--yes`, and refuses with no terminal and no `--yes`. `--dry-run` runs the same flow and changes nothing (section 5). Results report the measured freed space (section 6). It follows the app's trial and license (Decision 135), refusing when it can't read either, or before the app has made the trial's Keychain item at its first launch; it only updates the app's Keychain items, never creating one. The app and the command line clean one at a time (`CleanupLock`): each refuses while the other runs, and Recovery doesn't show a run going on in the command line as interrupted (Decision 160).
 
 ## What’s New
 

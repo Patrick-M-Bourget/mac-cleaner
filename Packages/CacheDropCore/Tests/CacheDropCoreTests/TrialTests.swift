@@ -192,3 +192,38 @@ private func run(_ candidates: [Candidate], succeeded: Bool = true) -> (CatalogE
     #expect(try KeychainTrialStore.count(from: Data("1234567".utf8)) == 1_234_567)
     #expect(throws: (any Error).self) { try KeychainTrialStore.count(from: Data("lots".utf8)) }
 }
+
+/// The app's first launch with gating on makes the trial's item, holding 0, so the command line, which never creates
+/// one (#627), has an item to update. A count already stored, or one that can't be read, is never written over (Decision 137).
+@Test @MainActor func theFirstLaunchMakesTheTrialsItemAndNeverWritesOverACount() {
+    let fresh = MemoryTrialStore()
+    _ = TrialController(store: fresh, gating: true)
+    #expect(fresh.used == 0 && fresh.writes == 1)
+    _ = TrialController(store: fresh, gating: true)
+    #expect(fresh.writes == 1, "Made once")
+    let stored = MemoryTrialStore(GB)
+    _ = TrialController(store: stored, gating: true)
+    #expect(stored.writes == 0 && stored.used == GB)
+    let unreadable = MemoryTrialStore(GB); unreadable.failReads = true
+    _ = TrialController(store: unreadable, gating: true)
+    #expect(unreadable.writes == 0, "A read failure never starts the trial over")
+    let unsaved = MemoryTrialStore(); unsaved.failWrites = true
+    let trial = TrialController(store: unsaved, gating: true)
+    #expect(trial.notice == nil && trial.allowance(for: .none) == .trial(left: 2 * GB), "A failure making it is ignored")
+    let off = MemoryTrialStore()
+    _ = TrialController(store: off, gating: false)
+    #expect(off.writes == 0 && off.reads == 0)
+}
+
+/// The command line's Keychain stores only update: a missing item is an error, never added, so the tool never makes an
+/// item that trusts only itself (#627). The app's stores add it.
+@Test func anUpdateOnlyKeychainItemNeverAddsAMissingOne() throws {
+    var added = 0
+    let missing = { errSecItemNotFound }, add = { added += 1; return errSecSuccess }
+    #expect(throws: (any Error).self) { try KeychainItem.write(createsItem: false, update: missing, add: add) }
+    #expect(added == 0)
+    try KeychainItem.write(createsItem: true, update: missing, add: add)
+    #expect(added == 1)
+    try KeychainItem.write(createsItem: false, update: { errSecSuccess }, add: add)
+    #expect(added == 1, "An existing item is updated in place")
+}

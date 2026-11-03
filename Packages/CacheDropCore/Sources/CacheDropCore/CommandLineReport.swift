@@ -151,6 +151,68 @@ public enum CommandLineReport {
         }
     }
 
+    /// `cachedrop clean` (#627): what the run did, as Results says it. A dry run says what would be affected and frees
+    /// nothing; otherwise the measured freed space leads (SPEC section 6), unless the run only moved items to the Trash.
+    public struct Clean: Encodable, Sendable {
+        public struct Item: Encodable, Sendable {
+            public let path: String
+            /// The rule's action: "delete", "moveToTrash", "tool" or "evict".
+            public let action: String
+            /// The journal's state: "succeeded", "skipped", "failed", "cancelled" or "unknown".
+            public let state: String
+            /// History's line for the item: its outcome, then its message when that adds something.
+            public let outcome: String
+            private enum CodingKeys: String, CodingKey { case path = "path", action = "action", state = "state", outcome = "outcome" }
+        }
+        public let home: String
+        public let dryRun: Bool
+        /// Nil in a dry run and when the run only moved items to the Trash; "Unknown" when a reading is missing.
+        public let measuredFreed: Size?
+        public let toTrash: Size
+        /// A dry run's size: what the run would have affected. Nil, and left out, for a run that changed things.
+        public let wouldBeAffected: Size?
+        public let items: [Item]
+        private enum CodingKeys: String, CodingKey {
+            case home = "home", dryRun = "dryRun", measuredFreed = "measuredFreed", toTrash = "toTrash", wouldBeAffected = "wouldBeAffected", items = "items"
+        }
+
+        /// The report when Smart clean has nothing to clean: no run, nothing changed.
+        public init(nothingToCleanIn home: URL, dryRun: Bool) {
+            self.home = home.standardizedFileURL.path; self.dryRun = dryRun; measuredFreed = nil
+            toTrash = Size(.measured(0), text: SizeFormatter.text(Int64(0))); items = []; affected = 0
+            wouldBeAffected = dryRun ? toTrash : nil
+        }
+
+        public init(_ result: CatalogExecutionResult, home: URL) {
+            self.home = home.standardizedFileURL.path; dryRun = result.dryRun
+            if result.dryRun || result.records.movedOnlyToTrash { measuredFreed = nil }
+            else {
+                let shown = MeasuredFreedSpace.shown(result.measuredFreedBytes)
+                let estimate: SizeEstimate = shown.map(SizeEstimate.measured) ?? .unknown
+                measuredFreed = Size(estimate, text: SizeFormatter.text(estimate))
+            }
+            toTrash = Size(.measured(result.movedToTrashBytes), text: SizeFormatter.text(result.movedToTrashBytes))
+            items = result.records.attentionFirst.map {
+                Item(path: $0.originalURL.path, action: $0.action, state: $0.state.rawValue, outcome: $0.outcomeLine)
+            }
+            affected = result.records.filter(\.wasDryRun).reduce(0) { $0 + $1.recordedBytes }
+            wouldBeAffected = result.dryRun ? Size(.measured(affected), text: SizeFormatter.text(affected)) : nil
+        }
+        private let affected: Int64
+
+        public var text: String {
+            func path(_ value: String) -> String { value.hasPrefix(home + "/") ? "~" + value.dropFirst(home.count) : value }
+            var lines: [String] = []
+            if dryRun { lines.append("Dry run · Nothing changed · " + SizeFormatter.text(affected) + " would be affected") }
+            if let measuredFreed { lines.append("Measured freed space: " + measuredFreed.text) }
+            if toTrash.bytes.map({ $0 > 0 }) == true { lines.append("In the Trash · Freed when you empty it: " + toTrash.text) }
+            if items.isEmpty { lines.append("Nothing to clean") }
+            lines.append("")
+            for item in items { lines.append("  \(path(item.path))  — \(item.outcome)") }
+            return lines.joined(separator: "\n")
+        }
+    }
+
     /// JSON for scripts and agents: pretty, sorted keys, ISO 8601 dates.
     public static func json(_ value: some Encodable) throws -> String {
         let encoder = JSONEncoder()
