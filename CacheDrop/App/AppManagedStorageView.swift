@@ -89,7 +89,7 @@ extension CleanupRule {
         case "photos-library": .photos
         case "time-machine-snapshots": .timeMachine
         case "xcode-archives": .xcodeArchives
-        case "audio-plug-ins", "rack-extensions", "logic-sound-library", "ableton-packs", "splice-samples": .audioPlugIns
+        case "audio-plug-ins", "rack-extensions", "logic-sound-library", "ableton-packs", "splice-samples": .audioSoftware
         default: .managed
         }
     }

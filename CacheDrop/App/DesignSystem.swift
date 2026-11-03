@@ -142,15 +142,16 @@ enum StorageCategory {
     case appCaches, models, appUpdates, logs
     /// Files from deleted apps (#173), and the apps themselves on the Applications page (#267).
     case leftovers, apps
-    /// App-managed storage rows (SPEC section 3): each place keeps the app-managed colour with its own symbol.
-    case deviceBackups, mail, messages, photos, timeMachine, xcodeArchives, audioPlugIns
+    /// App-managed storage rows (SPEC section 3): each place keeps the app-managed colour with its own symbol. Audio software
+    /// is also the catalog category and the Applications section (Decision 151).
+    case deviceBackups, mail, messages, photos, timeMachine, xcodeArchives, audioSoftware
     var color: Color {
         switch self {
         case .cloud, .files: CacheDropDesign.blue
         case .developer: CacheDropDesign.purple
         case .downloads: CacheDropDesign.orange
         case .browser: CacheDropDesign.teal
-        case .managed, .appCaches, .models, .appUpdates, .logs, .deviceBackups, .mail, .messages, .photos, .timeMachine, .xcodeArchives, .audioPlugIns, .leftovers, .apps: CacheDropDesign.indigo
+        case .managed, .appCaches, .models, .appUpdates, .logs, .deviceBackups, .mail, .messages, .photos, .timeMachine, .xcodeArchives, .audioSoftware, .leftovers, .apps: CacheDropDesign.indigo
         }
     }
     var symbol: String {
@@ -171,7 +172,7 @@ enum StorageCategory {
         case .photos: "photo.on.rectangle"
         case .timeMachine: "clock.arrow.circlepath"
         case .xcodeArchives: "archivebox"
-        case .audioPlugIns: "pianokeys"
+        case .audioSoftware: "pianokeys"
         case .leftovers: "ghost" // CacheDrop's own symbol (#550), so it never reads as App caches' dashed app
         case .apps: "macwindow"
         }

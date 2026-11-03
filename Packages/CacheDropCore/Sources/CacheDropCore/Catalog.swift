@@ -56,6 +56,8 @@ public enum CategorySelectionState: Sendable { case unchecked, mixed, checked }
 public enum CatalogCategory: String, Codable, Sendable {
     case developer = "developer", browser = "browser", downloads = "downloads", system = "system", models = "models", updaters = "updaters"
     case logs = "logs", icloud = "icloud", files = "files", managed = "managed", leftovers = "leftovers", apps = "apps"
+    /// Audio software (Decision 151): rules written for audio apps, such as Ableton Live's cache.
+    case audio = "audio"
 }
 
 /// Who must be closed before a rule's data is touched.

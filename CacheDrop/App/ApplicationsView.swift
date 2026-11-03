@@ -154,7 +154,7 @@ struct ApplicationsView: View {
             if !model.apps.isEmpty || !model.plugIns.isEmpty || catalog.leftoversRow != nil { columnHeader }
             section("Apps", id: "apps", entries: listed(model.apps), category: .apps, identifier: "applicationsApp-",
                     empty: ("No apps to list", "Only Apple’s apps are in the Applications folders."))
-            section("Plug-ins", id: "plugIns", entries: listed(model.plugIns), category: .audioPlugIns, identifier: "applicationsPlugIn-",
+            section("Plug-ins", id: "plugIns", entries: listed(model.plugIns), category: .audioSoftware, identifier: "applicationsPlugIn-",
                     empty: ("No plug-ins to list", "No audio plug-ins other than Apple’s were found."))
             sectionHeader("Files from deleted apps")
             if let row = catalog.leftoversRow {

@@ -287,6 +287,21 @@ private let editor = InstalledApp(name: "Editor", bundleID: "com.example.Editor"
     #expect(CandidateCheck(catalog: catalog, running: Running()).check(cache) == nil)
 }
 
+@Test func abletonsCacheIsOverviewsAudioSoftwareRowAndTheRowIsListedEmptyWithoutIt() throws {
+    // Decision 151: a rule written for one field's apps goes in that field's category.
+    let home = try fixtureHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let catalog = Catalog(rules: fixtureRules)
+    let empty = CatalogOverview(catalog: catalog, candidates: [])
+    #expect(empty.visibleRows.contains { $0.category == .audio && $0.isEmpty })
+    try write(home, "Library/Caches/Ableton/Cache/Decoding/loop.mp3.wav", bytes: 8_192)
+    let overview = CatalogOverview(catalog: catalog, candidates: catalog.discover(fixture: home))
+    let row = try #require(overview.visibleRows.first { !$0.isEmpty })
+    #expect(row.category.overviewTitle == "Audio software")
+    #expect(row.rules.map(\.id) == ["ableton-cache"])
+    #expect(SmartCleanConsequence.line(for: .audio, rules: row.rules) == "Comes back on its own when apps need it")
+}
+
 @Test func soundLibrariesPacksAndSamplesAreGuidanceThatOpensTheirOwnManager() async throws {
     let home = try fixtureHome()
     defer { try? FileManager.default.removeItem(at: home) }
