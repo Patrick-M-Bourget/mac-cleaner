@@ -60,35 +60,21 @@ import SwiftUI
     /// The column header's sort for every list here (#373): On disk, largest first, until changed; kept until CacheDrop quits.
     var sort = ListSort()
     var position = Position()
-    private var history: [Position] = []
     /// The explorer's own title, which a page opened from it names when it goes back (#228).
     var title: String { "Explore storage" }
-    /// The list of locations the explorer starts at.
+    /// The list of locations the explorer starts at, the breadcrumb's first step.
     var rootName: String { "Scanned folders" }
-    /// Where back leads inside the explorer: the previous folder, or the list of locations; nil when back leaves it.
-    var backDestination: String? {
-        guard let previous = history.last else { return nil }
-        return previous.folder?.lastPathComponent ?? rootName
-    }
     var navigationID = UUID()
     func openLocations() { reset(folder: nil) }
     func openLocation(_ url: URL) { reset(folder: url.standardizedFileURL) }
+    /// Going up is the breadcrumb's job; back only leaves the explorer (Decision 150), so no history is kept.
     private func reset(folder: URL?) {
-        position = Position(folder: folder); history = []; navigationID = UUID()
+        position = Position(folder: folder); navigationID = UUID()
     }
-    func enter(_ url: URL) {
-        history.append(position); position = Position(folder: url.standardizedFileURL); navigationID = UUID()
-    }
-    @discardableResult func backWithinExplorer() -> Bool {
-        guard let previous = history.popLast() else { return false }
-        position = previous; navigationID = UUID(); return true
-    }
+    func enter(_ url: URL) { reset(folder: url.standardizedFileURL) }
     func returnToRoot() {
         guard position.folder != nil else { return }
-        history.append(position); position = Position(); navigationID = UUID()
-    }
-    func discardUnavailableFolder() {
-        position = Position(); history = []; navigationID = UUID()
+        reset(folder: nil)
     }
     func inspect(_ item: FileObservation) {
         position.inspectedID = item.id; position.inspectedResource = item.resourceID
@@ -146,8 +132,6 @@ struct StorageExplorerView: View {
     private var indexSource: (scans: [ScanResult], reports: [ScanResult], gone: [URL]) {
         (Array(selection.scans.values), model.scopeReports.map(\.current), unavailable.map(\.scope))
     }
-    /// Inside a folder that is no longer in the observations.
-    private var folderGone: Bool { context.position.folder != nil && !folderAvailable }
     /// Gone locations this explorer shows: each was observed before, so it has a last observation to date (#249).
     private var goneLocations: [(location: ExplorerUnavailableLocation, lastObserved: Date)] {
         let observed = Array(selection.scans.values) + model.scopeReports.map(\.current)
@@ -167,8 +151,8 @@ struct StorageExplorerView: View {
         GeometryReader { geometry in
             let wide = geometry.size.width >= CacheDropDesign.Size.explorerWide
             VStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
-                // A folder that is no longer observed leads back only to the list of locations (#227).
-                PageHeader(title: context.title, back: backButton)
+                // Search sits in the header, as on Applications (Decision 150).
+                PageHeader(title: context.title, back: backButton, search: search)
                 ScanHistoryRecordingNotice()
                 breadcrumbs
                 // The screen's one explanation (Decision 25).
@@ -199,48 +183,46 @@ struct StorageExplorerView: View {
         }
         .onDisappear { model.previewURL = nil; model.closePreviewAccess() }
     }
-    /// Back names where it leads: up a folder, to the list of locations, or out to the caller (#222, #228).
+    /// Back only leaves the explorer, naming the page it was opened from, at every depth; none as its own sidebar page
+    /// (#222, #228, Decision 150).
     private var backButton: BackButton? {
-        guard let destination = folderGone ? context.rootName : context.backDestination ?? caller else { return nil }
-        return BackButton(destination: destination, identifier: "explorerBack") {
-            if folderGone { context.discardUnavailableFolder() } else if !context.backWithinExplorer() { back() }
-        }
+        guard let caller else { return nil }
+        return BackButton(destination: caller, identifier: "explorerBack", action: back)
     }
-    /// Text-link breadcrumbs (Decision 47's back button is the only back control), with the quiet Large and old files toggle.
+    /// The folder's search, only inside a folder that is still there.
+    private var search: PageSearchField? {
+        guard folderAvailable, context.position.folder != nil else { return nil }
+        return PageSearchField(label: "Search this folder", prompt: "Search this folder", text: $context.position.query, identifier: "explorerSearch")
+    }
+    /// The breadcrumb, the only way up (Decision 150): quiet steps on one line, where long names truncate in the middle and
+    /// the steps between the first and the folder on show give way first. A folder that is gone leads to the list of
+    /// locations from its first step (#227). On the right, the Large and old files filter and List | Map.
     private var breadcrumbs: some View {
-        VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
-            HStack(spacing: CacheDropDesign.Space.sm) {
-                if context.position.folder == nil {
-                    Text(context.rootName).foregroundStyle(.secondary)
-                } else {
-                    Button(context.rootName) { context.returnToRoot() }.buttonStyle(.link)
+        HStack(spacing: CacheDropDesign.Space.sm) {
+            QuietLink(title: context.rootName, current: context.position.folder == nil, identifier: "explorerCrumbRoot") {
+                context.returnToRoot()
+            }.layoutPriority(2)
+            if folderAvailable, let folder = context.position.folder {
+                ForEach(Array(breadcrumbs(for: folder).enumerated()), id: \.element) { step, ancestor in
+                    Image(systemName: "chevron.right").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                    QuietLink(title: ancestor.lastPathComponent, current: ancestor == folder,
+                              identifier: ancestor == folder ? "explorerCrumbCurrent" : "explorerCrumb-\(step)") { context.enter(ancestor) }
+                        .help(ancestor.path).layoutPriority(ancestor == folder ? 1 : 0)
                 }
-                if folderAvailable, let folder = context.position.folder {
-                    ForEach(breadcrumbs(for: folder), id: \.self) { ancestor in
-                        Image(systemName: "chevron.right").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
-                        if ancestor == folder {
-                            Text(ancestor.lastPathComponent).lineLimit(1).help(ancestor.path)
-                        } else {
-                            Button(ancestor.lastPathComponent) { context.enter(ancestor) }.buttonStyle(.link).lineLimit(1).help(ancestor.path)
-                        }
-                    }
-                }
-                Spacer(minLength: CacheDropDesign.Space.md)
+            }
+            Spacer(minLength: CacheDropDesign.Space.md)
+            Group {
                 if !selection.catalog.pickedByResource.isEmpty {
-                    Button(context.showsLargeAndOld ? "All files" : "Large and old files") { context.showsLargeAndOld.toggle() }
-                        .buttonStyle(.link).accessibilityIdentifier("explorerMode")
+                    // A filter, so a native checkbox, not a link.
+                    Toggle("Large and old files", isOn: $context.showsLargeAndOld).toggleStyle(.checkbox).accessibilityIdentifier("explorerMode")
                 }
                 // Storage trends' native segmented picker, not a new control (Decision 147).
                 Picker("View as", selection: $context.presentation) {
                     Text("List").tag(StorageExplorerContext.Presentation.list)
                     Text("Map").tag(StorageExplorerContext.Presentation.map)
                 }.pickerStyle(.segmented).labelsHidden().fixedSize().accessibilityIdentifier("explorerPresentation")
-            }.font(CacheDropDesign.TypeStyle.note)
-            if folderAvailable, let folder = context.position.folder {
-                PageSearchField(label: "Search this folder", prompt: "Search this folder", text: $context.position.query, identifier: "explorerSearch")
-                    .help(folder.path)
-            }
-        }
+            }.fixedSize().layoutPriority(3)
+        }.font(CacheDropDesign.TypeStyle.note)
     }
     private var list: some View {
         VStack(alignment: .leading, spacing: 0) {

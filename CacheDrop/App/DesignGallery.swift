@@ -27,6 +27,14 @@ struct DesignGallery: View {
                 VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
                     PageHeader(title: "Native design system", subtitle: "Developer examples only · No personal storage measurements",
                                back: BackButton(destination: "Overview", action: {}))
+                    // A navigation trail (Decision 150): quiet steps, the one on show in primary, a long name truncated in the middle.
+                    HStack(spacing: CacheDropDesign.Space.sm) {
+                        QuietLink(title: "Scanned folders") {}
+                        Image(systemName: "chevron.right").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                        QuietLink(title: "Music") {}
+                        Image(systemName: "chevron.right").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                        QuietLink(title: "Logic Pro Projects archived from the old studio drive", current: true) {}
+                    }.font(CacheDropDesign.TypeStyle.note)
                     Button { shellExamplesExpanded.toggle() } label: {
                         Label("Synthetic shell and appearance examples", systemImage: shellExamplesExpanded ? "chevron.down" : "chevron.right")
                     }.buttonStyle(.plain).accessibilityValue(shellExamplesExpanded ? "Expanded" : "Collapsed").accessibilityIdentifier("galleryShellExamples")

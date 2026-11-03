@@ -16,6 +16,8 @@ The names CacheDrop shows, what they mean, and where they live in code. Copy fol
 | Locations | Scanned locations, Protected items, Saved data | `CacheDropApp.swift`, `RememberedLocations` |
 | System access | Optional Full Disk Access status and guidance | `SystemAccessView`, `FullDiskAccessGuide` |
 | Explore storage | Browse a scanned folder by size; a sidebar page too (Decision 149) | `StorageExplorer`, `ExploreStorage`, `Destination.exploreStorage` |
+| Scanned folders | Explore storage's list of scanned locations, the breadcrumb's first step | `StorageExplorerContext.rootName` |
+| Large and old files | Explore storage's filter: files of 500 MB or more, or not opened in 90 days; a checkbox (Decision 150) | `StorageExplorerContext.showsLargeAndOld` |
 | Storage map | Explore storage's Map view: the folder on show as blocks sized by what they take on disk (Decision 147) | `StorageMap`, `StorageMapLayout` |
 | N smaller items | The storage map's one block for children too small to label; a click switches to List (Decision 147) | `StorageMapLayout.Content.smaller` |
 | Too small to label | The line under the storage map naming blocks drawn at their true size without a label (Decision 147) | `TooSmallToLabelLine` |
