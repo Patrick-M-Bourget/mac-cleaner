@@ -12,7 +12,9 @@ Usage: scripts/release.sh [--adhoc] [--team-id ID] [--notary-profile NAME]
 Builds CacheDrop Release from a clean export of HEAD, signs it with the
 Developer ID, makes build/release/CacheDrop-<version>.dmg, notarizes and
 staples the app and the DMG, verifies them, and prints the architecture,
-version, minimum macOS and SHA-256.
+version, minimum macOS and SHA-256. Finder lays out the DMG's window
+(scripts/make-dmg.sh), so run it logged in; it may ask once to let the
+terminal control Finder.
 
 Options:
   --bump <x.y.z>         Prepare an explicit increasing stable version and the
@@ -177,7 +179,7 @@ if ((!adhoc)); then
   xcrun stapler staple "$built"
 fi
 
-# 4. DMG: the app and a link to /Applications.
+# 4. DMG: the app and a link to /Applications in one laid-out Finder window (#558), signed below.
 step "Making the DMG"
 mkdir -p "$out_dir"
 # An if, not $( ((adhoc)) && … ): under set -e a failing substitution in an assignment ends the script.
@@ -185,13 +187,10 @@ suffix=""
 if ((adhoc)); then suffix="-adhoc"; fi
 dmg_name="CacheDrop-$version$suffix.dmg"
 dmg="$out_dir/$dmg_name"
-mkdir "$work/dmg"
-ditto "$built" "$work/dmg/CacheDrop.app"
-ln -s /Applications "$work/dmg/Applications"
 # Invalidate old local success metadata before replacing any artifact bytes.
 rm -f "$out_dir/appcast.xml" "$out_dir/release-identity.json"
 rm -f "$dmg"
-hdiutil create -quiet -volname CacheDrop -srcfolder "$work/dmg" -fs HFS+ -format UDZO -ov "$dmg"
+"$repo/scripts/make-dmg.sh" "$built" "$dmg"
 
 # 5. Sign the DMG.
 step "Signing the DMG"
