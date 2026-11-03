@@ -36,6 +36,11 @@ enum CacheDropDesign {
         /// below the list otherwise, at most `inspectorStacked` tall or `inspectorStackedShare` of the page (#320).
         static let explorerWide: CGFloat = 800; static let inspector: CGFloat = 280; static let inspectorStacked: CGFloat = 220
         static let inspectorStackedShare: CGFloat = 0.35
+        /// The storage map's narrowest labelled block: room for a truncated name (Decision 147); narrower ones merge. Its height
+        /// comes from the row type it shows (`StorageMap.labelHeight`).
+        static let storageMapLabelWidth: CGFloat = 64
+        /// The storage map's height at most, the prototype's: a calm block above the page's free space, never a wall of fills.
+        static let storageMap: CGFloat = 360
         /// The workspace's default content size and minimum outer-window size.
         static let defaultWindow = CGSize(width: 1120, height: 760)
         static let minimumWindow = CGSize(width: 900, height: 640)
