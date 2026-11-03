@@ -11,7 +11,7 @@ private struct NoApps: AppPresence {
 }
 private struct NoReceipts: InstallerReceiptReading { func receipts() -> [InstallerReceipt] { [] } }
 
-private func fixture() throws -> (home: URL, sources: SmartCleanReport.Sources) {
+func commandLineFixture() throws -> (home: URL, sources: SmartCleanReport.Sources) {
     let home = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropCommandLine-\(UUID())").resolvingSymlinksInPath()
     func write(_ relative: String, bytes: Int, age: TimeInterval = 0) throws {
         let file = home.appendingPathComponent(relative)
@@ -37,7 +37,7 @@ private func keys(_ json: String) throws -> Set<String> {
 
 @Suite struct CommandLineReportTests {
     @Test func scanSaysWhatOverviewSays() throws {
-        let (home, sources) = try fixture()
+        let (home, sources) = try commandLineFixture()
         defer { try? FileManager.default.removeItem(at: home) }
         let discovery = SmartCleanReport.discover(sources)
         let scan = CommandLineReport.Scan(catalog: sources.catalog, discovery: discovery, home: home, access: .granted)
@@ -55,7 +55,7 @@ private func keys(_ json: String) throws -> Set<String> {
 
     /// Decision 151: the Audio software category is a row like any other, with its own id.
     @Test func scanListsAudioSoftwareWithAbletonsCache() throws {
-        let (home, sources) = try fixture()
+        let (home, sources) = try commandLineFixture()
         defer { try? FileManager.default.removeItem(at: home) }
         let empty = CommandLineReport.Scan(catalog: sources.catalog, discovery: SmartCleanReport.discover(sources), home: home, access: .granted)
         #expect(empty.categories.first { $0.id == "audio" }?.status == "empty")
@@ -71,7 +71,7 @@ private func keys(_ json: String) throws -> Set<String> {
     }
 
     @Test func planSaysWhatSmartCleanWouldClean() throws {
-        let (home, sources) = try fixture()
+        let (home, sources) = try commandLineFixture()
         defer { try? FileManager.default.removeItem(at: home) }
         let report = SmartCleanReport.run(sources)
         let plan = CommandLineReport.Plan(report)
@@ -86,7 +86,7 @@ private func keys(_ json: String) throws -> Set<String> {
     }
 
     @Test func jsonKeysArePinned() throws {
-        let (home, sources) = try fixture()
+        let (home, sources) = try commandLineFixture()
         defer { try? FileManager.default.removeItem(at: home) }
         let scan = try CommandLineReport.json(CommandLineReport.Scan(catalog: sources.catalog, discovery: SmartCleanReport.discover(sources), home: home, access: .notGranted))
         #expect(try keys(scan) == ["home", "scannedAt", "fullDiskAccess", "recommended", "toTrash", "categories"])

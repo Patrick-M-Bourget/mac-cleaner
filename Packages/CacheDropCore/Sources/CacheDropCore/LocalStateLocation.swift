@@ -43,4 +43,15 @@ public enum LocalStateLocation {
         } else if errno != ENOENT { throw CocoaError(.fileReadNoPermission) }
         return url
     }
+
+    /// The cleanup journal's file in `root`: the app and `cachedrop clean` write the same one, which History reads (#627).
+    /// A stored name: renaming it would lose History and any interrupted cleanup.
+    public static let cleanupJournalName = "cleanup.sqlite"
+    /// The cross-process cleanup lock's file in `root` (`CleanupLock`): the app and `cachedrop clean` take the same one.
+    /// A stored name: renaming it would let an older and a newer build clean at once.
+    public static let cleanupLockName = "cleanup.lock"
+    /// The cleanup journal, opened for writing, creating the state folder if needed.
+    public static func cleanupJournal() throws -> SQLiteCleanupJournal {
+        try SQLiteCleanupJournal(url: root(create: true).appendingPathComponent(cleanupJournalName))
+    }
 }
