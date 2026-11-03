@@ -54,3 +54,20 @@ private func driver(_ relative: String, in root: URL, id: String, copyright: Str
     #expect(drivers.map(\.needsPassword) == [true, false, false], "A driver in a folder only root can change stays")
     #expect(drivers.first?.bundleID == "com.maker.interface.driver")
 }
+
+private func product(_ name: String, maker: String?, bytes: Int64) -> InventoryEntry {
+    let url = URL(fileURLWithPath: "/Library/Audio/Plug-Ins/VST3/\(name).vst3")
+    return InventoryEntry(id: url.path, name: name, maker: maker, volume: nil, parts: [.init(name: "VST3", url: url, size: .measured(bytes), removable: true)])
+}
+
+/// Decision 151: plug-ins grouped by maker, largest maker first (or by the sort's column), those with no maker last under Other makers.
+@Test func plugInsGroupByMakerInTheSortsOrderWithOtherMakersLast() {
+    let products = [product("Kontakt", maker: "Native Instruments", bytes: 900), product("Solo", maker: "Tiny Co", bytes: 950),
+                    product("Massive", maker: "Native Instruments", bytes: 200), product("Loose", maker: nil, bytes: 5_000),
+                    product("Arp", maker: "arturia", bytes: 300)]
+    let bySize = AudioSoftware.byMaker(products, sort: ListSort(), bytes: { $0.size.sortBytes })
+    #expect(bySize.map(\.maker) == ["Native Instruments", "Tiny Co", "arturia", nil], "Native Instruments' 1,100 beats Tiny Co's 950; Other makers last")
+    #expect(bySize[0].products.map(\.name) == ["Kontakt", "Massive"], "Products keep the order they came in")
+    let byName = AudioSoftware.byMaker(products, sort: ListSort(column: .name, ascending: true), bytes: { $0.size.sortBytes })
+    #expect(byName.map(\.maker) == ["arturia", "Native Instruments", "Tiny Co", nil], "Names as Finder sorts them; Other makers still last")
+}

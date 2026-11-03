@@ -15,6 +15,7 @@ struct DesignGallery: View {
     @State private var alertExamplesExpanded = false
     @State private var categoryRowExpanded = false
     @State private var applicationsSectionExpanded = true
+    @State private var makerGroupExpanded = true
     var body: some View {
         VStack(spacing: 0) {
             HStack {
@@ -210,6 +211,14 @@ struct DesignGallery: View {
                                 identifier: "galleryApplicationsSection", itemCount: 1, chooseNoun: "apps", expanded: $applicationsSectionExpanded, toggle: {}) { EmptyView() } items: {
                         CategoryRow(category: .apps, state: nil, title: "Example app in a section", detail: "Example maker", size: "800 MB", enabled: true,
                                     identifier: "galleryApplicationsSectionRow", itemCount: nil, expanded: .constant(false), toggle: {}) { EmptyView() } items: { EmptyView() }
+                    }
+                    // Audio software's groups and makers (Decisions 151, 153): category rows with no checkbox inside the section.
+                    CategoryRow(category: .audioSoftware, state: nil, title: "Example maker", detail: "", size: "2.4 GB", enabled: true,
+                                identifier: "galleryMakerGroup", itemCount: 2, chooseNoun: "plug-ins", expanded: $makerGroupExpanded, toggle: {}) { EmptyView() } items: {
+                        CategoryRow(category: .audioSoftware, state: .unchecked, title: "Example plug-in", detail: "Example maker", size: "1.9 GB", enabled: true,
+                                    identifier: "galleryMakerGroupProduct", itemCount: nil, expanded: .constant(false), toggle: {}) { EmptyView() } items: { EmptyView() }
+                        CategoryRow(category: .audioSoftware, state: .unchecked, title: "Another example plug-in", detail: "Example maker", size: "500 MB", enabled: true,
+                                    identifier: "galleryMakerGroupProduct2", itemCount: nil, expanded: .constant(false), toggle: {}) { EmptyView() } items: { EmptyView() }
                     }
                     VolumeSummary(available: 40_000_000_000, total: 512_000_000_000, observation: "Example disk space")
                     VolumeSummary(available: nil, total: nil, observation: "Free space unknown")
