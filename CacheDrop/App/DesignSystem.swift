@@ -921,7 +921,9 @@ struct CategoryRow<Notice: View, Items: View>: View {
     let identifier: String
     let itemCount: Int?
     var staying = 0
-    /// What "Choose" names: "Choose apps · 12" for an Applications section (Decision 153).
+    /// What the disclosure names: "Choose apps · 12" for an Applications section (Decision 153); "Show sounds · 3" where nothing
+    /// in it can be ticked (#701).
+    var chooseVerb = "Choose"
     var chooseNoun = "items"
     /// An app's own icon, in the badge's place (Applications).
     var icon: NSImage? = nil
@@ -939,7 +941,7 @@ struct CategoryRow<Notice: View, Items: View>: View {
             }
             if !detail.isEmpty { notice().padding(.leading, CacheDropDesign.Size.categoryContentIndent) }
             if let itemCount {
-                ActionDisclosureGroup("Choose \(chooseNoun) · \(itemCount)" + (staying == 1 ? " · 1 stays" : staying > 1 ? " · \(staying) stay" : ""), isExpanded: $expanded) {
+                ActionDisclosureGroup("\(chooseVerb) \(chooseNoun) · \(itemCount)" + (staying == 1 ? " · 1 stays" : staying > 1 ? " · \(staying) stay" : ""), isExpanded: $expanded) {
                     items().padding(.top, CacheDropDesign.Space.sm)
                 }.padding(.leading, CacheDropDesign.Size.categoryContentIndent)
             }

@@ -4,6 +4,7 @@
 Run it only after the owner says "merge". UI journeys stay your call before it starts.
 
   scripts/merge-pr.py PR ISSUE... [--trailer "Key: value"]...
+  scripts/merge-pr.py PR --expect-none [--trailer "Key: value"]...   (a PR that closes no issue, #693)
 
   1. finds the worktree that has the PR's branch checked out; it must be clean
   2. merges origin/main with --no-commit when the branch is behind (a conflict stops here: resolve it in that
@@ -11,8 +12,8 @@ Run it only after the owner says "merge". UI journeys stay your call before it s
   3. scripts/check-decisions.sh, then scripts/check.sh (which records the pass stamp)
   4. commits the merge with the given trailers, and pushes
   5. waits for CI on the pushed head
-  6. scripts/check-pr-closing.py PR --expect ISSUE...
-  7. squash-merges, deletes the remote branch and confirms each issue closed
+  6. scripts/check-pr-closing.py PR --expect ISSUE... (or --expect-none)
+  7. squash-merges, deletes the remote branch and confirms each issue closed (none with --expect-none)
 """
 import argparse
 import json
@@ -76,13 +77,28 @@ def step(name, action):
     return detail
 
 
-def main():
+def parse_args(argv=None):
+    """The command line; it must name the issues the PR closes or say --expect-none, never both nor neither (#693)."""
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('pr', type=int)
-    parser.add_argument('issues', nargs='+', help='the issues the PR must close, as check-pr-closing.py expects')
+    parser.add_argument('issues', nargs='*', help='the issues the PR must close, as check-pr-closing.py expects')
+    parser.add_argument('--expect-none', action='store_true', help='the PR closes no issue (a release bump, a docs-only change)')
     parser.add_argument('--trailer', action='append', default=[], help='a trailer for the merge commit; repeatable')
     parser.add_argument('--ci-timeout', type=int, default=45 * 60, help='seconds to wait for CI (default 45 min)')
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
+    if bool(args.issues) == args.expect_none:
+        parser.error('give the issues the PR closes, or --expect-none if it closes none' if not args.issues
+                     else 'give either issues or --expect-none, not both')
+    return args
+
+
+def closing_expectation(args):
+    """The expectation passed to check-pr-closing.py after the PR number."""
+    return ['--expect-none'] if args.expect_none else ['--expect', *args.issues]
+
+
+def main():
+    args = parse_args()
     state = {}
 
     def find():
@@ -151,7 +167,7 @@ def main():
             time.sleep(30)
 
     def closing():
-        result = run(sys.executable, str(ROOT / 'scripts/check-pr-closing.py'), str(args.pr), '--expect', *args.issues,
+        result = run(sys.executable, str(ROOT / 'scripts/check-pr-closing.py'), str(args.pr), *closing_expectation(args),
                      cwd=ROOT, check=False)
         if result.returncode:
             raise Failure(result.stdout + result.stderr)
@@ -181,7 +197,8 @@ def main():
     step('CI', wait_for_ci)
     step('closing references', closing)
     step('squash-merge', merge)
-    step('issues closed', issues_closed)
+    if args.issues:
+        step('issues closed', issues_closed)
     print(f'Next: remove {state["wt"]} once nothing else needs it.')
 
 

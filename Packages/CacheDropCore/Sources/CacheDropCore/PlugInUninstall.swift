@@ -20,9 +20,12 @@ public enum PlugInUninstall {
         itemByItem: true, family: .plugInUninstall)
     public static let rules: [CleanupRule] = [formatsRule, filesRule, sharedRule]
 
-    /// Plug-in hosts that must be closed first (Decision 51, a curated list). Bundle IDs checked on this Mac: Ableton Live
-    /// (`com.ableton.live`) and Pro Tools (`com.avid.ProTools`); the rest are their makers' published IDs, and every host is
-    /// also matched by its executable's name.
+    /// Plug-in hosts that must be closed first (Decision 51, a curated list); every host is also matched by its executable's
+    /// name. Sources for each bundle ID are in `docs/reference/audio-bundle-ids.md` (#704). Checked on this Mac: Ableton Live
+    /// (`com.ableton.live`) and Pro Tools (`com.avid.ProTools`). Apple's App Store lookup API (2026-11-03): Logic Pro, GarageBand
+    /// and MainStage (MainStage 4 keeps `com.apple.mainstage3`). Ardour's build script (`tools/osx_packaging/osx_build`, tags
+    /// 8.12 and 9.8): `org.ardour.Ardour<major>`. Not checked against a primary source: Reason, Bitwig Studio, FL Studio and
+    /// REAPER. Cubase and Studio One have no bundle ID until one is found.
     public static let hosts: [RuleOwner] = [
         RuleOwner(name: "Logic Pro", bundleIDs: ["com.apple.logic10"], executables: ["Logic Pro*"]),
         RuleOwner(name: "GarageBand", bundleIDs: ["com.apple.garageband10"], executables: ["GarageBand"]),
@@ -35,6 +38,7 @@ public enum PlugInUninstall {
         RuleOwner(name: "Bitwig Studio", bundleIDs: ["com.bitwig.BitwigStudio"], executables: ["Bitwig*"]),
         RuleOwner(name: "FL Studio", bundleIDs: ["com.image-line.flstudio"], executables: ["FL Studio*"]),
         RuleOwner(name: "REAPER", bundleIDs: ["com.cockos.reaper"], executables: ["REAPER", "reaper"]),
+        RuleOwner(name: "Ardour", bundleIDs: ["org.ardour.Ardour8", "org.ardour.Ardour9"], executables: ["Ardour[0-9]*"]),
     ]
 
     /// Where a receipt's support files may be: anything else it lists (the system, launch daemons, apps) is never offered.

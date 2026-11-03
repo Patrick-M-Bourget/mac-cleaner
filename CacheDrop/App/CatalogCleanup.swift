@@ -548,12 +548,15 @@ import SwiftUI
             let (inventory, plugIns) = Self.plugIns(home: home, system: system, installed: presence.installedApps() ?? [], receipts: listings,
                                                     offered: discovered.candidates + found + apps,
                                                     exclusions: exclusions)
-            let (owners, names) = Self.owners(of: discovered.candidates + leftovers + apps + plugIns, in: catalog)
+            // Audio software's drivers and Reason's additional devices the user can move (Decision 151, #701).
+            let audio = AudioSoftware.uninstallItems(AudioSoftware.drivers(home: home, systemRoot: system), hosts: [], exclusions: exclusions)
+                + AudioSoftware.uninstallItems(AudioSoftware.optionalDevices(home: home), hosts: AudioSoftware.reasonHosts, exclusions: exclusions)
+            let (owners, names) = Self.owners(of: discovered.candidates + leftovers + apps + plugIns + audio, in: catalog)
             enter(.openApps)
             let running = Self.running(owners, quitter: quitter)
             reporter.finish()
             return (discovered, access, CatalogScanResult(discovery: discovered, overriddenRules: catalog.overriddenRules(home: home, systemRoot: system), owners: running.0, openOwners: running.1,
-                                     ownerNames: names, access: access, leftovers: leftovers, uninstallable: apps + plugIns, plugIns: inventory,
+                                     ownerNames: names, access: access, leftovers: leftovers, uninstallable: apps + plugIns + audio, plugIns: inventory,
                                      receipts: listings))
         }.value
         await progress.value
