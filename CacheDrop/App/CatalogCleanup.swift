@@ -789,6 +789,13 @@ import SwiftUI
     }
     func execute(_ approval: CatalogApproval, cancellation: CleanupCancellation) async {
         guard !AppLifecycleController.shared.updateInstallation.blocksNewWork, !isRunning else { return }
+        // One cleanup at a time with `cachedrop clean` (#627): taken before anything is claimed, held until the run ends.
+        let lock: CleanupLock
+        do {
+            guard let held = try CleanupLock.acquire() else { message = "A cleanup from the command line is running, so nothing was changed."; return }
+            lock = held
+        } catch { message = "CacheDrop couldn’t open its cleanup history, so nothing was changed."; return }
+        defer { lock.release() }
         isRunning = true
         let reading = AppLifecycleController.shared.capacity.reading
         runCapacity = reading.flatMap { reading in
