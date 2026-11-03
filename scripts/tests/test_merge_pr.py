@@ -1,4 +1,6 @@
+import contextlib
 import importlib.util
+import io
 from pathlib import Path
 import unittest
 
@@ -42,6 +44,29 @@ class MergePrTests(unittest.TestCase):
             check(), check('SKIPPED', name='other')]}, 'new'), 'pass')
         self.assertEqual(merge_pr.ci_state({'headRefOid': 'new', 'statusCheckRollup': [
             check(), check('FAILURE', name='other')]}, 'new'), 'fail')
+
+
+    def refused(self, argv):
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as raised:
+            merge_pr.parse_args(argv)
+        return raised.exception.code
+
+    def test_a_pr_that_closes_nothing_says_so_with_expect_none(self):
+        args = merge_pr.parse_args(['692', '--expect-none'])
+        self.assertEqual((args.pr, args.issues, args.expect_none), (692, [], True))
+        self.assertEqual(merge_pr.closing_expectation(args), ['--expect-none'])
+
+    def test_issues_are_passed_on_to_the_closing_check(self):
+        args = merge_pr.parse_args(['700', '698', 'owner/repo#5', '--trailer', 'Key: value'])
+        self.assertEqual((args.issues, args.expect_none), (['698', 'owner/repo#5'], False))
+        self.assertEqual(merge_pr.closing_expectation(args), ['--expect', '698', 'owner/repo#5'])
+
+    def test_neither_issues_nor_expect_none_is_refused(self):
+        self.assertEqual(self.refused(['692']), 2)
+        self.assertEqual(self.refused(['692', '--trailer', 'Key: value']), 2)
+
+    def test_issues_and_expect_none_together_are_refused(self):
+        self.assertEqual(self.refused(['692', '45', '--expect-none']), 2)
 
 
 if __name__ == '__main__':

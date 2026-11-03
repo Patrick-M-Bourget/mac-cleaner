@@ -27,7 +27,7 @@ Use the gh CLI for issue operations.
 
 ## Merging a PR
 
-After the owner says "merge", run `scripts/merge-pr.py PR ISSUE... --trailer "Co-Authored-By: ..." --trailer "Claude-Session: ..."` (`--help` for the steps). It merges `origin/main` in without committing, runs the Decision check and `scripts/check.sh`, commits and pushes, waits for CI, validates the closing references, squash-merges, deletes the remote branch and confirms the issues closed, one line per step. A merge conflict stops it: resolve the conflict in the PR's worktree, then run the same command again. Run any UI journeys the merge touches before it.
+After the owner says "merge", run `scripts/merge-pr.py PR ISSUE... --trailer "Co-Authored-By: ..." --trailer "Claude-Session: ..."` (`--help` for the steps). It merges `origin/main` in without committing, runs the Decision check and `scripts/check.sh`, commits and pushes, waits for CI, validates the closing references, squash-merges, deletes the remote branch and confirms the issues closed, one line per step. A merge conflict stops it: resolve the conflict in the PR's worktree, then run the same command again. Run any UI journeys the merge touches before it. A PR that closes no issue (a release bump, a docs-only change) takes `--expect-none` in place of the issues; giving neither is refused.
 
 ## Moving a ticket to cachedrop-website
 
