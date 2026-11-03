@@ -185,7 +185,7 @@ final class ApplicationsUITests: XCTestCase {
     }
 
     /// Decision 154: sounds and samples are read-only behind "Show sounds"; a driver the user can move and a Reason device have
-    /// checkboxes, nothing ticked.
+    /// checkboxes, nothing ticked; the driver has Reveal in Finder (Decision 158).
     @MainActor func testAudioSoftwareShowsSoundsAndOffersDriversAndReasonDevices() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
@@ -216,6 +216,9 @@ final class ApplicationsUITests: XCTestCase {
         let driverBox = app.descendants(matching: .checkBox).matching(NSPredicate(format: "identifier == %@", "applicationsDriver-" + driver.path)).firstMatch
         XCTAssertTrue(driverBox.waitForExistence(timeout: 5), "A driver the user can move has a checkbox")
         XCTAssertEqual(driverBox.value as? Int, 0, "Never pre-ticked")
+        // #715: before ticking it, the user can see where it lives.
+        XCTAssertTrue(app.links.matching(NSPredicate(format: "identifier == %@", "applicationsReveal-" + driver.path)).firstMatch.exists,
+                      "A driver the user can move has Reveal in Finder")
         let pangea = home.appendingPathComponent("Library/Application Support/Propellerhead Software/Optional REs/Pangea").path
         let device = app.descendants(matching: .checkBox).matching(NSPredicate(format: "identifier == %@", "applicationsPlugIn-" + pangea)).firstMatch
         XCTAssertTrue(device.waitForExistence(timeout: 5), "Reason's device can go to the Trash")

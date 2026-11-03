@@ -223,6 +223,11 @@ struct DesignGallery: View {
                     // A group where nothing can be ticked says Show (Decision 154).
                     CategoryRow(category: .audioSoftware, state: nil, title: "Example read-only group", detail: "", size: "6.3 GB", enabled: true,
                                 identifier: "galleryShowGroup", itemCount: 3, chooseVerb: "Show", chooseNoun: "sounds", expanded: .constant(false), toggle: {}) { EmptyView() } items: { EmptyView() }
+                    // A driver the user can move: its place and Reveal in Finder before it's ticked (Decision 158).
+                    CategoryRow(category: .audioSoftware, state: .unchecked, title: "Example driver", detail: "Example maker", size: "4 MB", enabled: true,
+                                identifier: "galleryDriverRow", itemCount: nil, expanded: .constant(false), toggle: {}) {
+                        StatusRow(text: "…/Plug-Ins/HAL", symbol: "folder", action: StatusAction(title: "Reveal in Finder", action: {}))
+                    } items: { EmptyView() }
                     VolumeSummary(available: 40_000_000_000, total: 512_000_000_000, observation: "Example disk space")
                     VolumeSummary(available: nil, total: nil, observation: "Free space unknown")
                     // Every segment kind at the tip, as the cleaning bar draws a run (#343, #355): categories, going to the Trash, in Trash.
