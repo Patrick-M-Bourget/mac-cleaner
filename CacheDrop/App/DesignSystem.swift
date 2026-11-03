@@ -446,42 +446,6 @@ struct ActionDisclosureGroup<Content: View>: View {
         }
     }
 }
-/// A list section that opens and closes (Applications, Decision 151): its heading, how many it lists and their size on one line,
-/// the heading on the names' column like `ColumnHeader`'s "Name", with the disclosure chevron where rows keep their checkbox.
-/// A click anywhere on the line toggles it. No checkbox: a section is never ticked whole (Decision 51). Its rows sit unindented,
-/// so they stay under the column header. The owner keeps `isExpanded`.
-struct ListSection<Content: View>: View {
-    let title: String
-    /// "12", or nil while the section's list is read.
-    let count: String?
-    let size: String?
-    @Binding var isExpanded: Bool
-    let identifier: String
-    @ViewBuilder var content: () -> Content
-    var body: some View {
-        VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
-            Button { isExpanded.toggle() } label: {
-                HStack(spacing: 0) {
-                    Image(systemName: "chevron.right").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
-                        .rotationEffect(.degrees(isExpanded ? 90 : 0))
-                        .frame(width: CacheDropDesign.Size.checkbox + CacheDropDesign.Space.md, alignment: .leading)
-                    HStack(alignment: .firstTextBaseline, spacing: CacheDropDesign.Space.sm) {
-                        Text(title).font(CacheDropDesign.TypeStyle.section)
-                        if let count { Text(count).font(CacheDropDesign.TypeStyle.note).foregroundStyle(.secondary).monospacedDigit() }
-                        Spacer()
-                        if let size { Text(size).font(CacheDropDesign.TypeStyle.section).monospacedDigit() }
-                    }.padding(.leading, CacheDropDesign.Size.badgeIndent)
-                }.contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel([title, count, size].compactMap { $0 }.joined(separator: ", "))
-            .accessibilityValue(isExpanded ? "Expanded" : "Collapsed")
-            .accessibilityIdentifier(identifier)
-            if isExpanded { content() }
-        }
-    }
-}
-
 /// A link that fixes a status row's problem in place, such as "Choose again…" (#223, #311).
 struct StatusAction {
     let title: String
@@ -957,6 +921,8 @@ struct CategoryRow<Notice: View, Items: View>: View {
     let identifier: String
     let itemCount: Int?
     var staying = 0
+    /// What "Choose" names: "Choose apps · 12" for an Applications section (Decision 153).
+    var chooseNoun = "items"
     /// An app's own icon, in the badge's place (Applications).
     var icon: NSImage? = nil
     @Binding var expanded: Bool
@@ -973,7 +939,7 @@ struct CategoryRow<Notice: View, Items: View>: View {
             }
             if !detail.isEmpty { notice().padding(.leading, CacheDropDesign.Size.categoryContentIndent) }
             if let itemCount {
-                ActionDisclosureGroup("Choose items · \(itemCount)" + (staying == 1 ? " · 1 stays" : staying > 1 ? " · \(staying) stay" : ""), isExpanded: $expanded) {
+                ActionDisclosureGroup("Choose \(chooseNoun) · \(itemCount)" + (staying == 1 ? " · 1 stays" : staying > 1 ? " · \(staying) stay" : ""), isExpanded: $expanded) {
                     items().padding(.top, CacheDropDesign.Space.sm)
                 }.padding(.leading, CacheDropDesign.Size.categoryContentIndent)
             }

@@ -539,7 +539,7 @@ private struct WorkspaceView: View {
             actionTitle: "Review " + StorageTrendsPresentation.inSentence(row.category) + (onApplications ? " in Applications" : " in the Cleanup plan"),
             // Files from deleted apps are on the Applications page (Decision 51).
             action: { if onApplications {
-                // Like the plan's category, the row opens its own section there (Decision 151).
+                // Like the plan's category, the row opens its own section there (Decision 153).
                 if row.category == .leftovers { ApplicationsModel.shared.openSections.insert(.leftovers) }
                 navigate(.applications)
             } else { navigate(.plan); planPresentation.expandedCategories.insert(row.category) } },
