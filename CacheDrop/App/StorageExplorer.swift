@@ -112,8 +112,9 @@ struct StorageExplorerView: View {
     @Bindable var model: ExploreStorage
     @Bindable var selection: CleanupPlan
     @Bindable var context: StorageExplorerContext
-    /// The page the explorer was opened from, which back returns to.
-    let caller: String
+    /// The page the explorer was opened from, which back returns to; nil as its own sidebar page, which has no back button
+    /// at Scanned folders (Decision 149).
+    let caller: String?
     let back: () -> Void
     /// Included locations a recheck couldn't reach, from Overview's recovery rows (#249).
     var unavailable: [ExplorerUnavailableLocation] = []
@@ -167,10 +168,7 @@ struct StorageExplorerView: View {
             let wide = geometry.size.width >= CacheDropDesign.Size.explorerWide
             VStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
                 // A folder that is no longer observed leads back only to the list of locations (#227).
-                PageHeader(title: context.title,
-                           back: BackButton(destination: folderGone ? context.rootName : context.backDestination ?? caller, identifier: "explorerBack") {
-                               if folderGone { context.discardUnavailableFolder() } else if !context.backWithinExplorer() { back() }
-                           })
+                PageHeader(title: context.title, back: backButton)
                 ScanHistoryRecordingNotice()
                 breadcrumbs
                 // The screen's one explanation (Decision 25).
@@ -200,6 +198,13 @@ struct StorageExplorerView: View {
                !listsInspected(id: id, resource: resource) { context.clearInspector() }
         }
         .onDisappear { model.previewURL = nil; model.closePreviewAccess() }
+    }
+    /// Back names where it leads: up a folder, to the list of locations, or out to the caller (#222, #228).
+    private var backButton: BackButton? {
+        guard let destination = folderGone ? context.rootName : context.backDestination ?? caller else { return nil }
+        return BackButton(destination: destination, identifier: "explorerBack") {
+            if folderGone { context.discardUnavailableFolder() } else if !context.backWithinExplorer() { back() }
+        }
     }
     /// Text-link breadcrumbs (Decision 47's back button is the only back control), with the quiet Large and old files toggle.
     private var breadcrumbs: some View {

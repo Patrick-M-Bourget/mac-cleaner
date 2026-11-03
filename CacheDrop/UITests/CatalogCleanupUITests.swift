@@ -549,7 +549,7 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertTrue((estimateLine.value as? String ?? estimateLine.label).hasPrefix("Estimated before cleanup: "), estimateLine.debugDescription)
         XCTAssertTrue((estimateLine.value as? String ?? estimateLine.label).hasSuffix(" · measured from the change in free space around each item"))
         XCTAssertFalse(app.staticTexts["Estimated before cleanup"].exists, "No second figure for the estimate")
-        app.typeKey("6", modifierFlags: .command)
+        app.typeKey("5", modifierFlags: .command)
         let run = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH 'cleanupRun:'")).firstMatch
         XCTAssertTrue(run.waitForExistence(timeout: 10))
         XCTAssertTrue(run.label.contains(freedText) && run.label.contains("Freed"), run.debugDescription)
@@ -1251,6 +1251,69 @@ extension CatalogCleanupUITests {
         XCTAssertEqual(explorerBack.label, "Back to Overview")
     }
 
+    /// #695: Explore storage in the sidebar (⌘6) starts at Scanned folders, highlighted, with no back button; from
+    /// Overview's link it is highlighted too and keeps the back button to Overview. ⌘9 is System access.
+    @MainActor func testExploreStorageFromTheSidebarHasNoBackButtonAndFromOverviewKeepsIt() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        let folder = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("CacheDropPicked-" + UUID().uuidString)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home); try? FileManager.default.removeItem(at: folder) }
+        try FileManager.default.createDirectory(at: folder.appendingPathComponent("Inner"), withIntermediateDirectories: true)
+        try Data(repeating: 1, count: 4_000).write(to: folder.appendingPathComponent("Inner/entry.zip"))
+        app.launch()
+        XCTAssertTrue(app.staticTexts["overviewTitle"].waitForExistence(timeout: 10))
+        chooseFolderToScan(app)
+        let panel = app.sheets.firstMatch.exists ? app.sheets.firstMatch : app.dialogs.firstMatch
+        XCTAssertTrue(panel.waitForExistence(timeout: 5))
+        panel.typeKey("g", modifierFlags: [.command, .shift])
+        app.typeText(folder.path + "\n")
+        panel.buttons["Scan folder"].click()
+        waitForScannedFolder(app)
+
+        let sidebarExplore = app.buttons.matching(identifier: "Explore storage").firstMatch
+        let sidebarOverview = app.buttons.matching(identifier: "Overview").firstMatch
+        let back = app.buttons["explorerBack"]
+        let openFolder = app.buttons["Open folder " + folder.lastPathComponent]
+        app.typeKey("6", modifierFlags: .command)
+        XCTAssertTrue(openFolder.waitForExistence(timeout: 10), "⌘6 opens Explore storage at Scanned folders")
+        XCTAssertTrue(sidebarExplore.isSelected, "The sidebar highlights Explore storage")
+        XCTAssertFalse(back.exists, "Opened from the sidebar, Explore storage has no back button")
+        openFolder.click()
+        XCTAssertTrue(app.textFields["explorerSearch"].waitForExistence(timeout: 5))
+        XCTAssertEqual(back.label, "Back to Scanned folders", "Inside a folder, back still leads up")
+        back.click()
+        XCTAssertTrue(openFolder.waitForExistence(timeout: 5))
+        XCTAssertFalse(back.exists, "Back at Scanned folders, nothing leads out")
+
+        // Opened inside a folder, the sidebar item starts again at Scanned folders.
+        openFolder.click()
+        XCTAssertTrue(app.textFields["explorerSearch"].waitForExistence(timeout: 5))
+        sidebarExplore.click()
+        XCTAssertTrue(openFolder.waitForExistence(timeout: 5))
+        XCTAssertFalse(back.exists)
+
+        // From Overview's link: highlighted, and back names Overview, even when Explore storage was left inside a folder.
+        openFolder.click()
+        XCTAssertTrue(app.textFields["explorerSearch"].waitForExistence(timeout: 5))
+        app.typeKey("1", modifierFlags: .command)
+        XCTAssertTrue(app.staticTexts["overviewTitle"].waitForExistence(timeout: 5))
+        XCTAssertTrue(sidebarOverview.isSelected)
+        revealAndClick(app.links["Explore storage"], in: app)
+        assertBackButton(back, isAbove: "Explore storage", in: app)
+        XCTAssertEqual(back.label, "Back to Overview")
+        XCTAssertTrue(sidebarExplore.isSelected, "The highlight follows the page on screen")
+        XCTAssertFalse(sidebarOverview.isSelected)
+        back.click()
+        XCTAssertTrue(app.staticTexts["overviewTitle"].waitForExistence(timeout: 5))
+        XCTAssertTrue(sidebarOverview.isSelected)
+        XCTAssertFalse(sidebarExplore.isSelected)
+
+        app.typeKey("9", modifierFlags: .command)
+        XCTAssertTrue(app.staticTexts["fullDiskAccessStatus"].waitForExistence(timeout: 5), "⌘9 opens System access")
+    }
+
     /// #365: a folder with 5,000 direct children opens within a few seconds and builds only the rows on screen.
     @MainActor func testExplorerOpensAFolderWithThousandsOfFilesQuickly() throws {
         continueAfterFailure = false
@@ -1749,7 +1812,7 @@ final class TrashSpaceUITests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: later.path), "Only what the sheet listed is deleted")
         done.click()
 
-        app.typeKey("6", modifierFlags: .command)
+        app.typeKey("5", modifierFlags: .command)
         let run = app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS[c] %@ OR value CONTAINS[c] %@",
                                                                        "Emptied from the Trash · 2 items", "Emptied from the Trash · 2 items")).firstMatch
         XCTAssertTrue(run.waitForExistence(timeout: 10))
@@ -1851,7 +1914,7 @@ final class TrashSpaceUITests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: inTrash.path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: older.path), "Put back moves only its own item")
 
-        app.typeKey("6", modifierFlags: .command)
+        app.typeKey("5", modifierFlags: .command)
         // The run's row is one button whose label holds its title.
         let run = app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS 'Put back from the Trash' OR value CONTAINS 'Put back from the Trash'")).firstMatch
         XCTAssertTrue(run.waitForExistence(timeout: 10))
@@ -1923,7 +1986,7 @@ final class TrashSpaceUITests: XCTestCase {
         XCTAssertFalse(app.descendants(matching: .any)["putBack-Setup.dmg"].exists, "An emptied item can't be put back")
         XCTAssertFalse(empty.exists, "Nothing of CacheDrop's is left to empty")
 
-        app.typeKey("6", modifierFlags: .command)
+        app.typeKey("5", modifierFlags: .command)
         func run(_ title: String) -> XCUIElement {
             // Ignoring case: a run that also deleted reads "Deleted and moved to Trash".
             app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS[c] %@ OR value CONTAINS[c] %@", title, title)).firstMatch
@@ -2734,6 +2797,24 @@ final class EmptyStateUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["manageLocalRecords"].waitForExistence(timeout: 5), "With no scanned folder, it opens Locations")
     }
 
+    /// #695: with nothing scanned, Explore storage in the sidebar stays selected and shows its empty state; it never
+    /// jumps to Locations.
+    @MainActor func testExploreStorageInTheSidebarWithNothingScannedShowsItsEmptyState() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureEmptyCatalogHome(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        app.launch()
+        XCTAssertTrue(app.staticTexts["overviewTitle"].waitForExistence(timeout: 10))
+
+        app.typeKey("6", modifierFlags: .command)
+        XCTAssertTrue(app.staticTexts["No scanned folders"].waitForExistence(timeout: 10), "Explore storage says nothing is scanned")
+        XCTAssertTrue(app.buttons.matching(identifier: "Explore storage").firstMatch.isSelected)
+        XCTAssertFalse(app.buttons["explorerBack"].exists)
+        XCTAssertFalse(app.links["manageLocalRecords"].exists, "It stays on Explore storage, not Locations")
+    }
+
     /// #372: Overview on an empty home keeps every category listed as "Empty", with no Review link, and says there's
     /// nothing to clean up in one line above the list, whose Explore storage leads to Locations.
     @MainActor func testOverviewOnAnEmptyHomeListsEveryCategoryAsEmptyUnderOneLine() throws {
@@ -2779,11 +2860,11 @@ final class EmptyStateUITests: XCTestCase {
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
         app.launch()
         XCTAssertTrue(app.staticTexts["overviewTitle"].waitForExistence(timeout: 10))
-        app.typeKey("5", modifierFlags: .command)
+        app.typeKey("7", modifierFlags: .command)
         XCTAssertTrue(app.staticTexts["No trends yet"].waitForExistence(timeout: 60), "The launch scan recorded a baseline")
 
         // Clearing completed history forgets the baseline, so no scan is recorded.
-        app.typeKey("7", modifierFlags: .command)
+        app.typeKey("8", modifierFlags: .command)
         let manage = app.descendants(matching: .any)["manageLocalRecords"]
         XCTAssertTrue(manage.waitForExistence(timeout: 5))
         revealAndClick(manage, in: app)
@@ -2793,7 +2874,7 @@ final class EmptyStateUITests: XCTestCase {
         confirm.click()
         XCTAssertTrue(confirm.waitForNonExistence(timeout: 5))
 
-        app.typeKey("5", modifierFlags: .command)
+        app.typeKey("7", modifierFlags: .command)
         let empty = app.descendants(matching: .any)["growthEmpty"]
         XCTAssertTrue(empty.waitForExistence(timeout: 10), "Storage trends says no scan is recorded")
         XCTAssertTrue(empty.staticTexts["No scans yet"].exists)

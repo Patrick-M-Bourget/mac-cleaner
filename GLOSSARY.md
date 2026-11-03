@@ -15,7 +15,7 @@ The names CacheDrop shows, what they mean, and where they live in code. Copy fol
 | History | Past cleanups and scans | `CleanupHistoryView`, `ScanActivityHistory` |
 | Locations | Scanned locations, Protected items, Saved data | `CacheDropApp.swift`, `RememberedLocations` |
 | System access | Optional Full Disk Access status and guidance | `SystemAccessView`, `FullDiskAccessGuide` |
-| Explore storage | Browse a scanned folder by size | `StorageExplorer`, `ExploreStorage` |
+| Explore storage | Browse a scanned folder by size; a sidebar page too (Decision 149) | `StorageExplorer`, `ExploreStorage`, `Destination.exploreStorage` |
 | Storage map | Explore storage's Map view: the folder on show as blocks sized by what they take on disk (Decision 147) | `StorageMap`, `StorageMapLayout` |
 | N smaller items | The storage map's one block for children too small to label; a click switches to List (Decision 147) | `StorageMapLayout.Content.smaller` |
 | Too small to label | The line under the storage map naming blocks drawn at their true size without a label (Decision 147) | `TooSmallToLabelLine` |
@@ -26,6 +26,8 @@ The names CacheDrop shows, what they mean, and where they live in code. Copy fol
 | Results | What a cleanup did, outcomes first | `CatalogResultsSection` |
 | Review interrupted cleanup | Where each item of a cleanup that stopped is now | `CleanupRecoveryView`, `CleanupRecovery` |
 | Bottom bar | The same bar on every screen: actions, background work | `ActionStrip` |
+| Cleanup (sidebar header) | The sidebar group of Smart clean, Cleanup plan, Applications and History (Decision 149) | `SidebarGroup.cleanup` |
+| Storage (sidebar header) | The sidebar group of Explore storage, Storage trends, Locations and System access (Decision 149) | `SidebarGroup.storage` |
 
 ## Things
 
