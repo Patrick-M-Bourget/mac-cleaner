@@ -185,7 +185,8 @@ final class ApplicationsUITests: XCTestCase {
     }
 
     /// Decision 154: sounds and samples are read-only behind "Show sounds"; a driver the user can move and a Reason device have
-    /// checkboxes, nothing ticked.
+    /// checkboxes, nothing ticked; the driver has Reveal in Finder (Decision 158). Decision 157: a library whose vendor's manager
+    /// is installed offers Open <tool>; one whose manager isn't installed, and Splice's, offer none.
     @MainActor func testAudioSoftwareShowsSoundsAndOffersDriversAndReasonDevices() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
@@ -198,6 +199,11 @@ final class ApplicationsUITests: XCTestCase {
             try Data(repeating: 1, count: bytes).write(to: file)
         }
         try write("Splice/sounds/kick.wav")
+        // The test home stands in for the system root: Waves' sample libraries, with Waves Central installed, and Arturia's
+        // resources without Arturia Software Center.
+        try write("Applications/Waves/Data/Instrument Data/Waves Sample Libraries/piano.wav")
+        try write("Library/Arturia/Presets/lead.preset")
+        _ = try addApp("Waves Central", id: "com.wavesaudio.wavescentral", bytes: 10_000, in: home)
         try write("Library/Application Support/Propellerhead Software/Optional REs/Pangea/data.bin", bytes: 60_000)
         let driver = home.appendingPathComponent("Library/Audio/Plug-Ins/HAL/Loopback.driver")
         try FileManager.default.createDirectory(at: driver.appendingPathComponent("Contents"), withIntermediateDirectories: true)
@@ -207,15 +213,31 @@ final class ApplicationsUITests: XCTestCase {
         waitForCatalogScan(app)
         openApplications(app, ["audio software"])
 
-        let sounds = app.disclosureTriangles.matching(NSPredicate(format: "label == 'Show sounds · 1'")).firstMatch
+        let sounds = app.disclosureTriangles.matching(NSPredicate(format: "label == 'Show sounds · 3'")).firstMatch
         XCTAssertTrue(sounds.waitForExistence(timeout: 10), "Read-only: Show, not Choose")
         revealAndClick(sounds, in: app)
-        XCTAssertTrue(app.links.matching(NSPredicate(format: "identifier == %@", "applicationsSoundReveal-" + home.appendingPathComponent("Splice").path)).firstMatch
-            .waitForExistence(timeout: 5), "Splice sounds, with Reveal in Finder")
+        let splice = home.appendingPathComponent("Splice").path
+        XCTAssertTrue(element(app, "applicationsSoundReveal-" + splice, .link).waitForExistence(timeout: 5), "Splice sounds, with Reveal in Finder")
+        let waves = home.appendingPathComponent("Applications/Waves/Data/Instrument Data/Waves Sample Libraries").path
+        let openWaves = element(app, "applicationsSoundOpen-" + waves, .link)
+        XCTAssertTrue(openWaves.waitForExistence(timeout: 5), "Waves' libraries offer their installed manager")
+        XCTAssertEqual(openWaves.label, "Open Waves Central")
+        XCTAssertTrue(element(app, "applicationsSoundReveal-" + waves, .link).exists, "Reveal in Finder stays")
+        revealAndClick(openWaves, in: app)
+        let status = app.staticTexts["applicationsStatus"]
+        XCTAssertTrue(status.waitForExistence(timeout: 5))
+        XCTAssertEqual(status.value as? String ?? status.label, "Test run: would open Waves Central.")
+        let arturia = home.appendingPathComponent("Library/Arturia").path
+        XCTAssertTrue(element(app, "applicationsSoundReveal-" + arturia, .link).waitForExistence(timeout: 5), "Arturia's resources are listed, so a missing link below is really missing")
+        XCTAssertFalse(element(app, "applicationsSoundOpen-" + arturia, .link).exists, "No link when the manager isn't installed")
+        XCTAssertFalse(element(app, "applicationsSoundOpen-" + splice, .link).exists, "No link for a vendor with no known manager")
         openApplicationsSections(app, ["drivers", "plug-ins"])
         let driverBox = app.descendants(matching: .checkBox).matching(NSPredicate(format: "identifier == %@", "applicationsDriver-" + driver.path)).firstMatch
         XCTAssertTrue(driverBox.waitForExistence(timeout: 5), "A driver the user can move has a checkbox")
         XCTAssertEqual(driverBox.value as? Int, 0, "Never pre-ticked")
+        // #715: before ticking it, the user can see where it lives.
+        XCTAssertTrue(element(app, "applicationsReveal-" + driver.path, .link).waitForExistence(timeout: 5),
+                      "A driver the user can move has Reveal in Finder")
         let pangea = home.appendingPathComponent("Library/Application Support/Propellerhead Software/Optional REs/Pangea").path
         let device = app.descendants(matching: .checkBox).matching(NSPredicate(format: "identifier == %@", "applicationsPlugIn-" + pangea)).firstMatch
         XCTAssertTrue(device.waitForExistence(timeout: 5), "Reason's device can go to the Trash")
@@ -542,6 +564,55 @@ final class ApplicationsUITests: XCTestCase {
         footer.buttons["Cancel"].click()
         XCTAssertFalse(synthRow.exists, "Still gone after the rescan")
         XCTAssertTrue(FileManager.default.fileExists(atPath: pad.path), "Pad was only reviewed")
+    }
+
+    /// Decision 159 (#716): uninstalling a driver and one of Reason's devices reads only their rows again, as an app's uninstall
+    /// does (134): while the rescan after it runs, their rows are gone, Audio software's count drops, and the other device stays
+    /// listed and clickable, undimmed. The rescan holds only when it isn't a full scan, so the held progress shows it read less.
+    @MainActor func testUninstallingADriverAndAReasonDeviceUpdatesTheirRowsWithoutAFullScan() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        let devices = home.appendingPathComponent("Library/Application Support/Propellerhead Software/Optional REs")
+        for (name, bytes) in [("Pangea", 60_000), ("Humana", 90_000)] {
+            let file = devices.appendingPathComponent(name).appendingPathComponent("data.bin")
+            try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data(repeating: 1, count: bytes).write(to: file)
+        }
+        let driver = home.appendingPathComponent("Library/Audio/Plug-Ins/HAL/Loopback.driver")
+        try FileManager.default.createDirectory(at: driver.appendingPathComponent("Contents"), withIntermediateDirectories: true)
+        try PropertyListSerialization.data(fromPropertyList: ["CFBundleIdentifier": "com.loop.back"], format: .xml, options: 0)
+            .write(to: driver.appendingPathComponent("Contents/Info.plist"))
+        app.launchEnvironment["CACHEDROP_TEST_RESCAN_PAUSE"] = "20"
+        app.launch()
+        waitForCatalogScan(app)
+        openApplications(app, ["drivers", "plug-ins"])
+
+        XCTAssertEqual(applicationsSection(app, "audio software").label, "Choose audio software · 3", "One driver and two devices")
+        func box(_ id: String) -> XCUIElement { element(app, id, .checkBox) }
+        let driverBox = box("applicationsDriver-" + driver.path)
+        let pangea = box("applicationsPlugIn-" + devices.appendingPathComponent("Pangea").path)
+        let humana = box("applicationsPlugIn-" + devices.appendingPathComponent("Humana").path)
+        XCTAssertTrue(driverBox.waitForExistence(timeout: 10) && pangea.waitForExistence(timeout: 5) && humana.exists)
+        tick(driverBox, in: app); tick(pangea, in: app)
+        app.buttons["Review cleanup"].click()
+        cleanUpFromReview(app)
+        XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 20))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: driver.path), "The driver went to the Trash")
+        app.buttons["Done"].click()
+
+        let progress = app.staticTexts["catalogScanProgress"]
+        XCTAssertTrue(progress.waitForExistence(timeout: 10), "The run rescans")
+        XCTAssertTrue(driverBox.waitForNonExistence(timeout: 5), "The driver's row is gone at once")
+        XCTAssertFalse(pangea.exists, "So is the device's")
+        XCTAssertEqual(applicationsSection(app, "audio software").label, "Choose audio software · 1", "The section's count drops at once")
+        XCTAssertTrue(humana.waitForExistence(timeout: 5), "The other device stays listed")
+        XCTAssertTrue(progress.exists, "Still rescanning: the held rescan reads only the touched rows")
+        XCTAssertTrue(humana.isEnabled, "Not dimmed: the rescan doesn't read it again")
+        XCTAssertTrue(progress.waitForNonExistence(timeout: 120))
+        XCTAssertTrue(humana.exists && !driverBox.exists && !pangea.exists, "The same rows after the rescan")
     }
 
     /// #556, Decision 123: a Smart clean that uninstalled nothing leaves Apps and Plug-ins readable and clickable during the

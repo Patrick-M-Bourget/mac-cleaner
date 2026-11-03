@@ -90,6 +90,7 @@ The names CacheDrop shows, what they mean, and where they live in code. Copy fol
 | Guidance only | Shown with its size and where to manage it; CacheDrop never changes it | action `guidance` |
 | free | Disk space you can use | `CapacitySample`, `SidebarCapacityText` |
 | Reveal in Finder, Reveal in Trash | Shows the item where it is | — |
+| Open <tool> | Opens a vendor's own manager (Native Access, Waves Central) where its plug-ins uninstall and its sound libraries are removed or moved; shown only when it's installed (Decisions 50, 157) | `VendorTool`, `ApplicationsInventory.vendorTool(for:among:)`, `AudioSoftware.manager(of:among:)` |
 | Activate → Licensed | Checks a pasted license key on this Mac and keeps it in the Keychain; Settings then reads **Licensed, up to 3 Macs** | `LicenseController.activate` |
 | Enter license | On a review sheet over the trial's cap, opens Settings, where the License section takes a key | `CleanupAllowance` |
 | Buy | Opens cachedrop.io/buy in the browser; shown beside the price, 29.99 struck through, then 19.99 | `LicensePrice` |
