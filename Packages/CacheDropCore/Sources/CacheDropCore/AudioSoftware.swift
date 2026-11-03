@@ -26,7 +26,10 @@ public enum AudioSoftware {
     /// (Decision 50). Only Info.plists are read; no driver is loaded. `only` reads just those rows (#716).
     public static func drivers(home: URL, systemRoot: URL = URL(fileURLWithPath: "/"), only: Set<String>? = nil,
                                sizer: KnownLocationSizer = KnownLocationSizer()) -> [InventoryEntry] {
+        // Each folder once: the system's and the home's are the same folder when a test home stands in for both.
+        var seen = Set<String>()
         let urls = driverPlaces.flatMap { [systemRoot.appendingPathComponent($0), home.appendingPathComponent($0)] }
+            .filter { seen.insert($0.standardizedFileURL.path).inserted }
             .flatMap { InstalledBundles.bundles(in: $0, depth: 1) }.filter { only?.contains($0.path) ?? true }
         let entries = urls.compactMap { url -> InventoryEntry? in
             let info = PlugInInventory.info(url), bundleID = info?["CFBundleIdentifier"] as? String

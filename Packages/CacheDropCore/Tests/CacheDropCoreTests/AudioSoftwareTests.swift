@@ -70,6 +70,15 @@ private func driver(_ relative: String, in root: URL, id: String, copyright: Str
     #expect(drivers.first?.bundleID == "com.maker.interface.driver")
 }
 
+/// A driver folder read as both the system's and the home's (the same folder) lists each driver once.
+@Test func aDriverFolderReadTwiceListsEachDriverOnce() throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("AudioSoftwareTests-" + UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: root) }
+    try driver("Library/Audio/Plug-Ins/HAL/Loopback.driver", in: root, id: "com.loop.back", bytes: 1_000)
+
+    #expect(AudioSoftware.drivers(home: root, systemRoot: root).map(\.name) == ["Loopback"])
+}
+
 private func product(_ name: String, maker: String?, bytes: Int64) -> InventoryEntry {
     let url = URL(fileURLWithPath: "/Library/Audio/Plug-Ins/VST3/\(name).vst3")
     return InventoryEntry(id: url.path, name: name, maker: maker, volume: nil, parts: [.init(name: "VST3", url: url, size: .measured(bytes), removable: true)])
