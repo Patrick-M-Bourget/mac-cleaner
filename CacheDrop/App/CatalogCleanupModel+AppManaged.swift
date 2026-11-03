@@ -13,6 +13,8 @@ extension CatalogCleanupModel {
         appManaged = await Task.detached(priority: .utility) {
             catalog.guidance(home: home, systemRoot: system, sizer: KnownLocationSizer(timeBudget: Self.appManagedTimeBudget), snapshots: snapshots,
                              fullDiskAccess: fullDiskAccess, appPresence: apps, receipts: receipts)
+                // Audio software lists these on Applications instead (Decision 151).
+                .filter { !AudioSoftware.guidanceRuleIDs.contains($0.ruleID) }
         }.value
     }
     /// CacheDrop became active: if Full Disk Access was granted while it was away, rescan the catalog and guidance once,

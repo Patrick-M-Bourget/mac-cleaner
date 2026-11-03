@@ -88,7 +88,9 @@ public struct MusicVendor: Sendable, Equatable {
     ]
 }
 
-/// One piece of a vendor's content: a sample library, sound pack or preset folder. Read-only: nothing is removed (#175).
+/// One piece of a vendor's content: a sample library, sound pack or preset folder. The inventory is read-only (#175); content
+/// goes only with a plug-in product's uninstall, ticked one by one (#291, Decisions 52 and 53), and never Apple's folders, Ableton's
+/// User Library or Splice (#702). Applications › Audio software lists it under Sounds and samples (Decision 151).
 public struct MusicContentItem: Sendable, Equatable, Identifiable {
     public enum Kind: Sendable, Equatable {
         /// Installed by the vendor or its manager, and reinstalled the same way.
