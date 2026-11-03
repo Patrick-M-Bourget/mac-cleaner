@@ -18,7 +18,7 @@ extension CatalogCategory {
         case .files: "Large and old files"
         case .managed: "App-managed storage"
         case .leftovers: "Files from deleted apps"
-        case .apps: "Apps, plug-ins and their files"
+        case .apps: "Apps, audio software and their files"
         }
     }
     /// Smart clean's title: it takes only downloads untouched for 7 days (#342), so it says so.

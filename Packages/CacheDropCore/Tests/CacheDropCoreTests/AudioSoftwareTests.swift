@@ -71,3 +71,76 @@ private func product(_ name: String, maker: String?, bytes: Int64) -> InventoryE
     let byName = AudioSoftware.byMaker(products, sort: ListSort(column: .name, ascending: true), bytes: { $0.size.sortBytes })
     #expect(byName.map(\.maker) == ["arturia", "Native Instruments", "Tiny Co", nil], "Names as Finder sorts them; Other makers still last")
 }
+
+private struct NoApps: AppPresence {
+    func installedApps() -> [InstalledApp]? { [] }
+    func isRegistered(bundleID: String) -> Bool { false }
+}
+private struct RunningNamed: RunningAppChecking {
+    var names: Set<String> = []
+    func isRunning(_ owner: RuleOwner) -> Bool? { names.contains(owner.name) }
+}
+
+/// #701: Reason 13's additional devices, one row each (Reason Studios Help 19526087405074); they go to the Trash one by one,
+/// never while Reason or Reason Companion runs, and Companion installs them again.
+@Test func reasonsOptionalDevicesAreListedOneByOneAndGoToTheTrashOnlyWithReasonClosed() throws {
+    let home = FileManager.default.temporaryDirectory.appendingPathComponent("AudioSoftwareTests-" + UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: home) }
+    let folder = home.appendingPathComponent(AudioSoftware.optionalDevices)
+    for (name, bytes) in [("Pangea", 3_000), ("Humana", 9_000)] {
+        let file = folder.appendingPathComponent(name).appendingPathComponent("data.bin")
+        try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data(count: bytes).write(to: file)
+    }
+    try FileManager.default.createDirectory(at: home.appendingPathComponent(".Trash"), withIntermediateDirectories: true)
+
+    let devices = AudioSoftware.optionalDevices(home: home)
+    #expect(devices.map(\.name) == ["Humana", "Pangea"], "Largest first")
+    #expect(devices.allSatisfy { $0.maker == "Reason Studios" })
+
+    let items = AudioSoftware.uninstallItems(devices, hosts: AudioSoftware.reasonHosts)
+    #expect(items.map(\.url.lastPathComponent) == ["Humana", "Pangea"])
+    #expect(items.allSatisfy { $0.isUninstalled(with: $0.url.path) }, "Each is its own row's item")
+    let check = { (running: Set<String>) in
+        CandidateCheck(catalog: Catalog(rules: AppRuleFamily.uninstallRules), running: RunningNamed(names: running), inUse: FixtureNothingInUse(),
+                       home: home, apps: NoApps())
+    }
+    #expect(check([]).check(items[0]) == nil, "Goes to the Trash with Reason closed")
+    #expect(check(["Reason"]).check(items[0]) != nil, "Refused while Reason runs")
+    #expect(check(["Reason Companion"]).check(items[0]) != nil, "Refused while Reason Companion runs")
+}
+
+/// Decision 151: a driver the user can move gets an item; one in a folder only an administrator can change gets none.
+@Test func onlyDriversTheUserCanMoveBecomeItems() throws {
+    let base = FileManager.default.temporaryDirectory.appendingPathComponent("AudioSoftwareTests-" + UUID().uuidString)
+    let system = base.appendingPathComponent("root"), home = base.appendingPathComponent("home")
+    let hal = system.appendingPathComponent("Library/Audio/Plug-Ins/HAL")
+    defer { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: hal.path); try? FileManager.default.removeItem(at: base) }
+    try driver("Library/Audio/Plug-Ins/HAL/Interface.driver", in: system, id: "com.maker.interface.driver", bytes: 9_000)
+    let loop = try driver("Library/Audio/Plug-Ins/HAL/Loopback.driver", in: home, id: "com.loop.back", bytes: 1_000)
+    try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: hal.path)
+    let items = AudioSoftware.uninstallItems(AudioSoftware.drivers(home: home, systemRoot: system), hosts: [])
+    #expect(items.map(\.url.path) == [loop.path])
+}
+
+/// Decision 151: Sounds and samples lists the vendor libraries MusicContent knows, Splice's sounds and the shop Rack Extensions,
+/// read-only, largest first, each with who it is from.
+@Test func soundsAndSamplesListVendorLibrariesSpliceAndRackExtensions() throws {
+    let home = FileManager.default.temporaryDirectory.appendingPathComponent("AudioSoftwareTests-" + UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: home) }
+    for (path, bytes) in [("Music/Ableton/Factory Packs/Core Library/a.wav", 40_000), ("Splice/sounds/kick.wav", 4_000),
+                          (AudioSoftware.rackExtensions + "/SomeDevice/data.bin", 200_000)] {
+        let file = home.appendingPathComponent(path)
+        try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data(repeating: 1, count: bytes).write(to: file)
+    }
+    // The fixture home stands in for the system root, so `/Library/...` locations are read there too.
+    let sounds = AudioSoftware.sounds(home: home, systemRoot: home)
+    #expect(sounds.map(\.name) == ["Rack Extensions", "Packs", "Splice sounds"])
+    #expect(sounds.map(\.maker) == ["Reason Studios", "Ableton", "Splice"])
+    // The user's own content says so.
+    let preset = home.appendingPathComponent("Music/Ableton/User Library/Presets/a.adv")
+    try FileManager.default.createDirectory(at: preset.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try Data(repeating: 1, count: 1_000).write(to: preset)
+    #expect(AudioSoftware.sounds(home: home, systemRoot: home).first { $0.name == "User Library" }?.maker == "Ableton · Yours")
+}
