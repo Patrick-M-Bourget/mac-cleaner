@@ -45,6 +45,8 @@ The names CacheDrop shows, what they mean, and where they live in code. Copy fol
 | deletion remnant | A file or folder renamed aside for deletion that remains after cleanup stops | `Candidate.isDeletionRemnant`, `Catalog.deletionRemnants` |
 | Files from deleted apps | Settings and data apps left behind (never "leftovers" on screen) | `RemovedAppLeftovers`, category `leftovers` |
 | Possibly related | Named like an app but not tied to it; ticked one by one | `AppUninstall.possiblyRelatedRuleID` |
+| Audio software | The category for audio apps' cleanable items (Ableton Live cache), and the Applications section of DAWs and apps, Plug-ins, Sounds and samples, and Drivers (Decision 151) | category `audio` |
+| DAWs and apps, Sounds and samples, Drivers, Other makers | Audio software's groups on Applications beside Plug-ins: audio apps by bundle ID; vendor and Apple sound libraries (read-only); audio and MIDI drivers; under Plug-ins, the last group, of products with no maker (Decision 151) | — |
 | plug-in product, vendor content | A plug-in and its formats; content shared by a vendor's products | `PlugInInventory`, `PlugInUninstall` |
 | local copies | iCloud files kept on this Mac; removing them keeps them in iCloud | `ICloudCopies`, action `evict` |
 | "X is open" | An app or tool is using an item, so it's skipped; **Quit X** may free it | `CandidateHold` |
