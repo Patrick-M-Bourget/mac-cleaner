@@ -68,7 +68,7 @@ extension BuiltInCatalog {
                      Guidance(place: .app(bundleID: "com.apple.dt.Xcode"), placeName: "Xcode")),
         // AU, VST, VST3 and CLAP in /Library and ~/Library, AAX in Avid's folder; listed by product (#174, Decision 42).
         guidanceRule("audio-plug-ins", "Audio plug-ins",
-                     detail: "Plug-ins you bought or installed. Remove them with the vendor’s uninstaller, and reinstall through the vendor.",
+                     detail: "Plug-ins you bought or installed. Uninstall them in Applications › Audio software, and reinstall through the vendor.",
                      locations: PlugInInventory.folders.map(\.location),
                      Guidance(sizing: .plugIns, place: .folder, placeName: "in Finder")),
         // Reason Studios installs Rack Extensions here: `Optional REs` holds Reason 13's additional devices (Reason Studios

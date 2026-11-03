@@ -143,21 +143,29 @@ import AppKit
     revealAndClick(link, in: app)
 }
 
-/// Opens Applications with ⌘4 and the sections named ("apps", "plug-ins"), which start closed and stay as left until CacheDrop
-/// quits (Decision 151), each behind its "Choose" (Decision 153). A section that lists nothing has no "Choose" to open.
+/// Opens Applications with ⌘4 and what's named: "apps" (Apps, and Audio software's DAWs and apps once it is open),
+/// "audio software", "plug-ins" (Audio software's plug-ins and each maker; it opens Audio software too). They start closed and
+/// stay as left until CacheDrop quits (Decision 151), each behind its "Choose" (Decision 153).
 @MainActor func openApplications(_ app: XCUIApplication, _ sections: [String] = []) {
     app.typeKey("4", modifierFlags: .command)
     openApplicationsSections(app, sections)
 }
-/// Opens each named section's "Choose <section> · N" when it is closed.
+/// Opens every closed "Choose <noun> · N" for the nouns named, outer ones first.
 @MainActor func openApplicationsSections(_ app: XCUIApplication, _ sections: [String]) {
-    for section in sections {
-        let choose = applicationsSection(app, section)
-        XCTAssertTrue(choose.waitForExistence(timeout: 60), "Applications lists its \(section)")
-        if choose.value as? Int != 1 { choose.click() }
+    let inside: Set<String> = ["plug-ins", "drivers"]
+    let wanted = Set(sections + (sections.contains(where: inside.contains) ? ["audio software"] : []))
+    for noun in ["audio software", "apps", "plug-ins", "drivers"] where wanted.contains(noun) {
+        XCTAssertTrue(applicationsSection(app, noun).waitForExistence(timeout: 60), "Applications lists its \(noun)")
+        // Opening one can show another of the same noun (a maker inside Plug-ins), so look again after each click.
+        for _ in 0..<20 {
+            let closed = app.disclosureTriangles.matching(NSPredicate(format: "label BEGINSWITH %@ AND value != 1", "Choose \(noun) · ")).firstMatch
+            // A row a click just opened can take a moment to show what is inside it.
+            guard closed.waitForExistence(timeout: 1) else { break }
+            revealAndClick(closed, in: app)
+        }
     }
 }
-/// A section's "Choose apps · N" or "Choose plug-ins · N" disclosure.
+/// The first "Choose apps · N" / "Choose plug-ins · N" / "Choose audio software · N" disclosure.
 @MainActor func applicationsSection(_ app: XCUIApplication, _ section: String) -> XCUIElement {
     app.disclosureTriangles.matching(NSPredicate(format: "label BEGINSWITH %@", "Choose \(section) · ")).firstMatch
 }
@@ -1728,8 +1736,9 @@ final class AppManagedStorageUITests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: catalog.path))
     }
 
-    /// #174: plug-ins are listed by product, with Reveal in Finder, and nothing is offered or changed.
-    @MainActor func testAudioPlugInsAreListedByProductAndLeftAsIs() throws {
+    /// #174, Decision 151: plug-ins are listed by product on Applications › Audio software, not in App-managed storage, whose
+    /// copy no longer sends people to the vendor's uninstaller (#701); nothing changes on disk.
+    @MainActor func testAudioPlugInsAreListedOnAudioSoftwareNotAppManagedStorage() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
         let state = try configureIsolatedState(app)
@@ -1746,21 +1755,20 @@ final class AppManagedStorageUITests: XCTestCase {
             bundles.append(bundle)
         }
         app.launch()
+        waitForCatalogScan(app)
 
-        let entry = app.buttons["overviewAppManaged"]
-        XCTAssertTrue(entry.waitForExistence(timeout: 10))
-        revealAndClick(entry, in: app)
-        let row = app.buttons["guidance-audio-plug-ins"]
-        XCTAssertTrue(row.waitForExistence(timeout: 10))
-        XCTAssertTrue((row.value as? String)?.contains("1 product · AU, VST3") == true, String(describing: row.value))
-        openDisclosure(app.disclosureTriangles.matching(NSPredicate(format: "label == 'Show products · 1'")).firstMatch, in: app)
-        // #207: the label says what the click does, and the line is short: the place is in the tooltip.
-        let product = app.links["Reveal Pro Synth in Finder"]
-        XCTAssertTrue(product.waitForExistence(timeout: 5))
-        XCTAssertTrue((product.value as? String)?.hasPrefix("2.1 · AU, VST3,") == true, String(describing: product.value))
-        revealAndClick(product, in: app)
-        XCTAssertTrue(app.staticTexts["guidanceStatus"].waitForExistence(timeout: 5))
-        XCTAssertEqual(app.staticTexts["guidanceStatus"].value as? String, "Test run: would reveal Pro Synth.")
+        // App-managed storage, when it lists anything at all, doesn't list plug-ins.
+        let appManaged = app.buttons["overviewAppManaged"]
+        if appManaged.waitForExistence(timeout: 10) {
+            revealAndClick(appManaged, in: app)
+            XCTAssertTrue(app.buttons["appManagedBack"].waitForExistence(timeout: 5))
+            XCTAssertFalse(app.buttons["guidance-audio-plug-ins"].waitForExistence(timeout: 3), "App-managed storage doesn't list plug-ins")
+            XCTAssertFalse(app.staticTexts.containing(NSPredicate(format: "label CONTAINS 'vendor’s uninstaller'")).firstMatch.exists)
+        }
+        openApplications(app, ["plug-ins"])
+        let product = app.descendants(matching: .any).matching(NSPredicate(format: "identifier == %@", "applicationsPlugIn-" + bundles[0].path)).firstMatch
+        XCTAssertTrue(product.waitForExistence(timeout: 10), "Audio software lists the product")
+        XCTAssertFalse(app.staticTexts.containing(NSPredicate(format: "label CONTAINS 'vendor’s uninstaller'")).firstMatch.exists)
         for bundle in bundles { XCTAssertTrue(FileManager.default.fileExists(atPath: bundle.appendingPathComponent("Contents/MacOS/Pro Synth").path)) }
     }
 }

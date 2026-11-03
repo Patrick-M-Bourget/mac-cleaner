@@ -14,6 +14,10 @@ public enum AudioSoftware {
         return (apps.filter { !isAudio($0) }, apps.filter(isAudio))
     }
 
+    /// The guidance rules Applications › Audio software lists instead of App-managed storage (Decision 151): plug-ins, Rack
+    /// Extensions and the sound libraries.
+    public static let guidanceRuleIDs: Set<String> = ["audio-plug-ins", "rack-extensions", "logic-sound-library", "ableton-packs", "splice-samples"]
+
     /// Where macOS loads audio (Core Audio HAL) and MIDI drivers from, under both the system root and the home.
     static let driverPlaces = ["Library/Audio/Plug-Ins/HAL", "Library/Audio/MIDI Drivers"]
 
@@ -31,5 +35,95 @@ public enum AudioSoftware {
                                   volume: nil, parts: [part], bundleID: bundleID)
         }
         return ApplicationsInventory.largestFirst(entries)
+    }
+
+    /// Plug-in products by maker (Decision 151): each maker once, ordered by `sort` (by size, the maker's products added up),
+    /// products with no maker last as Other makers (nil). Products keep the order they came in.
+    public static func byMaker(_ products: [InventoryEntry], sort: ListSort, bytes: (InventoryEntry) -> Int64)
+        -> [(maker: String?, products: [InventoryEntry])] {
+        var makers: [String] = [], groups: [String: [InventoryEntry]] = [:], others: [InventoryEntry] = []
+        for product in products {
+            guard let maker = product.maker else { others.append(product); continue }
+            if groups[maker] == nil { makers.append(maker) }
+            groups[maker, default: []].append(product)
+        }
+        let ordered = sort.ordered(makers, name: { $0 }, bytes: { groups[$0]!.reduce(0) { $0 + max(bytes($1), 0) } })
+        return ordered.map { (maker: Optional($0), products: groups[$0]!) } + (others.isEmpty ? [] : [(maker: nil, products: others)])
+    }
+
+    /// Reason 13's additional devices (Humana, Pangea, Klang, Radical Piano), one folder each, per user (Reason Studios Help,
+    /// "Installing Additional Content in Reason 13", help.reasonstudios.com/hc/en-us/articles/19526087405074). Reason Companion
+    /// installs them again at any time; Reason Studios' own Reason 12 article has users delete these folders by hand
+    /// (help.reasonstudios.com/hc/en-us/articles/4403131409170).
+    public static let optionalDevices = "Library/Application Support/Propellerhead Software/Optional REs"
+    /// Shop Rack Extensions: read-only, managed in Reason Companion. Where Reason keeps their licenses isn't documented, so
+    /// CacheDrop never offers them (#701).
+    public static let rackExtensions = "Library/Application Support/Propellerhead Software/RackExtensions"
+    /// What must be closed before a Reason device goes: Reason, and Reason Companion, which installs them. Companion's bundle
+    /// ID has no primary source yet (#704), so it is matched by its executable's name, as Cubase is.
+    public static let reasonHosts: [RuleOwner] = PlugInUninstall.hosts.filter { $0.name == "Reason" }
+        + [RuleOwner(name: "Reason Companion", executables: ["Reason Companion"])]
+
+    /// Reason's additional devices, largest first, each a row of its own.
+    public static func optionalDevices(home: URL, sizer: KnownLocationSizer = KnownLocationSizer()) -> [InventoryEntry] {
+        let folder = home.appendingPathComponent(optionalDevices)
+        let names = ((try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []).filter { !$0.hasPrefix(".") }
+        let entries = names.compactMap { name -> InventoryEntry? in
+            let url = folder.appendingPathComponent(name).standardizedFileURL
+            var info = stat()
+            guard lstat(url.path, &info) == 0, info.st_mode & S_IFMT == S_IFDIR else { return nil }
+            let part = InventoryEntry.Part(name: name, url: url, size: Catalog.estimate(sizer.size(url)), removable: Removability.canMoveToTrash(url))
+            return InventoryEntry(id: url.path, name: name, maker: "Reason Studios", volume: nil, parts: [part])
+        }
+        return ApplicationsInventory.largestFirst(entries)
+    }
+
+    /// The items that uninstall `entries` (drivers, Reason devices): each one the user can move to the Trash, as an app is
+    /// (Decision 50), its own row's item; `hosts` must be closed first. Nothing for one that needs a password.
+    public static func uninstallItems(_ entries: [InventoryEntry], hosts: [RuleOwner], exclusions: ProtectedItemsPolicy = ProtectedItemsPolicy(),
+                                      sizer: KnownLocationSizer = KnownLocationSizer()) -> [Candidate] {
+        let catalog = Catalog(rules: AppUninstall.rules)
+        return entries.compactMap { entry -> Candidate? in
+            // Never license files or macOS's own (Decision 41), checked at the scan as at the click.
+            guard entry.parts.count == 1, let url = entry.parts.first?.url, Removability.canMoveToTrash(url),
+                  RemovedAppLeftovers.neverOfferedPart(of: url, below: url.deletingLastPathComponent()) == nil else { return nil }
+            var info = stat()
+            // A protected item is never offered (SPEC section 2).
+            guard lstat(url.path, &info) == 0, let volume = try? url.resourceValues(forKeys: [.volumeUUIDStringKey]).volumeUUIDString,
+                  !exclusions.covers(url, volumeID: volume) else { return nil }
+            let size = sizer.size(url)
+            var item = catalog.candidate(AppUninstall.appRule, url, info, logical: size.logicalBytes, allocated: size.allocatedBytes, complete: size.complete, lastUsed: nil)
+                .found(under: url.deletingLastPathComponent())
+            var target = AppUninstall.Target(name: entry.name, bundleID: entry.bundleID ?? "", path: entry.id)
+            if !hosts.isEmpty { target.plugIn = AppUninstall.Target.PlugIn(hosts: hosts) }
+            item.uninstall = target
+            return item
+        }
+    }
+
+    /// Splice's default sounds folder (Splice Support, "Where is my Splice folder?"), as the Splice guidance reads it.
+    static let spliceSounds = "Splice"
+
+    /// Sounds and samples (Decision 151): the vendor libraries `MusicContent` knows, Splice's sounds and the shop Rack Extensions,
+    /// largest first, each with who it is from; read-only (#705 decides removing them). One on a drive that isn't connected
+    /// names that drive and has no size.
+    public static func sounds(home: URL, systemRoot: URL = URL(fileURLWithPath: "/"), sizer: KnownLocationSizer = KnownLocationSizer()) -> [InventoryEntry] {
+        let content = MusicContent.scan(owners: [], home: home, systemRoot: systemRoot, sizer: sizer).items.map { item -> InventoryEntry in
+            let (size, volume): (SizeEstimate, String?) = switch item.state {
+            case .present(let size): (size, nil)
+            case .offline(let drive): (.unknown, drive)
+            }
+            // The user's own content (Ableton's User Library, their Apple Loops) is labelled as theirs (Decision 151).
+            let from = item.vendors.joined(separator: ", ") + (item.kind == .yours ? " · Yours" : "")
+            return InventoryEntry(id: item.url.path, name: item.name, maker: from, volume: volume,
+                                  parts: [.init(name: item.name, url: item.url, size: size, removable: false)])
+        }
+        let others = [("Splice sounds", "Splice", spliceSounds), ("Rack Extensions", "Reason Studios", rackExtensions)].compactMap { name, maker, path -> InventoryEntry? in
+            let url = home.appendingPathComponent(path).standardizedFileURL
+            guard FileManager.default.fileExists(atPath: url.path) else { return nil }
+            return InventoryEntry(id: url.path, name: name, maker: maker, volume: nil,
+                                  parts: [.init(name: name, url: url, size: Catalog.estimate(sizer.size(url)), removable: false)])
+        }
+        return ApplicationsInventory.largestFirst(content + others)
     }
 }

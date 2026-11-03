@@ -89,7 +89,7 @@ final class ApplicationsUITests: XCTestCase {
         // Plug-ins: one row per product, its formats as items to tick (#176).
         // A product's identifier carries its first file's path.
         let product = element(app, "applicationsPlugIn-" + home.appendingPathComponent("Library/Audio/Plug-Ins/Components/Pro Synth.component").path)
-        XCTAssertTrue(product.exists)
+        XCTAssertTrue(product.waitForExistence(timeout: 5), "Under Other makers: it has no maker")
         XCTAssertTrue(app.disclosureTriangles.matching(NSPredicate(format: "label == 'Choose items · 2'")).firstMatch.exists, "AU and VST3")
 
         app.typeKey("3", modifierFlags: .command)
@@ -139,6 +139,87 @@ final class ApplicationsUITests: XCTestCase {
         app.typeKey("1", modifierFlags: .command); app.typeKey("4", modifierFlags: .command)
         XCTAssertTrue(apps.waitForExistence(timeout: 5))
         XCTAssertNotEqual(apps.value as? Int, 1, "It stays as it was left")
+    }
+
+    /// Decision 151: a DAW leaves Apps for Audio software; plug-ins group by maker, and a maker with one product shows it directly.
+    @MainActor func testAudioSoftwareHoldsDAWsAndPlugInsGroupedByMaker() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        let live = try addApp("Ableton Live 12 Suite", id: "com.ableton.live", bytes: 400_000, in: home)
+        let zed = try addApp("Zed Tool", id: "com.third.zed", bytes: 300_000, in: home)
+        // Audio Units are named "Maker: Name", which is where a plug-in's maker comes from.
+        for (name, id, maker) in [("Alpha", "com.maker.alpha", "Maker Audio Inc"), ("Beta", "com.maker.beta", "Maker Audio Inc"), ("Solo", "com.solo.solo", "Solo Sounds")] {
+            let bundle = home.appendingPathComponent("Library/Audio/Plug-Ins/Components/\(name).component")
+            try FileManager.default.createDirectory(at: bundle.appendingPathComponent("Contents"), withIntermediateDirectories: true)
+            let info: [String: Any] = ["CFBundleIdentifier": id,
+                                       "AudioComponents": [["name": "\(maker): \(name)", "manufacturer": "Mkr\(name.prefix(1))", "type": "aufx", "subtype": "test"]]]
+            try PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0).write(to: bundle.appendingPathComponent("Contents/Info.plist"))
+        }
+        app.launch()
+        waitForCatalogScan(app)
+        openApplications(app, ["apps"])
+
+        XCTAssertEqual(applicationsSection(app, "apps").label, "Choose apps · 1", "Apps keeps only Zed Tool")
+        XCTAssertTrue(element(app, "applicationsApp-" + zed.path).waitForExistence(timeout: 10))
+        XCTAssertFalse(element(app, "applicationsApp-" + live.path).exists, "The DAW isn't under Apps")
+
+        let audio = applicationsSection(app, "audio software")
+        XCTAssertEqual(audio.label, "Choose audio software · 4", "One DAW and three plug-ins")
+        XCTAssertFalse(app.checkBoxes["applicationsSection-audio"].exists, "A section is never ticked whole")
+        // A search opens the section, the group and the maker its match is in.
+        let beta = element(app, "applicationsPlugIn-" + home.appendingPathComponent("Library/Audio/Plug-Ins/Components/Beta.component").path)
+        let search = app.textFields["applicationsSearch"]
+        search.click(); search.typeText("beta")
+        XCTAssertTrue(beta.waitForExistence(timeout: 5), "Audio software, Plug-ins and Maker Audio Inc open for the match")
+        search.typeKey("a", modifierFlags: .command); search.typeKey(.delete, modifierFlags: [])
+
+        openApplicationsSections(app, ["audio software", "apps", "plug-ins"])
+        XCTAssertTrue(element(app, "applicationsApp-" + live.path).waitForExistence(timeout: 5), "DAWs and apps lists it")
+        XCTAssertTrue(element(app, "applicationsGroup-maker:Maker Audio Inc").waitForExistence(timeout: 5), "Two products of one maker make a group")
+        XCTAssertFalse(element(app, "applicationsGroup-maker:Solo Sounds").exists, "A maker with one product shows it directly")
+        let solo = element(app, "applicationsPlugIn-" + home.appendingPathComponent("Library/Audio/Plug-Ins/Components/Solo.component").path)
+        XCTAssertTrue(solo.waitForExistence(timeout: 5), "Solo is listed on its own")
+    }
+
+    /// Decision 154: sounds and samples are read-only behind "Show sounds"; a driver the user can move and a Reason device have
+    /// checkboxes, nothing ticked.
+    @MainActor func testAudioSoftwareShowsSoundsAndOffersDriversAndReasonDevices() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        func write(_ relative: String, bytes: Int = 20_000) throws {
+            let file = home.appendingPathComponent(relative)
+            try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data(repeating: 1, count: bytes).write(to: file)
+        }
+        try write("Splice/sounds/kick.wav")
+        try write("Library/Application Support/Propellerhead Software/Optional REs/Pangea/data.bin", bytes: 60_000)
+        let driver = home.appendingPathComponent("Library/Audio/Plug-Ins/HAL/Loopback.driver")
+        try FileManager.default.createDirectory(at: driver.appendingPathComponent("Contents"), withIntermediateDirectories: true)
+        try PropertyListSerialization.data(fromPropertyList: ["CFBundleIdentifier": "com.loop.back"], format: .xml, options: 0)
+            .write(to: driver.appendingPathComponent("Contents/Info.plist"))
+        app.launch()
+        waitForCatalogScan(app)
+        openApplications(app, ["audio software"])
+
+        let sounds = app.disclosureTriangles.matching(NSPredicate(format: "label == 'Show sounds · 1'")).firstMatch
+        XCTAssertTrue(sounds.waitForExistence(timeout: 10), "Read-only: Show, not Choose")
+        revealAndClick(sounds, in: app)
+        XCTAssertTrue(app.links.matching(NSPredicate(format: "identifier == %@", "applicationsSoundReveal-" + home.appendingPathComponent("Splice").path)).firstMatch
+            .waitForExistence(timeout: 5), "Splice sounds, with Reveal in Finder")
+        openApplicationsSections(app, ["drivers", "plug-ins"])
+        let driverBox = app.descendants(matching: .checkBox).matching(NSPredicate(format: "identifier == %@", "applicationsDriver-" + driver.path)).firstMatch
+        XCTAssertTrue(driverBox.waitForExistence(timeout: 5), "A driver the user can move has a checkbox")
+        XCTAssertEqual(driverBox.value as? Int, 0, "Never pre-ticked")
+        let pangea = home.appendingPathComponent("Library/Application Support/Propellerhead Software/Optional REs/Pangea").path
+        let device = app.descendants(matching: .checkBox).matching(NSPredicate(format: "identifier == %@", "applicationsPlugIn-" + pangea)).firstMatch
+        XCTAssertTrue(device.waitForExistence(timeout: 5), "Reason's device can go to the Trash")
+        XCTAssertEqual(device.value as? Int, 0)
     }
 
     /// #295, #352: one sortable column header (Name or Size, either way round) and one search order and filter every section;
@@ -593,7 +674,7 @@ final class ApplicationsUITests: XCTestCase {
         let staying = element(app, "reviewStaying-" + au.path + "-password", .staticText)
         XCTAssertTrue(staying.waitForExistence(timeout: 5))
         let line = reviewLine(app, "movedToTrash", "apps").value as? String ?? ""
-        XCTAssertTrue(line.hasPrefix("Apps, plug-ins and their files"), "The review names plug-ins too: " + line)
+        XCTAssertTrue(line.hasPrefix("Apps, audio software and their files"), "The review names audio software too: " + line)
         XCTAssertEqual(staying.value as? String, "Pro Synth: 1 file needs your password to remove, so it stays. Remove it in Finder if you want it gone.",
                        "The review says what stays, why and what to do (#354)")
         XCTAssertTrue(element(app, "reviewStayingLink-" + au.path + "-password", .link).exists, "With Reveal in Finder (#354)")
@@ -620,7 +701,7 @@ final class ApplicationsUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["applicationsLoading-apps"].waitForExistence(timeout: 5), "Apps say they are loading")
         XCTAssertTrue(app.descendants(matching: .any)["applicationsLoading-leftovers"].exists)
         XCTAssertTrue(app.descendants(matching: .any)["applicationsSummary"].exists, "While the lists load, the summary waits with them")
-        for section in ["apps", "plugIns", "leftovers"] {
+        for section in ["apps", "audio", "leftovers"] {
             XCTAssertTrue(app.descendants(matching: .any)["applicationsEmpty-" + section].waitForExistence(timeout: 120), "\(section) says nothing was found")
         }
         XCTAssertFalse(app.descendants(matching: .any)["applicationsLoading-apps"].exists)
