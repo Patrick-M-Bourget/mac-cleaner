@@ -97,7 +97,7 @@ final class LaunchSmokeUITests: XCTestCase {
         let state = try configureIsolatedState(app)
         defer { app.terminate(); try? FileManager.default.removeItem(at: state) }
         app.launch()
-        XCTAssertTrue(app.staticTexts["overviewTitle"].waitForExistence(timeout: 10))
+        waitForOverview(app)
         XCTAssertTrue(app.buttons["Cleanup plan"].exists || app.staticTexts["Cleanup plan"].exists)
         XCTAssertTrue(app.staticTexts["Storage trends"].exists || app.buttons["Storage trends"].exists, "Storage trends is in the sidebar (#119, #127)")
         XCTAssertFalse(app.staticTexts["Storage alerts"].exists)
@@ -119,7 +119,7 @@ final class LaunchSmokeUITests: XCTestCase {
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
         app.launch()
         let workspace = app.windows["CacheDrop"]
-        XCTAssertTrue(workspace.staticTexts["overviewTitle"].waitForExistence(timeout: 10))
+        waitForOverview(app)
         func openGallery() {
             let debug = app.menuBars.menuBarItems["Debug"]
             debug.click()
@@ -157,7 +157,7 @@ final class LaunchSmokeUITests: XCTestCase {
         let state = try configureIsolatedState(app)
         defer { app.terminate(); try? FileManager.default.removeItem(at: state) }
         app.launch()
-        XCTAssertTrue(app.staticTexts["overviewTitle"].waitForExistence(timeout: 10))
+        waitForOverview(app)
         // The sidebar header already names CacheDrop, so the panel shows up as one more name and one more image.
         let names = app.staticTexts.matching(NSPredicate(format: "value == 'CacheDrop' OR label == 'CacheDrop'"))
         let namesBefore = names.count, imagesBefore = app.images.count
@@ -177,7 +177,7 @@ final class LaunchSmokeUITests: XCTestCase {
         let state = try configureIsolatedState(app)
         defer { app.terminate(); try? FileManager.default.removeItem(at: state) }
         app.launch()
-        XCTAssertTrue(app.staticTexts["overviewTitle"].waitForExistence(timeout: 10))
+        waitForOverview(app)
         let item = app.statusItems.firstMatch
         XCTAssertTrue(item.waitForExistence(timeout: 10))
         XCTAssertTrue(NSPredicate(format: "SELF MATCHES %@", "^[0-9.,]+ (GB|TB) free$").evaluate(with: item.title), "Got \(item.title)")
@@ -200,6 +200,21 @@ final class LaunchSmokeUITests: XCTestCase {
         XCTAssertFalse(app.descendants(matching: .any)["weeklyReminderStatus"].exists)
         // #600: weekly update checks are on by default.
         XCTAssertEqual(app.descendants(matching: .any)["automaticUpdateChecksToggle"].value as? Int, 1, "Automatic update checks are on by default")
+        // #690: its note is a sentence, as the other Settings notes are.
+        XCTAssertTrue(app.staticTexts["CacheDrop checks once a week. Nothing is downloaded or installed until you choose."].exists)
+        // #689 (Decision 156): Settings opens with no field focused; the License key field takes focus when clicked,
+        // and opening Settings again clears it.
+        let licenseKey = app.textFields["licenseKeyField"]
+        XCTAssertTrue(licenseKey.exists)
+        let focused = { licenseKey.value(forKey: "hasKeyboardFocus") as? Bool ?? false }
+        XCTAssertFalse(focused(), "Settings opens with no field focused")
+        licenseKey.click()
+        XCTAssertTrue(focused(), "Clicking the License key field focuses it")
+        app.typeKey("w", modifierFlags: .command)
+        XCTAssertTrue(alerts.waitForNonExistence(timeout: 5), "Settings closed")
+        app.typeKey(",", modifierFlags: .command)
+        XCTAssertTrue(licenseKey.waitForExistence(timeout: 5))
+        XCTAssertFalse(focused(), "Settings opens again with no field focused")
     }
 
     /// A relaunch after a previous session must still open the main window, whatever state macOS saved.
@@ -209,11 +224,11 @@ final class LaunchSmokeUITests: XCTestCase {
         let state = try configureIsolatedState(app)
         defer { app.terminate(); try? FileManager.default.removeItem(at: state) }
         app.launch()
-        XCTAssertTrue(app.staticTexts["overviewTitle"].waitForExistence(timeout: 10))
+        waitForOverview(app)
         app.terminate()
         app.launch()
         XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts["overviewTitle"].waitForExistence(timeout: 10))
+        waitForOverview(app)
     }
 
     /// #527: folder settings and optional system access have separate destinations and shortcuts.
@@ -297,7 +312,7 @@ final class LaunchSmokeUITests: XCTestCase {
             try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: safari.path); try? FileManager.default.removeItem(at: home)
         }
         app.launch()
-        XCTAssertTrue(app.staticTexts["overviewTitle"].waitForExistence(timeout: 10))
+        waitForOverview(app)
         XCTAssertFalse(app.sheets.firstMatch.exists, "Nothing asks for access at launch")
 
         app.typeKey("9", modifierFlags: .command)
@@ -386,7 +401,7 @@ final class StorageTrendsUITests: XCTestCase {
         let home = try configureCatalogHome(app)
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
         app.launch()
-        XCTAssertTrue(app.staticTexts["overviewTitle"].waitForExistence(timeout: 10))
+        waitForOverview(app)
 
         app.buttons["Storage trends"].click()
         XCTAssertTrue(app.staticTexts["No trends yet"].waitForExistence(timeout: 15))
@@ -407,7 +422,7 @@ final class StorageTrendsUITests: XCTestCase {
         try grow("ef")
         app.launchEnvironment["CACHEDROP_TEST_TRENDS_BASELINE_AGE"] = "0"
         app.launch()
-        XCTAssertTrue(app.staticTexts["overviewTitle"].waitForExistence(timeout: 10))
+        waitForOverview(app)
         app.buttons["Storage trends"].click()
         XCTAssertTrue(app.staticTexts["growthNetChange"].waitForExistence(timeout: 15))
         // Each change row reads as one element: its title, the rules that grew and the change.
@@ -488,7 +503,7 @@ final class BackButtonUITests: XCTestCase {
         let home = try configureCatalogHome(app)
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
         app.launch()
-        XCTAssertTrue(app.staticTexts["overviewTitle"].waitForExistence(timeout: 10))
+        waitForOverview(app)
 
         app.typeKey("8", modifierFlags: .command)
         let manage = app.descendants(matching: .any)["manageLocalRecords"]
@@ -512,7 +527,7 @@ final class ProtectedItemsUITests: XCTestCase {
         let home = try configureCatalogHome(app)
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
         app.launch()
-        XCTAssertTrue(app.staticTexts["overviewTitle"].waitForExistence(timeout: 10))
+        waitForOverview(app)
 
         app.typeKey("8", modifierFlags: .command)
         let open = app.descendants(matching: .any)["openProtectedItems"]
@@ -534,7 +549,7 @@ final class ProtectedItemsUITests: XCTestCase {
         let home = try configureCatalogHome(app)
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
         app.launch()
-        XCTAssertTrue(app.staticTexts["overviewTitle"].waitForExistence(timeout: 10))
+        waitForOverview(app)
         waitForCatalogScan(app)
         let developer = app.descendants(matching: .any)["overviewCategory-developer"]
         XCTAssertTrue(developer.waitForExistence(timeout: 10))
@@ -571,8 +586,7 @@ final class ScrollPositionUITests: XCTestCase {
         _ = try addDeveloperCaches(home, folders: ["Library/Caches/Yarn", "Library/Caches/pip", ".gradle/caches", "Library/Caches/CocoaPods"])
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
         app.launch()
-        let title = app.staticTexts["overviewTitle"]
-        XCTAssertTrue(title.waitForExistence(timeout: 10))
+        let title = waitForOverview(app)
         waitForCatalogScan(app)
         let top = title.frame.minY
         app.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: -300)
@@ -596,7 +610,7 @@ final class AppearanceSettingsUITests: XCTestCase {
         let state = try configureIsolatedState(app)
         defer { app.terminate(); try? FileManager.default.removeItem(at: state) }
         app.launch()
-        XCTAssertTrue(app.staticTexts["overviewTitle"].waitForExistence(timeout: 10))
+        waitForOverview(app)
         XCTAssertFalse(app.popUpButtons["Appearance"].exists, "No appearance picker in the toolbar")
         app.typeKey(",", modifierFlags: .command)
         let picker = app.popUpButtons["Appearance"]
@@ -614,7 +628,7 @@ final class AppearanceSettingsUITests: XCTestCase {
         app.launchEnvironment["CACHEDROP_TEST_LICENSE_PUBLIC_KEY"] = "281edbf56bcb31e08ce7365ddfc3c2b7e48543b62e182a97f68c5dbd359100ea"
         let vector = "CD1-AFPQYKUOHMOUY342PYWUXDA6N4YACA2RCZNANLQOLOVBPE7YY2TQLLQHQYCN2NRSAPS25JC6ZXJASXVXWQY6FRAPPNOSR6XEHBQHV2WWO7ZYV6VXQL3AAIERS5UY3GQNOF2UIWIJ"
         app.launch()
-        XCTAssertTrue(app.staticTexts["overviewTitle"].waitForExistence(timeout: 10))
+        waitForOverview(app)
         app.typeKey(",", modifierFlags: .command)
         let status = app.staticTexts["licenseState"], field = app.textFields["licenseKeyField"], activate = app.links["licenseActivate"]
         func text(_ element: XCUIElement) -> String { element.value as? String ?? element.label }
@@ -655,7 +669,7 @@ final class KeyboardShortcutsUITests: XCTestCase {
         app.launchEnvironment["CACHEDROP_TEST_TRENDS_BASELINE_AGE"] = "0"
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
         app.launch()
-        XCTAssertTrue(app.staticTexts["overviewTitle"].waitForExistence(timeout: 10))
+        waitForOverview(app)
 
         let sidebar = ["Overview", "Smart clean", "Cleanup plan", "Applications", "History", "Explore storage", "Storage trends", "Locations", "System access"]
         let rows = sidebar.map { app.buttons.matching(identifier: $0).firstMatch.frame.minY }
@@ -697,7 +711,7 @@ final class ScanAgainUITests: XCTestCase {
         app.launchEnvironment["CACHEDROP_TEST_DISCOVERY_PAUSE"] = "0.3"
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
         app.launch()
-        XCTAssertTrue(app.staticTexts["overviewTitle"].waitForExistence(timeout: 10))
+        waitForOverview(app)
         let button = app.buttons["overviewScanAgain"], command = app.menuBars.menuBarItems["View"].menuItems["Scan again"]
         // #311: Overview's Scan again sits in the bottom bar, as on Storage trends.
         XCTAssertTrue(button.waitForExistence(timeout: 5))
@@ -887,7 +901,7 @@ final class MoveToApplicationsUITests: XCTestCase {
             app.terminate()
             app.launchEnvironment["CACHEDROP_TEST_APP_LOCATION"] = location
             app.launch()
-            XCTAssertTrue(app.staticTexts["overviewTitle"].waitForExistence(timeout: 10))
+            waitForOverview(app)
             XCTAssertFalse(app.staticTexts[title].exists, "Not asked from \(location)")
         }
     }
@@ -963,7 +977,7 @@ final class ScannedLocationsUITests: XCTestCase {
                                                                "kind": "inspection", "bookmark": Data("stale".utf8).base64EncodedString()]]]
         try JSONSerialization.data(withJSONObject: record).write(to: scopes.appendingPathComponent("scopes-v1.json"))
         app.launch()
-        XCTAssertTrue(app.staticTexts["overviewTitle"].waitForExistence(timeout: 10))
+        waitForOverview(app)
 
         XCTAssertTrue(FileManager.default.fileExists(atPath: folder.path), "Present but unreadable, not deleted")
         // One message for one problem: the row names the folder and the reason, and carries the fix.
@@ -1000,7 +1014,7 @@ final class ScannedLocationsUITests: XCTestCase {
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         try Data(repeating: 1, count: 4_000).write(to: folder.appendingPathComponent("entry.zip"))
         app.launch()
-        XCTAssertTrue(app.staticTexts["overviewTitle"].waitForExistence(timeout: 10))
+        waitForOverview(app)
         chooseFolderToScan(app)
         let panel = app.sheets.firstMatch.exists ? app.sheets.firstMatch : app.dialogs.firstMatch
         XCTAssertTrue(panel.waitForExistence(timeout: 5))
@@ -1037,7 +1051,7 @@ final class ScannedLocationsUITests: XCTestCase {
         try Data(repeating: 1, count: 4_000).write(to: folder.appendingPathComponent("entry.zip"))
         try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: locked.path)
         app.launch()
-        XCTAssertTrue(app.staticTexts["overviewTitle"].waitForExistence(timeout: 10))
+        waitForOverview(app)
         // Downloads is built in (#342): listed and scanned with no picking, and says so.
         let downloads = element(identifier: "overviewLocation:" + home.appendingPathComponent("Downloads").path, in: app)
         XCTAssertTrue(downloads.waitForExistence(timeout: 20))
@@ -1092,7 +1106,7 @@ final class ScannedLocationsUITests: XCTestCase {
             ["id": UUID().uuidString, "path": work.path, "isIncluded": true, "kind": "inspection", "bookmark": stale]]]
         try JSONSerialization.data(withJSONObject: record).write(to: scopes.appendingPathComponent("scopes-v1.json"))
         app.launch()
-        XCTAssertTrue(app.staticTexts["overviewTitle"].waitForExistence(timeout: 10))
+        waitForOverview(app)
 
         let rows = app.staticTexts.matching(identifier: "overviewLocationRecovery")
         XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 15))
@@ -1142,7 +1156,7 @@ final class RecoveryReviewUITests: XCTestCase {
         defer { app.terminate() }
         app.launch()
 
-        XCTAssertTrue(app.staticTexts["overviewTitle"].waitForExistence(timeout: 10), "Launch opens on Overview, never on Recovery")
+        waitForOverview(app) // Launch opens on Overview, never on Recovery.
         let review = app.buttons["Review interrupted cleanup"]
         XCTAssertTrue(review.waitForExistence(timeout: 10), "Overview shows the interrupted cleanup banner")
         review.click()
@@ -1186,7 +1200,7 @@ final class ManualUpdateUITests: XCTestCase {
         app.launchEnvironment["CACHEDROP_TEST_CLEANUP_PAUSE"] = "5"
         app.launchEnvironment["CACHEDROP_TEST_UPDATE_WORK"] = "actual"
         app.launch()
-        XCTAssertTrue(app.staticTexts["overviewTitle"].waitForExistence(timeout: 10))
+        waitForOverview(app)
         waitForCatalogScan(app)
         app.typeKey("2", modifierFlags: .command)
         app.buttons["smartCleanCleanUp"].click()
@@ -1216,7 +1230,7 @@ final class ManualUpdateUITests: XCTestCase {
         app.terminate()
         app.launchEnvironment.removeValue(forKey: "CACHEDROP_TEST_UPDATE_WORK")
         app.launch()
-        XCTAssertTrue(app.staticTexts["overviewTitle"].waitForExistence(timeout: 10))
+        waitForOverview(app)
         app.typeKey("5", modifierFlags: .command)
         let run = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH 'cleanupRun:'")).firstMatch
         XCTAssertTrue(run.waitForExistence(timeout: 10))
@@ -1232,7 +1246,7 @@ final class ManualUpdateUITests: XCTestCase {
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
         app.launchEnvironment["CACHEDROP_TEST_UPDATE_WORK"] = "cleanup"
         app.launch()
-        XCTAssertTrue(app.staticTexts["overviewTitle"].waitForExistence(timeout: 10))
+        waitForOverview(app)
         app.typeKey(",", modifierFlags: .command)
         let settings = app.links["checkForUpdatesSettings"]
         XCTAssertTrue(settings.waitForExistence(timeout: 5))
@@ -1258,7 +1272,7 @@ final class ManualUpdateUITests: XCTestCase {
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
         app.launchEnvironment["CACHEDROP_TEST_UPDATE_WORK"] = "maintenance"
         app.launch()
-        XCTAssertTrue(app.staticTexts["overviewTitle"].waitForExistence(timeout: 10))
+        waitForOverview(app)
         app.menuBars.menuBarItems["CacheDrop"].click()
         app.menuItems["Check for Updates…"].click()
         let waiting = app.dialogs["CacheDrop Update"]
@@ -1289,7 +1303,7 @@ extension RecoveryReviewUITests {
         try journal.outcome(completed)
         app.launchEnvironment["CACHEDROP_TEST_UPDATE_WORK"] = "admission"
         app.launch()
-        XCTAssertTrue(app.staticTexts["overviewTitle"].waitForExistence(timeout: 10))
+        waitForOverview(app)
         waitForCatalogScan(app)
         func assertBlockedDuringUpdate(_ controls: [XCUIElement]) {
             for control in controls { XCTAssertTrue(control.waitForExistence(timeout: 5)); XCTAssertTrue(control.isEnabled) }

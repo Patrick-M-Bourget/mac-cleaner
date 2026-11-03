@@ -32,4 +32,18 @@ public enum AudioSoftware {
         }
         return ApplicationsInventory.largestFirst(entries)
     }
+
+    /// Plug-in products by maker (Decision 151): each maker once, ordered by `sort` (by size, the maker's products added up),
+    /// products with no maker last as Other makers (nil). Products keep the order they came in.
+    public static func byMaker(_ products: [InventoryEntry], sort: ListSort, bytes: (InventoryEntry) -> Int64)
+        -> [(maker: String?, products: [InventoryEntry])] {
+        var makers: [String] = [], groups: [String: [InventoryEntry]] = [:], others: [InventoryEntry] = []
+        for product in products {
+            guard let maker = product.maker else { others.append(product); continue }
+            if groups[maker] == nil { makers.append(maker) }
+            groups[maker, default: []].append(product)
+        }
+        let ordered = sort.ordered(makers, name: { $0 }, bytes: { groups[$0]!.reduce(0) { $0 + max(bytes($1), 0) } })
+        return ordered.map { (maker: Optional($0), products: groups[$0]!) } + (others.isEmpty ? [] : [(maker: nil, products: others)])
+    }
 }
