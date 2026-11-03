@@ -27,11 +27,23 @@ struct CatalogConfirmationSection: View {
     var quit: ((ReviewHeldItems.Line) -> StatusAction?)? = nil
     var body: some View {
         let held = held ?? ReviewHeldItems(candidates: review.approval.candidates, refusals: review.refusals, catalog: catalog, isOpen: { _ in false })
+        let groups = ReviewGroup.groups(catalog: catalog, candidates: review.approval.candidates, skipped: Set(held.refusals.keys))
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
             if review.approval.dryRun {
                 StatusRow(text: "Dry run is on. Nothing on disk changes.", symbol: "eye", role: .neutral, identifier: "reviewPreviewNotice")
             }
-            ForEach(ReviewGroup.groups(catalog: catalog, candidates: review.approval.candidates, skipped: Set(held.refusals.keys))) { group in
+            // One line per holder above the groups, covering its rows in every group, its skipped size once on it (#560, #564;
+            // Decisions 125, 162).
+            let skipped = held.lines(in: groups)
+            if !skipped.isEmpty {
+                VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
+                    ForEach(skipped) { line in
+                        StatusRow(text: skippedText(line), symbol: "exclamationmark.circle", role: .caution,
+                                  identifier: "reviewSkipped-" + line.items[0].ruleID, action: quit?(line))
+                    }
+                }
+            }
+            ForEach(groups) { group in
                 VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
                     HStack(spacing: CacheDropDesign.Space.md) {
                         group.consequence.badge
@@ -51,11 +63,6 @@ struct CatalogConfirmationSection: View {
                                 Spacer()
                                 if !line.cleansNothing { Text(line.estimate.text(upperBound: line.isUpperBound)).monospacedDigit() }
                             }.font(CacheDropDesign.TypeStyle.note).accessibilityElement(children: .combine).accessibilityIdentifier("reviewLine-\(group.consequence)-\(line.id)")
-                        }
-                        // One line per holder, its skipped size once on it (#560, Decision 125).
-                        ForEach(held.lines(in: group.candidates)) { line in
-                            StatusRow(text: skippedText(line), symbol: "exclamationmark.circle", role: .caution,
-                                      identifier: "reviewSkipped-" + line.items[0].ruleID, action: quit?(line))
                         }
                         ActionDisclosureGroup(CacheDropDesign.items(group.candidates.count) + " · Show files") {
                             VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {

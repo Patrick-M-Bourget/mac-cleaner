@@ -2520,6 +2520,86 @@ extension CatalogCleanupUITests {
         app.buttons["Cancel"].click()
     }
 
+    /// #564, Decision 162: one app holds items in two consequence groups, an unused Android system image (Delete permanently)
+    /// and a virtual device (Move to Trash). The review shows one line for it, above the groups, with one Quit link. Android's
+    /// real rules, with an Android Studio stand-in (a copy of `sleep` named `emulator` in the fixture home's bundle, prepared by
+    /// the DEBUG app) that the journey starts after the scan. A dry run, so nothing is removed.
+    @MainActor func testAnAppHoldingItemsInTwoGroupsGetsOneReviewLineAboveThem() throws {
+        continueAfterFailure = false
+        try XCTSkipIf(!NSRunningApplication.runningApplications(withBundleIdentifier: "com.google.android.studio").isEmpty,
+                      "Android Studio is open on this Mac, so the scan holds its items before the stand-in starts")
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        turnOnDryRun(app)
+        let studio = Process()
+        // The stand-in is stopped whatever happens, before its home is removed.
+        defer {
+            if studio.isRunning { studio.terminate(); studio.waitUntilExit() }
+            app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home)
+        }
+        // A virtual device using one system image, and another image no device uses, which is the one offered.
+        let avd = home.appendingPathComponent(".android/avd")
+        try FileManager.default.createDirectory(at: avd.appendingPathComponent("Pixel.avd"), withIntermediateDirectories: true)
+        try Data(repeating: 6, count: 200_000).write(to: avd.appendingPathComponent("Pixel.avd/userdata-qemu.img"))
+        try "avd.ini.displayname=Pixel\nimage.sysdir.1=system-images/android-34/google_apis/arm64-v8a/\n"
+            .write(to: avd.appendingPathComponent("Pixel.avd/config.ini"), atomically: true, encoding: .utf8)
+        try "avd.ini.encoding=UTF-8\npath=\(avd.path)/Pixel.avd\npath.rel=avd/Pixel.avd\ntarget=android-34\n"
+            .write(to: avd.appendingPathComponent("Pixel.ini"), atomically: true, encoding: .utf8)
+        let image = home.appendingPathComponent("Library/Android/sdk/system-images/android-30/default/x86_64/system.img")
+        try FileManager.default.createDirectory(at: image.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data(repeating: 7, count: 300_000).write(to: image)
+        let bundle = home.appendingPathComponent("Applications/Android Studio.app")
+        let executable = bundle.appendingPathComponent("Contents/MacOS/emulator")
+        try FileManager.default.createDirectory(at: executable.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let info: [String: Any] = ["CFBundleIdentifier": "com.google.android.studio", "CFBundleExecutable": "emulator"]
+        try PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0).write(to: bundle.appendingPathComponent("Contents/Info.plist"))
+        try Data(repeating: 1, count: 1).write(to: executable)
+        // The unsandboxed DEBUG app prepares only this known fixture, before the runner attempts its launch (#383).
+        app.launchEnvironment["CACHEDROP_TEST_PREPARE_ANDROID_STUDIO_APP"] = "1"
+        app.launch()
+        let verification = Process()
+        verification.executableURL = URL(fileURLWithPath: "/usr/bin/codesign")
+        verification.arguments = ["--verify", "--strict", bundle.path]
+        verification.standardOutput = FileHandle.nullDevice
+        verification.standardError = FileHandle.nullDevice
+        try verification.run()
+        verification.waitUntilExit()
+        XCTAssertEqual(verification.terminationStatus, 0, "The fixture app needs a valid bundle signature before launch (#383)")
+        waitForOverview(app)
+        waitForCatalogScan(app)
+        let developer = app.buttons["overviewCategory-developer"]
+        XCTAssertTrue(developer.waitForExistence(timeout: 10))
+        revealAndClick(developer, in: app)
+        for rule in ["android-system-images", "android-virtual-devices"] {
+            let box = app.checkBoxes["planRule-" + rule]
+            XCTAssertTrue(box.waitForExistence(timeout: 5), rule + " is listed: nothing held it at the scan")
+            tick(box, in: app)
+        }
+
+        studio.executableURL = executable
+        studio.arguments = ["600"]
+        try studio.run()
+        app.buttons["Review cleanup"].click()
+        let skipped = app.staticTexts.matching(NSPredicate(format: "identifier BEGINSWITH %@", "reviewSkipped-"))
+        XCTAssertTrue(skipped.firstMatch.waitForExistence(timeout: 10), "Android's items will be skipped while it is open")
+        XCTAssertEqual(skipped.count, 1, "One line for the holder of items in both groups")
+        let line = skipped.firstMatch
+        XCTAssertEqual(line.identifier, "reviewSkipped-android-system-images", "Named by its first item in the sheet's order")
+        XCTAssertTrue((line.value as? String ?? line.label).hasPrefix("Android Studio or the emulator is open, so its items will be skipped · "),
+                      line.debugDescription)
+        let quits = app.links.matching(NSPredicate(format: "identifier BEGINSWITH %@", "reviewQuit-"))
+        XCTAssertEqual(quits.count, 1, "One Quit link for the holder")
+        XCTAssertEqual(quits.firstMatch.label, "Quit Android Studio or the emulator")
+        // Above both groups.
+        for group in ["permanentlyRemoved", "movedToTrash"] {
+            let first = reviewLine(app, group, "developer")
+            XCTAssertTrue(first.waitForExistence(timeout: 5), group)
+            XCTAssertLessThan(line.frame.maxY, first.frame.minY, group)
+        }
+        app.buttons["Cancel"].click()
+    }
+
     /// #319, #342: Smart clean's wider plan. A download not opened or changed in 7 days, under "Old downloads", Homebrew's cache and a leftover an installer receipt
     /// ties to its removed app all start ticked, each category with its consequence line. Unticking the installer leaves the
     /// rest, which the review groups by consequence. A dry run, so nothing changes and the stand-in `brew` never runs.

@@ -95,7 +95,7 @@ When the user confirms, CacheDrop freezes the plan. Then, for each item in turn,
 5. CacheDrop can act on it as the current user, without admin rights;
 6. for leaked app copies and old temporary items, no process has it open or mapped, as read no more than 5 seconds earlier (#142).
 
-The same checks run once when the review sheet opens, so it can say which items will be skipped: the sheet opens at the click and shows them running, and its **Clean up** stays unavailable until they finish (Decision 126). An item that fails any check is skipped, and the results say which check failed. The rest of the plan continues. The sheet lists what will be skipped: one line per holder ("Google Chrome is open, so its caches will be skipped · 2.3 GB") with one **Quit X** link while that app is open, and one line for each item refused for a reason of its own; its sizes count only what will be cleaned. When a holding app quits by any means while the sheet is open, its rows are checked again and its line goes, or shows the new reason (RESET Decision 125). Skipped items can be reviewed again after a fresh scan; CacheDrop never silently repeats a completed action or widens a plan after a rescan.
+The same checks run once when the review sheet opens, so it can say which items will be skipped: the sheet opens at the click and shows them running, and its **Clean up** stays unavailable until they finish (Decision 126). An item that fails any check is skipped, and the results say which check failed. The rest of the plan continues. The sheet lists what will be skipped above its consequence groups: one line per holder covering its items in every group ("Google Chrome is open, so its caches will be skipped · 2.3 GB"), with one **Quit X** link while that app is open, and one line for each item refused for a reason of its own; its sizes count only what will be cleaned. When a holding app quits by any means while the sheet is open, its rows are checked again and its line goes, or shows the new reason (RESET Decisions 125 and 162). Skipped items can be reviewed again after a fresh scan; CacheDrop never silently repeats a completed action or widens a plan after a rescan.
 
 **Cancel** stops new items from starting. A cleanup tool that is running is stopped at once and recorded as partly removed, its folder left in place; one not yet launched never starts (#166). Docker's prunes, `simctl` and `ollama rm` hand their work to a daemon, so for them only the wait stops and the work may still be finishing; a minute later the item is measured again and the journal records what went (section 3, #185, #189, #190). Any other item in progress finishes or reports its failure. Every item's outcome (done, skipped, failed, not started) goes into the cleanup journal. Quitting during a run asks first, "A cleanup is running. Stop it and quit?", with Cancel as the default; confirming cancels as above and quits once the current item ends (#130). If CacheDrop quits in the middle of a run anyway, it recovers the journal on next launch and reports what happened.
 
@@ -183,6 +183,10 @@ None. The first six were answered on 2026-10-26 and are folded in above (RESET D
 ## Command line
 
 `cachedrop scan` and `cachedrop plan` (Decision 146) print, read-only, what Overview and Smart clean show, as text or `--json`. They scan as the app does, with the user's Protected items, and change nothing. Cleaning from the command line is #627.
+
+## What’s New
+
+Help → **What’s New in CacheDrop** opens a small window with the release notes of the version that's running: its summary, then the changes, as Sparkle's update window shows them (Decision 122), drawn natively in both themes (Decision 161). Every Release build bundles its version's notes. It opens only when asked.
 
 ## Manual updates
 
