@@ -23,10 +23,11 @@ public enum AudioSoftware {
 
     /// Every audio and MIDI driver but Apple's, largest first, with its maker from its bundle and its size. One in a folder only
     /// an administrator can change can't go to the Trash (Decision 4: never prompt for admin), so it needs a password, like an app
-    /// (Decision 50). Only Info.plists are read; no driver is loaded.
-    public static func drivers(home: URL, systemRoot: URL = URL(fileURLWithPath: "/"), sizer: KnownLocationSizer = KnownLocationSizer()) -> [InventoryEntry] {
+    /// (Decision 50). Only Info.plists are read; no driver is loaded. `only` reads just those rows (#716).
+    public static func drivers(home: URL, systemRoot: URL = URL(fileURLWithPath: "/"), only: Set<String>? = nil,
+                               sizer: KnownLocationSizer = KnownLocationSizer()) -> [InventoryEntry] {
         let urls = driverPlaces.flatMap { [systemRoot.appendingPathComponent($0), home.appendingPathComponent($0)] }
-            .flatMap { InstalledBundles.bundles(in: $0, depth: 1) }
+            .flatMap { InstalledBundles.bundles(in: $0, depth: 1) }.filter { only?.contains($0.path) ?? true }
         let entries = urls.compactMap { url -> InventoryEntry? in
             let info = PlugInInventory.info(url), bundleID = info?["CFBundleIdentifier"] as? String
             guard bundleID?.lowercased().hasPrefix("com.apple.") != true else { return nil }
@@ -64,12 +65,13 @@ public enum AudioSoftware {
     public static let reasonHosts: [RuleOwner] = PlugInUninstall.hosts.filter { $0.name == "Reason" }
         + [RuleOwner(name: "Reason Companion", executables: ["Reason Companion"])]
 
-    /// Reason's additional devices, largest first, each a row of its own.
-    public static func optionalDevices(home: URL, sizer: KnownLocationSizer = KnownLocationSizer()) -> [InventoryEntry] {
+    /// Reason's additional devices, largest first, each a row of its own. `only` reads just those rows (#716).
+    public static func optionalDevices(home: URL, only: Set<String>? = nil, sizer: KnownLocationSizer = KnownLocationSizer()) -> [InventoryEntry] {
         let folder = home.appendingPathComponent(optionalDevices)
         let names = ((try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []).filter { !$0.hasPrefix(".") }
         let entries = names.compactMap { name -> InventoryEntry? in
             let url = folder.appendingPathComponent(name).standardizedFileURL
+            guard only?.contains(url.path) ?? true else { return nil }
             var info = stat()
             guard lstat(url.path, &info) == 0, info.st_mode & S_IFMT == S_IFDIR else { return nil }
             let part = InventoryEntry.Part(name: name, url: url, size: Catalog.estimate(sizer.size(url)), removable: Removability.canMoveToTrash(url))
@@ -77,6 +79,15 @@ public enum AudioSoftware {
         }
         return ApplicationsInventory.largestFirst(entries)
     }
+
+    /// The items of the drivers and Reason devices the user can move, as the catalog scan offers them; `only` reads just those
+    /// rows again, for the rescan after a run that uninstalled one (#716, Decision 159).
+    public static func uninstallItems(home: URL, systemRoot: URL, exclusions: ProtectedItemsPolicy, only: Set<String>? = nil) -> [Candidate] {
+        uninstallItems(drivers(home: home, systemRoot: systemRoot, only: only), hosts: [], exclusions: exclusions)
+            + uninstallItems(optionalDevices(home: home, only: only), hosts: reasonHosts, exclusions: exclusions)
+    }
+    /// Whether the row `id` is one of Reason's additional devices: read again here, never against the plug-in inventory (#716).
+    static func isDevice(_ id: String) -> Bool { URL(fileURLWithPath: id).deletingLastPathComponent().path.hasSuffix("/" + optionalDevices) }
 
     /// The items that uninstall `entries` (drivers, Reason devices): each one the user can move to the Trash, as an app is
     /// (Decision 50), its own row's item; `hosts` must be closed first. Nothing for one that needs a password.

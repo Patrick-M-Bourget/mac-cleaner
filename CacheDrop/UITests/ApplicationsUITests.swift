@@ -544,6 +544,55 @@ final class ApplicationsUITests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: pad.path), "Pad was only reviewed")
     }
 
+    /// Decision 159 (#716): uninstalling a driver and one of Reason's devices reads only their rows again, as an app's uninstall
+    /// does (134): while the rescan after it runs, their rows are gone, Audio software's count drops, and the other device stays
+    /// listed and clickable, undimmed. The rescan holds only when it isn't a full scan, so the held progress shows it read less.
+    @MainActor func testUninstallingADriverAndAReasonDeviceUpdatesTheirRowsWithoutAFullScan() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        let devices = home.appendingPathComponent("Library/Application Support/Propellerhead Software/Optional REs")
+        for (name, bytes) in [("Pangea", 60_000), ("Humana", 90_000)] {
+            let file = devices.appendingPathComponent(name).appendingPathComponent("data.bin")
+            try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data(repeating: 1, count: bytes).write(to: file)
+        }
+        let driver = home.appendingPathComponent("Library/Audio/Plug-Ins/HAL/Loopback.driver")
+        try FileManager.default.createDirectory(at: driver.appendingPathComponent("Contents"), withIntermediateDirectories: true)
+        try PropertyListSerialization.data(fromPropertyList: ["CFBundleIdentifier": "com.loop.back"], format: .xml, options: 0)
+            .write(to: driver.appendingPathComponent("Contents/Info.plist"))
+        app.launchEnvironment["CACHEDROP_TEST_RESCAN_PAUSE"] = "20"
+        app.launch()
+        waitForCatalogScan(app)
+        openApplications(app, ["drivers", "plug-ins"])
+
+        XCTAssertEqual(applicationsSection(app, "audio software").label, "Choose audio software · 3", "One driver and two devices")
+        func box(_ id: String) -> XCUIElement { element(app, id, .checkBox) }
+        let driverBox = box("applicationsDriver-" + driver.path)
+        let pangea = box("applicationsPlugIn-" + devices.appendingPathComponent("Pangea").path)
+        let humana = box("applicationsPlugIn-" + devices.appendingPathComponent("Humana").path)
+        XCTAssertTrue(driverBox.waitForExistence(timeout: 10) && pangea.waitForExistence(timeout: 5) && humana.exists)
+        tick(driverBox, in: app); tick(pangea, in: app)
+        app.buttons["Review cleanup"].click()
+        cleanUpFromReview(app)
+        XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 20))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: driver.path), "The driver went to the Trash")
+        app.buttons["Done"].click()
+
+        let progress = app.staticTexts["catalogScanProgress"]
+        XCTAssertTrue(progress.waitForExistence(timeout: 10), "The run rescans")
+        XCTAssertTrue(driverBox.waitForNonExistence(timeout: 5), "The driver's row is gone at once")
+        XCTAssertFalse(pangea.exists, "So is the device's")
+        XCTAssertEqual(applicationsSection(app, "audio software").label, "Choose audio software · 1", "The section's count drops at once")
+        XCTAssertTrue(humana.waitForExistence(timeout: 5), "The other device stays listed")
+        XCTAssertTrue(progress.exists, "Still rescanning: the held rescan reads only the touched rows")
+        XCTAssertTrue(humana.isEnabled, "Not dimmed: the rescan doesn't read it again")
+        XCTAssertTrue(progress.waitForNonExistence(timeout: 120))
+        XCTAssertTrue(humana.exists && !driverBox.exists && !pangea.exists, "The same rows after the rescan")
+    }
+
     /// #556, Decision 123: a Smart clean that uninstalled nothing leaves Apps and Plug-ins readable and clickable during the
     /// rescan that follows, even on a first visit: an app can be ticked and reviewed without waiting. Clean up waits for the
     /// scan, and the review stays open when it ends without changing the choices (Decision 54).
