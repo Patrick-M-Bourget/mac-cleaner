@@ -143,21 +143,28 @@ import AppKit
     revealAndClick(link, in: app)
 }
 
-/// Opens Applications with ⌘4 and the sections named ("apps", "plug-ins"), which start closed and stay as left until CacheDrop
-/// quits (Decision 151), each behind its "Choose" (Decision 153). A section that lists nothing has no "Choose" to open.
+/// Opens Applications with ⌘4 and what's named: "apps" (Apps, and Audio software's DAWs and apps once it is open),
+/// "audio software", "plug-ins" (Audio software's plug-ins and each maker; it opens Audio software too). They start closed and
+/// stay as left until CacheDrop quits (Decision 151), each behind its "Choose" (Decision 153).
 @MainActor func openApplications(_ app: XCUIApplication, _ sections: [String] = []) {
     app.typeKey("4", modifierFlags: .command)
     openApplicationsSections(app, sections)
 }
-/// Opens each named section's "Choose <section> · N" when it is closed.
+/// Opens every closed "Choose <noun> · N" for the nouns named, outer ones first.
 @MainActor func openApplicationsSections(_ app: XCUIApplication, _ sections: [String]) {
-    for section in sections {
-        let choose = applicationsSection(app, section)
-        XCTAssertTrue(choose.waitForExistence(timeout: 60), "Applications lists its \(section)")
-        if choose.value as? Int != 1 { choose.click() }
+    let wanted = Set(sections + (sections.contains("plug-ins") ? ["audio software"] : []))
+    for noun in ["audio software", "apps", "plug-ins"] where wanted.contains(noun) {
+        XCTAssertTrue(applicationsSection(app, noun).waitForExistence(timeout: 60), "Applications lists its \(noun)")
+        // Opening one can show another of the same noun (a maker inside Plug-ins), so look again after each click.
+        for _ in 0..<20 {
+            let closed = app.disclosureTriangles.matching(NSPredicate(format: "label BEGINSWITH %@ AND value != 1", "Choose \(noun) · ")).firstMatch
+            // A row a click just opened can take a moment to show what is inside it.
+            guard closed.waitForExistence(timeout: 1) else { break }
+            revealAndClick(closed, in: app)
+        }
     }
 }
-/// A section's "Choose apps · N" or "Choose plug-ins · N" disclosure.
+/// The first "Choose apps · N" / "Choose plug-ins · N" / "Choose audio software · N" disclosure.
 @MainActor func applicationsSection(_ app: XCUIApplication, _ section: String) -> XCUIElement {
     app.disclosureTriangles.matching(NSPredicate(format: "label BEGINSWITH %@", "Choose \(section) · ")).firstMatch
 }
