@@ -185,7 +185,8 @@ final class ApplicationsUITests: XCTestCase {
     }
 
     /// Decision 154: sounds and samples are read-only behind "Show sounds"; a driver the user can move and a Reason device have
-    /// checkboxes, nothing ticked.
+    /// checkboxes, nothing ticked. Decision 157: a library whose vendor's manager is installed offers Open <tool>; one whose
+    /// manager isn't installed, and Splice's, offer none.
     @MainActor func testAudioSoftwareShowsSoundsAndOffersDriversAndReasonDevices() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
@@ -198,6 +199,11 @@ final class ApplicationsUITests: XCTestCase {
             try Data(repeating: 1, count: bytes).write(to: file)
         }
         try write("Splice/sounds/kick.wav")
+        // The test home stands in for the system root: Waves' sample libraries, with Waves Central installed, and Arturia's
+        // resources without Arturia Software Center.
+        try write("Applications/Waves/Data/Instrument Data/Waves Sample Libraries/piano.wav")
+        try write("Library/Arturia/Presets/lead.preset")
+        _ = try addApp("Waves Central", id: "com.wavesaudio.wavescentral", bytes: 10_000, in: home)
         try write("Library/Application Support/Propellerhead Software/Optional REs/Pangea/data.bin", bytes: 60_000)
         let driver = home.appendingPathComponent("Library/Audio/Plug-Ins/HAL/Loopback.driver")
         try FileManager.default.createDirectory(at: driver.appendingPathComponent("Contents"), withIntermediateDirectories: true)
@@ -207,11 +213,24 @@ final class ApplicationsUITests: XCTestCase {
         waitForCatalogScan(app)
         openApplications(app, ["audio software"])
 
-        let sounds = app.disclosureTriangles.matching(NSPredicate(format: "label == 'Show sounds · 1'")).firstMatch
+        let sounds = app.disclosureTriangles.matching(NSPredicate(format: "label == 'Show sounds · 3'")).firstMatch
         XCTAssertTrue(sounds.waitForExistence(timeout: 10), "Read-only: Show, not Choose")
         revealAndClick(sounds, in: app)
-        XCTAssertTrue(app.links.matching(NSPredicate(format: "identifier == %@", "applicationsSoundReveal-" + home.appendingPathComponent("Splice").path)).firstMatch
-            .waitForExistence(timeout: 5), "Splice sounds, with Reveal in Finder")
+        let splice = home.appendingPathComponent("Splice").path
+        XCTAssertTrue(element(app, "applicationsSoundReveal-" + splice, .link).waitForExistence(timeout: 5), "Splice sounds, with Reveal in Finder")
+        let waves = home.appendingPathComponent("Applications/Waves/Data/Instrument Data/Waves Sample Libraries").path
+        let openWaves = element(app, "applicationsSoundOpen-" + waves, .link)
+        XCTAssertTrue(openWaves.waitForExistence(timeout: 5), "Waves' libraries offer their installed manager")
+        XCTAssertEqual(openWaves.label, "Open Waves Central")
+        XCTAssertTrue(element(app, "applicationsSoundReveal-" + waves, .link).exists, "Reveal in Finder stays")
+        revealAndClick(openWaves, in: app)
+        let status = app.staticTexts["applicationsStatus"]
+        XCTAssertTrue(status.waitForExistence(timeout: 5))
+        XCTAssertEqual(status.value as? String ?? status.label, "Test run: would open Waves Central.")
+        let arturia = home.appendingPathComponent("Library/Arturia").path
+        XCTAssertTrue(element(app, "applicationsSoundReveal-" + arturia, .link).exists, "Arturia's resources are listed")
+        XCTAssertFalse(element(app, "applicationsSoundOpen-" + arturia, .link).exists, "No link when the manager isn't installed")
+        XCTAssertFalse(element(app, "applicationsSoundOpen-" + splice, .link).exists, "No link for a vendor with no known manager")
         openApplicationsSections(app, ["drivers", "plug-ins"])
         let driverBox = app.descendants(matching: .checkBox).matching(NSPredicate(format: "identifier == %@", "applicationsDriver-" + driver.path)).firstMatch
         XCTAssertTrue(driverBox.waitForExistence(timeout: 5), "A driver the user can move has a checkbox")

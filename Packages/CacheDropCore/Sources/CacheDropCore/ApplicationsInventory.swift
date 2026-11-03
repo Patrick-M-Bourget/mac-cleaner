@@ -41,6 +41,8 @@ public struct InventoryEntry: Sendable, Equatable, Identifiable {
     public let bundleID: String?
     /// The name of the app's own uninstaller, its second part (#285); nil when it has none.
     public internal(set) var ownUninstaller: String? = nil
+    /// The vendor managers that install a sound library and can remove or move it (#714); none for the user's own content.
+    public internal(set) var managers: [VendorTool] = []
     public init(id: String, name: String, maker: String?, volume: String?, parts: [Part], bundleID: String? = nil) {
         self.id = id; self.name = name; self.maker = maker; self.volume = volume; self.parts = parts; self.bundleID = bundleID
     }
