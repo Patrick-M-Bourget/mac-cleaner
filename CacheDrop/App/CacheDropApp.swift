@@ -85,26 +85,43 @@ private struct ScanAgainCommand: View {
     }
 }
 
+/// The sidebar's two headed groups; Overview sits above both, with no header (Decision 149).
+enum SidebarGroup: String, CaseIterable, Identifiable {
+    case cleanup = "Cleanup", storage = "Storage"
+    var id: String { rawValue }
+}
+
+/// The sidebar's pages, in its order (Decision 149).
 enum Destination: String, CaseIterable, Identifiable {
-    case overview = "Overview", smartClean = "Smart clean", plan = "Cleanup plan", applications = "Applications", growth = "Storage trends", history = "History", locations = "Locations", systemAccess = "System access"
+    case overview = "Overview", smartClean = "Smart clean", plan = "Cleanup plan", applications = "Applications", history = "History"
+    case exploreStorage = "Explore storage", growth = "Storage trends", locations = "Locations", systemAccess = "System access"
     /// Sidebar identity survives the visible Locations rename (#527).
     var id: String { self == .locations ? "Locations & access" : rawValue }
-    var isSettings: Bool { self == .locations || self == .systemAccess }
-    /// ⌘1–⌘8 follow the sidebar order (#127, #141), Applications above Storage trends (#525). System access follows Locations (#527). Low-space alerts live in the Settings window (#131).
+    /// The group the page is listed under; nil for Overview, alone at the top.
+    var group: SidebarGroup? {
+        switch self {
+        case .overview: nil
+        case .smartClean, .plan, .applications, .history: .cleanup
+        case .exploreStorage, .growth, .locations, .systemAccess: .storage
+        }
+    }
+    /// ⌘1–⌘9 follow the sidebar order (#127, #141, Decision 149). Low-space alerts live in the Settings window (#131).
     var shortcut: KeyEquivalent {
         switch self {
         case .overview: "1"
         case .smartClean: "2"
         case .plan: "3"
-        case .growth: "5"
         case .applications: "4"
-        case .history: "6"
-        case .locations: "7"
-        case .systemAccess: "8"
+        case .history: "5"
+        case .exploreStorage: "6"
+        case .growth: "7"
+        case .locations: "8"
+        case .systemAccess: "9"
         }
     }
     var symbol: String {
         switch self {
+        case .exploreStorage: "square.split.2x2"
         case .growth: "chart.line.uptrend.xyaxis"
         case .overview: "internaldrive"
         case .smartClean: "sparkles"
@@ -168,7 +185,7 @@ private struct WorkspaceView: View {
         case .overview: return $navigationState.overviewOffset
         case .locations: return $navigationState.locationsOffset
         case .systemAccess: return $navigationState.systemAccessOffset
-        case .plan, .smartClean, .applications: return nil
+        case .plan, .smartClean, .applications, .exploreStorage: return nil
         }
     }
     /// Which page the scroll view shows, so each keeps its own scroll position. Out of the view builder, where the
@@ -220,6 +237,10 @@ private struct WorkspaceView: View {
     }
     private var showsSmartClean: Bool { showsOwnPage(.smartClean) }
     private var showsApplications: Bool { showsOwnPage(.applications) }
+    /// Explore storage on screen: opened from a link, over the page that opened it, or as its own sidebar page (Decision 149).
+    private var showsExplorer: Bool { explorerVisible || showsOwnPage(.exploreStorage) }
+    /// The sidebar highlight always names the page on screen, so Explore storage opened from a link highlights it too.
+    private var sidebarSelection: Destination { explorerVisible ? .exploreStorage : destination }
     /// The plan is the one page app-managed storage never covers: Explore storage's Review plan and Start a new plan switch
     /// to it directly, without `navigate(_:)`, so `appManagedVisible` may still be set then, and the plan must show anyway.
     private var showsPlan: Bool { showsOwnPage(.plan, evenUnderAppManaged: true) }
@@ -234,7 +255,7 @@ private struct WorkspaceView: View {
         if navigationState.appManagedVisible { return nil }
         switch destination {
         case .overview: return nil
-        case .smartClean, .plan, .applications: return nil
+        case .smartClean, .plan, .applications, .exploreStorage: return nil
         case .history, .locations, .systemAccess: return "" // Decision 25: no toolbar subtitles
         case .growth: return ""
         }
@@ -252,10 +273,11 @@ private struct WorkspaceView: View {
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
             AppBrand().padding(.horizontal, CacheDropDesign.Space.sm).padding(.bottom, CacheDropDesign.Space.xl)
-            Text("Storage").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).padding(.horizontal, CacheDropDesign.Space.sm)
-            ForEach(Destination.allCases.filter { !$0.isSettings }) { navigation($0) }
-            Text("Settings").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).padding(.horizontal, CacheDropDesign.Space.sm).padding(.top, CacheDropDesign.Space.xl)
-            ForEach(Destination.allCases.filter(\.isSettings)) { navigation($0) }
+            ForEach(Destination.allCases.filter { $0.group == nil }) { navigation($0) }
+            ForEach(SidebarGroup.allCases) { group in
+                Text(group.rawValue).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).padding(.horizontal, CacheDropDesign.Space.sm).padding(.top, CacheDropDesign.Space.xl)
+                ForEach(Destination.allCases.filter { $0.group == group }) { navigation($0) }
+            }
             Spacer()
             VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
                 Label("This Mac", systemImage: "laptopcomputer").font(CacheDropDesign.TypeStyle.note)
@@ -280,7 +302,7 @@ private struct WorkspaceView: View {
         VStack(alignment: .leading, spacing: 0) {
             AppearancePreferenceNotice(notice: appearance.notice, retry: { appearance.retrySaving() })
                 .padding(.horizontal, CacheDropDesign.Space.page)
-            if explorerVisible {
+            if showsExplorer {
                 explorerPage
             } else if showsPlan {
                 planPage
@@ -309,9 +331,7 @@ private struct WorkspaceView: View {
         // The launch scan, whichever page opens first; later scans start in the model when something changes (#306).
         .task { if !moveOffer.holdsOnboarding { welcome.launch(catalog: selection.catalog) } }
         .task { locationsModel.load() }
-        .onChange(of: locationsModel.scopes) { _, _ in
-            explorerContext.allowedScopes = Set(locationsModel.included.map { URL(fileURLWithPath: $0.path).standardizedFileURL })
-        }
+        .onChange(of: locationsModel.scopes) { _, _ in limitExplorerToIncludedLocations() }
         .onAppear {
             AppLifecycleController.shared.openWorkspace = { openWindow(id: "workspace") }
             AppLifecycleController.shared.scanAgain = { if canScanAgain { scanAgain() } }
@@ -345,7 +365,7 @@ private struct WorkspaceView: View {
     /// locations also Explore storage, which shows them (#364).
     private var scanReturnAction: (() -> Void)? {
         let atOrigin = destination == scanOrigin && !navigationState.savedDataVisible && !navigationState.appManagedVisible && !explorerVisible && !protectedItemsVisible && !recoveryVisible
-        if atOrigin || (explorer.isRechecking && explorerVisible) { return nil }
+        if atOrigin || (explorer.isRechecking && showsExplorer) { return nil }
         return { returnToScanOrigin() }
     }
 
@@ -368,10 +388,12 @@ private struct WorkspaceView: View {
         navigationState.savedDataVisible = false; navigationState.appManagedVisible = false
         protectedItemsVisible = false
         recoveryVisible = false; navigationState.recoveryCaller = .overview; explorerVisible = false
+        // From the sidebar, Explore storage starts at Scanned folders with no back button (Decision 149).
+        if value == .exploreStorage { openSidebarExplorer() }
     }
 
     private func navigation(_ value: Destination) -> some View {
-        CacheDropSidebarRow(title: value.rawValue, symbol: value.symbol, selected: destination == value,
+        CacheDropSidebarRow(title: value.rawValue, symbol: value.symbol, selected: sidebarSelection == value,
                         accent: value == .growth ? CacheDropDesign.purple : value == .plan ? CacheDropDesign.teal : value == .history ? .secondary : CacheDropDesign.blue,
                         selectedCategories: value == .plan ? selection.actionableSelectedCategoryCount : nil) {
             navigate(value)
@@ -706,16 +728,28 @@ private struct WorkspaceView: View {
         let unavailable = scopes.filter { !resolved.contains($0.path) }.map { URL(fileURLWithPath: $0.path) }
         explorer.scanAgain(scopes: leases.map(\.url), leases: leases, unavailable: unavailable)
     }
-    /// Opens Explore storage; from a location's Explore link (#320), at that folder.
-    private func openExplorer(caller: Destination, at folder: URL? = nil) {
+    /// The explorer shows only included locations.
+    private func limitExplorerToIncludedLocations() {
         explorerContext.allowedScopes = Set(locationsModel.included.map { URL(fileURLWithPath: $0.path).standardizedFileURL })
-        if let folder { explorerContext.openLocation(folder) }
+    }
+    /// Opens Explore storage at Scanned folders, or from a location's Explore link (#320) at that folder, so back always
+    /// names the caller first (Decision 149).
+    private func openExplorer(caller: Destination, at folder: URL? = nil) {
+        limitExplorerToIncludedLocations()
+        if let folder { explorerContext.openLocation(folder) } else { explorerContext.openLocations() }
         explorerCaller = caller; explorerVisible = true; planReturnsToExplorer = false
     }
-    /// Explore storage with its bar: "N selected", then Add to cleanup plan once something is ticked (#320).
+    /// Explore storage as its own sidebar page: at Scanned folders, with nothing to go back to (Decision 149).
+    private func openSidebarExplorer() {
+        limitExplorerToIncludedLocations()
+        explorerContext.openLocations()
+        explorerCaller = .exploreStorage
+    }
+    /// Explore storage with its bar: "N selected", then Add to cleanup plan once something is ticked (#320). Opened from a
+    /// link it goes back to that page (#228); as its own sidebar page it has no back button.
     @ViewBuilder private var explorerPage: some View {
         StorageExplorerView(model: explorer, selection: selection, context: explorerContext,
-            caller: explorerCaller.rawValue, back: { explorerVisible = false; destination = explorerCaller }, unavailable: explorerUnavailable)
+            caller: explorerVisible ? explorerCaller.rawValue : nil, back: { explorerVisible = false; destination = explorerCaller }, unavailable: explorerUnavailable)
         ActionStrip(message: explorerSelectedMessage) {
             Button("Add to cleanup plan", action: addExplorerSelectionToPlan).buttonStyle(.borderedProminent).disabled(!canAddExplorerSelection)
         }
@@ -769,7 +803,7 @@ private struct WorkspaceView: View {
                 case .growth: StorageTrendsHistoryView(model: StorageTrendsHistoryModel.shared, catalog: selection.catalog, scanNow: { if canScanAgain { scanAgain() } },
                                                     reviewTitle: growthReview.title, review: growthReview.open)
                 case .overview: overview
-                case .plan, .smartClean, .applications: EmptyView()
+                case .plan, .smartClean, .applications, .exploreStorage: EmptyView()
                 case .history: history
                 case .locations: locations
                 case .systemAccess: SystemAccessView()
@@ -831,7 +865,9 @@ private struct WorkspaceView: View {
     /// The plan's back button: to Storage trends or Explore storage when the plan was opened from there, otherwise none.
     private var planBack: (() -> Void)? {
         if navigationState.planReturnsToGrowth { return { navigationState.planReturnsToGrowth = false; destination = .growth } }
-        if planReturnsToExplorer { return { explorerVisible = true; planReturnsToExplorer = false } }
+        if planReturnsToExplorer {
+            return { planReturnsToExplorer = false; if explorerCaller == .exploreStorage { destination = .exploreStorage } else { explorerVisible = true } }
+        }
         return nil
     }
 
