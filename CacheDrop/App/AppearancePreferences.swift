@@ -68,7 +68,7 @@ struct CacheDropSettingsView: View {
                 Button("Check for Updates…") { AppLifecycleController.shared.manualUpdater.checkForUpdates() }
                     .buttonStyle(.link).accessibilityIdentifier("checkForUpdatesSettings")
             } footer: {
-                Text("Once a week · Nothing is downloaded or installed until you choose")
+                Text("CacheDrop checks once a week. Nothing is downloaded or installed until you choose.")
                     .font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
             }
             LicenseSettings(license: AppLifecycleController.shared.license, trial: AppLifecycleController.shared.trial)

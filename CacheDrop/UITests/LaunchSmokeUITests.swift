@@ -200,6 +200,8 @@ final class LaunchSmokeUITests: XCTestCase {
         XCTAssertFalse(app.descendants(matching: .any)["weeklyReminderStatus"].exists)
         // #600: weekly update checks are on by default.
         XCTAssertEqual(app.descendants(matching: .any)["automaticUpdateChecksToggle"].value as? Int, 1, "Automatic update checks are on by default")
+        // #690: its note is a sentence, as the other Settings notes are.
+        XCTAssertTrue(app.staticTexts["CacheDrop checks once a week. Nothing is downloaded or installed until you choose."].exists)
         // #689 (Decision 156): Settings opens with no field focused; the License key field takes focus when clicked,
         // and opening Settings again clears it.
         let licenseKey = app.textFields["licenseKeyField"]
