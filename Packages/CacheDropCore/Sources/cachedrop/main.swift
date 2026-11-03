@@ -54,7 +54,11 @@ do {
         print(json ? try CommandLineReport.json(report) : report.text)
     default:
         let report = SmartCleanReport.run(sources), plan = CommandLineReport.Plan(report)
-        guard !report.picked.isEmpty else { fail("Smart clean has nothing to clean now. Nothing was changed.", code: 0) }
+        guard !report.picked.isEmpty else {
+            // With --json, scripts still get a report: an empty one.
+            if json { print(try CommandLineReport.json(CommandLineReport.Clean(nothingToCleanIn: sources.home, dryRun: dryRun))) }
+            fail("Smart clean has nothing to clean now. Nothing was changed.", code: 0)
+        }
         if start == .ask {
             // The question and the plan go to standard error, so --json output stays only JSON.
             FileHandle.standardError.write(Data((plan.text.components(separatedBy: "\n").dropLast().joined(separator: "\n")
@@ -63,21 +67,23 @@ do {
                 fail("Nothing was changed.", code: 1)
             }
         }
-        let journal: SQLiteCleanupJournal
-        do { journal = try LocalStateLocation.cleanupJournal() }
-        catch { fail("CacheDrop couldn’t open its cleanup history, so nothing was changed.", code: 1) }
-        // The app's trial (Decisions 135, 138): gated in builds with LICENSE_GATING, as the Release app is.
-        // Without it, as in Debug, nothing reads or writes the Keychain.
+        let journal: SQLiteCleanupJournal, lock: URL
+        do { journal = try LocalStateLocation.cleanupJournal(); lock = try LocalStateLocation.root(create: true).appendingPathComponent(LocalStateLocation.cleanupLockName) }
+        catch { fail(CommandLineClean.Refusal.journal, code: 1) }
+        // The app's license and trial (Decisions 135, 138): gated in builds with LICENSE_GATING, as the Release app is.
+        // Without it, as in Debug, nothing reads or writes the Keychain. Either way the stores only update the app's items.
         #if LICENSE_GATING
-        let license = LicenseController(store: KeychainLicenseKeyStore(createsItem: false)).state, trial = TrialController(store: KeychainTrialStore(createsItem: false), gating: true)
+        let gating = true
         #else
-        let license = LicenseState.none, trial = TrialController(store: KeychainTrialStore(createsItem: false), gating: false)
+        let gating = false
         #endif
-        switch await CommandLineClean.run(report, sources: sources, dryRun: dryRun, journal: journal, trash: FinderTrash(), trial: trial, license: license) {
+        switch await CommandLineClean.run(report, sources: sources, dryRun: dryRun, journal: journal, lock: lock, trash: FinderTrash(),
+                                          licenseStore: KeychainLicenseKeyStore(createsItem: false), trialStore: KeychainTrialStore(createsItem: false), gating: gating) {
         case .refused(let reason): fail(reason, code: 1)
-        case .ran(let result):
+        case .ran(let result, let notice):
             let shown = CommandLineReport.Clean(result, home: sources.home)
             print(json ? try CommandLineReport.json(shown) : shown.text)
+            if let notice { FileHandle.standardError.write(Data((notice + "\n").utf8)) }
             if let failure = result.journalFailure { fail(failure, code: 1) }
         }
     }

@@ -185,7 +185,7 @@ None. The first six were answered on 2026-10-26 and are folded in above (RESET D
 
 `cachedrop scan` and `cachedrop plan` (Decision 146) print, read-only, what Overview and Smart clean show, as text or `--json`. They scan as the app does, with the user's Protected items, and change nothing.
 
-`cachedrop clean` (Decision 160) cleans what `plan` lists through the same executor, checks just before acting and journal as the app, so History shows its runs. It asks on the terminal unless `--yes`, and refuses with no terminal and no `--yes`. `--dry-run` runs the same flow and changes nothing (section 5). Results report the measured freed space (section 6). It follows the app's trial and license (Decision 135).
+`cachedrop clean` (Decision 160) cleans what `plan` lists through the same executor, checks just before acting and journal as the app, so History shows its runs. It asks on the terminal unless `--yes`, and refuses with no terminal and no `--yes`. `--dry-run` runs the same flow and changes nothing (section 5). Results report the measured freed space (section 6). It follows the app's trial and license (Decision 135), refusing when it can't read either, or before the app has made the trial's Keychain item at its first launch; it only updates the app's Keychain items, never creating one. The app and the command line clean one at a time (`CleanupLock`): each refuses while the other runs, and Recovery doesn't show a run going on in the command line as interrupted (Decision 160).
 
 ## Manual updates
 

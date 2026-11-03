@@ -169,9 +169,18 @@ public enum CommandLineReport {
         /// Nil in a dry run and when the run only moved items to the Trash; "Unknown" when a reading is missing.
         public let measuredFreed: Size?
         public let toTrash: Size
+        /// A dry run's size: what the run would have affected. Nil, and left out, for a run that changed things.
+        public let wouldBeAffected: Size?
         public let items: [Item]
         private enum CodingKeys: String, CodingKey {
-            case home = "home", dryRun = "dryRun", measuredFreed = "measuredFreed", toTrash = "toTrash", items = "items"
+            case home = "home", dryRun = "dryRun", measuredFreed = "measuredFreed", toTrash = "toTrash", wouldBeAffected = "wouldBeAffected", items = "items"
+        }
+
+        /// The report when Smart clean has nothing to clean: no run, nothing changed.
+        public init(nothingToCleanIn home: URL, dryRun: Bool) {
+            self.home = home.standardizedFileURL.path; self.dryRun = dryRun; measuredFreed = nil
+            toTrash = Size(.measured(0), text: SizeFormatter.text(Int64(0))); items = []; affected = 0
+            wouldBeAffected = dryRun ? toTrash : nil
         }
 
         public init(_ result: CatalogExecutionResult, home: URL) {
@@ -187,6 +196,7 @@ public enum CommandLineReport {
                 Item(path: $0.originalURL.path, action: $0.action, state: $0.state.rawValue, outcome: $0.outcomeLine)
             }
             affected = result.records.filter(\.wasDryRun).reduce(0) { $0 + $1.recordedBytes }
+            wouldBeAffected = result.dryRun ? Size(.measured(affected), text: SizeFormatter.text(affected)) : nil
         }
         private let affected: Int64
 
