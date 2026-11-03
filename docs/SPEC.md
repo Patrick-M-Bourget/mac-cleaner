@@ -166,6 +166,8 @@ After M1 (#92), in rough order:
 
 ## 9. Out of scope
 
+Scope rule: every CacheDrop feature frees disk space or shows where it went (RESET Decision 155).
+
 - Duplicate finder, automatic or scheduled cleanup. (A treemap was listed here; RESET Decision 147 brought it in as the storage map in Explore storage.) (Uninstalling was listed here; RESET Decisions 41, 50 and 51 brought it into scope: apps, plug-ins and files from deleted apps go to the Trash from the Applications page.)
 - Admin helpers, root daemons, system extensions, anything that needs an admin password.
 - Other users' data and system files; blanket cleanup of System Data, Application Support, containers, snapshots or swap.
