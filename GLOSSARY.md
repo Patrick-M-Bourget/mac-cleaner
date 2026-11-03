@@ -46,7 +46,10 @@ The names CacheDrop shows, what they mean, and where they live in code. Copy fol
 | Files from deleted apps | Settings and data apps left behind (never "leftovers" on screen) | `RemovedAppLeftovers`, category `leftovers` |
 | Possibly related | Named like an app but not tied to it; ticked one by one | `AppUninstall.possiblyRelatedRuleID` |
 | Audio software | The category for audio apps' cleanable items (Ableton Live cache), and the Applications section of DAWs and apps, Plug-ins, Sounds and samples, and Drivers (Decision 151) | category `audio`, `AudioSoftware`, `ApplicationsSection.audio` |
-| DAWs and apps, Sounds and samples, Drivers, Other makers | Audio software's groups on Applications beside Plug-ins: audio apps by bundle ID; vendor and Apple sound libraries (read-only); audio and MIDI drivers; under Plug-ins, the last group, of products with no maker (Decision 151) | — |
+| DAWs and apps, Sounds and samples, Drivers, Other makers | Audio software's groups on Applications beside Plug-ins: audio apps by bundle ID; vendor and Apple sound libraries, Splice's sounds and Rack Extensions (read-only); audio and MIDI drivers; under Plug-ins, the last group, of products with no maker (Decision 151) | — |
+| Reason's additional devices | Reason 13's Humana, Pangea, Klang and Radical Piano (`Optional REs`), listed with the plug-ins and moved to the Trash one by one; Reason Companion installs them again (Decision 154) | `AudioSoftware.optionalDevices` |
+| Rack Extensions, Splice sounds | Sounds and samples' read-only rows for the shop Rack Extensions folder and Splice's sounds folder (Decision 154) | `AudioSoftware.sounds` |
+| Show … · N | A category row's disclosure where nothing inside can be ticked ("Show sounds · 3"); Choose … · N where something can (Decision 154) | `CategoryRow.chooseVerb` |
 | plug-in product, vendor content | A plug-in and its formats; content shared by a vendor's products | `PlugInInventory`, `PlugInUninstall` |
 | local copies | iCloud files kept on this Mac; removing them keeps them in iCloud | `ICloudCopies`, action `evict` |
 | "X is open" | An app or tool is using an item, so it's skipped; **Quit X** may free it | `CandidateHold` |

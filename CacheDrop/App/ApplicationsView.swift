@@ -6,11 +6,13 @@ import SwiftUI
 enum ApplicationsSection: String { case apps, audio, leftovers }
 /// Audio software's groups and makers (Decision 151); `key` ends their accessibility identifiers.
 enum AudioGroup: Hashable {
-    case apps, plugIns, maker(String?)
+    case apps, plugIns, sounds, drivers, maker(String?)
     var key: String {
         switch self {
         case .apps: "apps"
         case .plugIns: "plug-ins"
+        case .sounds: "sounds"
+        case .drivers: "drivers"
         case .maker(let name): "maker:" + (name ?? "")
         }
     }
@@ -33,6 +35,10 @@ enum AudioGroup: Hashable {
     private(set) var plugIns: [InventoryEntry] = []
     /// DAWs, vendor managers and plug-ins' own apps: Audio software's, never Apps' (Decision 151).
     private(set) var audioApps: [InventoryEntry] = []
+    /// Reason's additional devices, listed with the plug-ins; audio and MIDI drivers; and sounds and samples (Decision 151).
+    private(set) var reasonDevices: [InventoryEntry] = []
+    private(set) var drivers: [InventoryEntry] = []
+    private(set) var sounds: [InventoryEntry] = []
     /// The page's Sort and search (#295): kept while CacheDrop runs, never across launches.
     var listing = ApplicationsListing()
     /// The sections open on the page (Decision 151): all closed at first, kept open or closed until CacheDrop quits.
@@ -64,7 +70,7 @@ enum AudioGroup: Hashable {
     private func readInventory(plugIns read: PlugInInventory?) async {
         isLoading = true
         defer { isLoading = false; hasLoaded = true }
-        guard let home else { apps = []; plugIns = []; audioApps = []; return }
+        guard let home else { apps = []; plugIns = []; audioApps = []; reasonDevices = []; drivers = []; sounds = []; return }
         #if DEBUG
         if LocalStateLocation.isDisposableTest,
            let raw = LocalStateLocation.fixtureEnvironment["CACHEDROP_TEST_INVENTORY_PAUSE"], let seconds = Double(raw), seconds > 0 {
@@ -72,6 +78,10 @@ enum AudioGroup: Hashable {
         }
         #endif
         let presence = appPresence, system = systemRoot, own = Bundle.main.bundleIdentifier
+        let (devices, audioDrivers, audioSounds) = await Task.detached(priority: .userInitiated) {
+            (AudioSoftware.optionalDevices(home: home), AudioSoftware.drivers(home: home, systemRoot: system), AudioSoftware.sounds(home: home, systemRoot: system))
+        }.value
+        reasonDevices = devices; drivers = audioDrivers; sounds = audioSounds
         let (listed, products, audio) = await Task.detached(priority: .userInitiated) {
             let inventory = read ?? PlugInInventory.scan(home: home, systemRoot: system, receipts: ReceiptListings.read(under: system))
             let listed = presence.installedApps().map { ApplicationsInventory.apps($0, excluding: own, home: home) }
@@ -175,7 +185,7 @@ struct ApplicationsView: View {
                            action: EmptyStateAction("Clear search") { model.listing.search = "" }, identifier: "applicationsNoMatches")
             } else {
             // Nothing listed yet: no Name and Size over empty states (#427).
-            if !model.apps.isEmpty || !model.audioApps.isEmpty || !model.plugIns.isEmpty || catalog.leftoversRow != nil { columnHeader }
+            if !(model.apps + model.audioApps + model.plugIns + model.reasonDevices + model.drivers + model.sounds).isEmpty || catalog.leftoversRow != nil { columnHeader }
             section("Apps", id: .apps, detail: "Apps in your Applications folders", noun: "apps", entries: listed(model.apps), category: .apps,
                     identifier: "applicationsApp-", empty: ("No apps to list", "Only Apple’s apps are in the Applications folders."))
             audioSection
@@ -224,7 +234,7 @@ struct ApplicationsView: View {
         guard model.listing.isSearching else { return [] }
         var ids = Set<ApplicationsSection>()
         if model.apps.contains(where: { model.listing.matches(name: $0.name, maker: $0.maker) }) { ids.insert(.apps) }
-        if (model.audioApps + model.plugIns).contains(where: { model.listing.matches(name: $0.name, maker: $0.maker) }) { ids.insert(.audio) }
+        if (model.audioApps + model.plugIns + model.reasonDevices + model.drivers + model.sounds).contains(where: { model.listing.matches(name: $0.name, maker: $0.maker) }) { ids.insert(.audio) }
         if leftoversMatch { ids.insert(.leftovers) }
         return ids
     }
@@ -241,7 +251,7 @@ struct ApplicationsView: View {
     }
     /// Whether any section lists something with a checkbox: an app or plug-in CacheDrop can uninstall, or files from deleted apps.
     private var hasTickable: Bool {
-        catalog.leftoversRow != nil || (model.apps + model.audioApps + model.plugIns).contains { !catalog.uninstallItems(ofRow: $0.id).isEmpty }
+        catalog.leftoversRow != nil || (model.apps + model.audioApps + model.plugIns + model.reasonDevices + model.drivers).contains { !catalog.uninstallItems(ofRow: $0.id).isEmpty }
     }
     /// The same selected candidates as the footer and review, including choices hidden by search (#525).
     private var summary: some View {
@@ -332,16 +342,19 @@ struct ApplicationsView: View {
         }.waitingForScan(listsLoading)
     }
 
-    /// Audio software (Decisions 151, 153): DAWs and apps, then plug-ins by maker, each group a category row with no checkbox.
+    /// Audio software (Decisions 151, 153): DAWs and apps, plug-ins by maker (Reason's additional devices among them), sounds and
+    /// samples, and drivers, each group a category row with no checkbox.
     @ViewBuilder private var audioSection: some View {
-        let apps = arranged(listed(model.audioApps)), plugIns = arranged(listed(model.plugIns)), all = apps + plugIns
-        let detail = "DAWs, audio apps and plug-ins"
+        let apps = arranged(listed(model.audioApps)), plugIns = arranged(listed(model.plugIns + model.reasonDevices))
+        let sounds = arranged(model.sounds), drivers = arranged(listed(model.drivers)), all = apps + plugIns + sounds + drivers
+        let detail = "DAWs and apps, plug-ins, sounds and drivers"
         if all.isEmpty {
             VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
                 sectionHeading(.audio, category: .audioSoftware, title: "Audio software", detail: detail)
                 appsUnreadableNote
-                sectionBody(id: .audio, entries: listed(model.audioApps) + listed(model.plugIns), shown: [], category: .audioSoftware, identifier: "",
-                            empty: ("No audio software to list", "No DAWs, audio apps or plug-ins other than Apple’s were found."))
+                sectionBody(id: .audio, entries: listed(model.audioApps + model.plugIns + model.reasonDevices + model.drivers) + model.sounds, shown: [],
+                            category: .audioSoftware, identifier: "",
+                            empty: ("No audio software to list", "No DAWs, plug-ins, sounds or drivers other than Apple’s were found."))
             }
         } else {
             CategoryRow(category: .audioSoftware, state: nil, title: "Audio software", detail: detail, size: total(all), enabled: true,
@@ -354,9 +367,30 @@ struct ApplicationsView: View {
                     if !plugIns.isEmpty {
                         group("Plug-ins", .plugIns, noun: "plug-ins", entries: plugIns) { makers(plugIns) }
                     }
+                    if !sounds.isEmpty {
+                        // Read-only (#705 decides removing them): "Show", never "Choose" (Decision 154).
+                        group("Sounds and samples", .sounds, verb: "Show", noun: "sounds", entries: sounds) { soundRows(sounds) }
+                    }
+                    if !drivers.isEmpty {
+                        let tickable = drivers.contains { !catalog.uninstallItems(ofRow: $0.id).isEmpty }
+                        group("Drivers", .drivers, verb: tickable ? "Choose" : "Show", noun: "drivers", entries: drivers) {
+                            rows(drivers, category: .audioSoftware, identifier: "applicationsDriver-")
+                        }
+                    }
                 }
             }
         }
+    }
+    /// Sounds and samples: each with who it is from and its size, revealed in Finder, never chosen (Decision 151).
+    private func soundRows(_ sounds: [InventoryEntry]) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(sounds) { sound in
+                InspectableItemRow(name: sound.name, detail: [sound.maker, sound.volume.map { "On \($0), not connected" }].compactMap { $0 }.joined(separator: " · "),
+                                   size: sound.size.text, symbol: "waveform", inspected: false, inspect: nil,
+                                   reveal: { model.reveal(sound.name, sound.parts.map(\.url)) }, revealIdentifier: "applicationsSoundReveal-" + sound.id) { EmptyView() }
+                    .help(sound.id)
+            }
+        }.padding(.bottom, CacheDropDesign.Space.md)
     }
     /// When the list of apps couldn't be read, DAWs and audio apps aren't known either: said, never shown as none (#310).
     @ViewBuilder private var appsUnreadableNote: some View {
@@ -379,12 +413,12 @@ struct ApplicationsView: View {
         }
     }
     /// One of Audio software's groups, or a maker: a category row with no checkbox, its rows behind "Choose <noun> · N".
-    private func group<Rows: View>(_ title: String, _ group: AudioGroup, noun: String, entries: [InventoryEntry],
+    private func group<Rows: View>(_ title: String, _ group: AudioGroup, verb: String = "Choose", noun: String, entries: [InventoryEntry],
                                    @ViewBuilder rows: @escaping () -> Rows) -> some View {
         let open = Binding(get: { model.openGroups.contains(group) }, set: { if $0 { model.openGroups.insert(group) } else { model.openGroups.remove(group) } })
         return VStack(alignment: .leading, spacing: 0) {
             CategoryRow(category: .audioSoftware, state: nil, title: title, detail: "", size: total(entries), enabled: true,
-                        identifier: "applicationsGroup-" + group.key, itemCount: entries.count, chooseNoun: noun, expanded: open, toggle: {}) { EmptyView() } items: { rows() }
+                        identifier: "applicationsGroup-" + group.key, itemCount: entries.count, chooseVerb: verb, chooseNoun: noun, expanded: open, toggle: {}) { EmptyView() } items: { rows() }
             // Open, its last row's divider ends it.
             if !open.wrappedValue { Divider().padding(.vertical, CacheDropDesign.Space.md) }
         }
@@ -393,10 +427,12 @@ struct ApplicationsView: View {
     private var groupsWithMatches: Set<AudioGroup> {
         guard model.listing.isSearching else { return [] }
         let apps = listed(model.audioApps).filter { model.listing.matches(name: $0.name, maker: $0.maker) }
-        let plugIns = listed(model.plugIns).filter { model.listing.matches(name: $0.name, maker: $0.maker) }
+        let plugIns = listed(model.plugIns + model.reasonDevices).filter { model.listing.matches(name: $0.name, maker: $0.maker) }
         var groups = Set(plugIns.map { AudioGroup.maker($0.maker) })
         if !apps.isEmpty { groups.insert(.apps) }
         if !plugIns.isEmpty { groups.insert(.plugIns) }
+        if model.sounds.contains(where: { model.listing.matches(name: $0.name, maker: $0.maker) }) { groups.insert(.sounds) }
+        if listed(model.drivers).contains(where: { model.listing.matches(name: $0.name, maker: $0.maker) }) { groups.insert(.drivers) }
         return groups
     }
     /// The entries the search matches, in the list's sort.
