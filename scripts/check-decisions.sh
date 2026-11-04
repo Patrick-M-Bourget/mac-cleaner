@@ -5,8 +5,8 @@
 # Decisions are append-only: a Decision that changes an earlier one says "amends N" in its own header, and Decision N
 # stays as written (`scripts/issues.py decision N` lists what amends it). RESET.md merges with git's union driver
 # (.gitattributes), which is safe only for appended text: parallel branches that each append a Decision merge without
-# conflicts, though their Decisions may land in either order, and an edited Decision would be kept twice. Gaps in the
-# numbering are historical.
+# conflicts, though their Decisions may land in either order (scripts/order-decisions.py sorts them, #727), and an
+# edited Decision would be kept twice. Gaps in the numbering are historical.
 #
 # The append-only part compares each Decision with origin/main and with this branch's merge base; it is skipped when
 # origin/main isn't available (CI's shallow checkout).
@@ -19,27 +19,20 @@ if git rev-parse -q --verify origin/main >/dev/null 2>&1; then
   base=$(git merge-base HEAD origin/main 2>/dev/null || true)
 fi
 python3 -B - "$base" <<'PY'
-import re
+import importlib.util
 import subprocess
 import sys
+
+# What a Decision entry is lives once, in the script that puts them back in order (#727).
+spec = importlib.util.spec_from_file_location('order_decisions', 'scripts/order-decisions.py')
+order = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(order)
 
 
 def decisions(text):
     """Each Decision's whole text (its numbered line and any indented lines under it), by number, in file order."""
-    marker = re.search(r'^## Decisions', text, re.M)
-    if not marker:
-        return []
-    found, current = [], None
-    for line in text[marker.end():].split('\n'):
-        if line.startswith('## '):
-            break
-        start = re.match(r'(\d+)\. ', line)
-        if start:
-            current = [int(start[1]), [line]]
-            found.append(current)
-        elif current is not None:
-            current[1].append(line)
-    return [(number, '\n'.join(lines).rstrip()) for number, lines in found]
+    parts = order.split(text)
+    return [(number, body.rstrip()) for number, body, _ in parts[1]] if parts else []
 
 
 def at(ref):
@@ -52,7 +45,8 @@ here = decisions(open('docs/RESET.md').read())
 last = None
 for number, _ in here:
     if last is not None and number <= last:
-        print(f'Decision {number} follows {last} in docs/RESET.md: renumber it or remove the duplicate.')
+        print(f'Decision {number} follows {last} in docs/RESET.md: after a merge, scripts/order-decisions.py puts them '
+              f'back in order; a duplicate number needs renumbering or removing.')
         bad = True
     last = number
 

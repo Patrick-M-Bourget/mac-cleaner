@@ -9,7 +9,8 @@ Run it only after the owner says "merge". UI journeys stay your call before it s
   1. finds the worktree that has the PR's branch checked out; it must be clean
   2. merges origin/main with --no-commit when the branch is behind (a conflict stops here: resolve it in that
      worktree, then run the same command again)
-  3. scripts/check-decisions.sh, then scripts/check.sh (which records the pass stamp)
+  3. scripts/order-decisions.py when a merge is in progress (RESET.md's union merge can leave Decisions out of order,
+     #727), then scripts/check-decisions.sh, then scripts/check.sh (which records the pass stamp)
   4. commits the merge with the given trailers, and pushes
   5. waits for CI on the pushed head
   6. scripts/check-pr-closing.py PR --expect ISSUE... (or --expect-none)
@@ -50,6 +51,21 @@ def worktree_for(porcelain, branch):
         elif line == f'branch refs/heads/{branch}':
             return path
     return None
+
+
+def merging(wt):
+    return run('git', 'rev-parse', '-q', '--verify', 'MERGE_HEAD', cwd=wt, check=False).returncode == 0
+
+
+def order_decisions(wt):
+    """Puts docs/RESET.md's Decisions back in number order after a merge and stages the file (#727)."""
+    if not merging(wt):
+        return 'no merge in progress'
+    result = run(sys.executable, 'scripts/order-decisions.py', cwd=wt, check=False)
+    if result.returncode:
+        raise Failure(result.stdout + result.stderr)
+    run('git', 'add', 'docs/RESET.md', cwd=wt)
+    return result.stdout.strip().removeprefix('ok    ')
 
 
 def ci_state(pr, head):
@@ -110,14 +126,13 @@ def main():
             raise Failure(f'No worktree has {pr["headRefName"]} checked out')
         state.update(branch=pr['headRefName'], wt=path)
         dirty = [l for l in run('git', 'status', '--porcelain', cwd=path).stdout.splitlines() if not l.startswith('??')]
-        merging = run('git', 'rev-parse', '-q', '--verify', 'MERGE_HEAD', cwd=path, check=False).returncode == 0
-        if dirty and not merging:
+        if dirty and not merging(path):
             raise Failure(f'{path} has uncommitted changes:\n' + '\n'.join(dirty))
         return f'{pr["headRefName"]} in {path}'
 
     def merge_main():
         wt = state['wt']
-        if run('git', 'rev-parse', '-q', '--verify', 'MERGE_HEAD', cwd=wt, check=False).returncode == 0:
+        if merging(wt):
             unmerged = run('git', 'diff', '--name-only', '--diff-filter=U', cwd=wt).stdout.split()
             if unmerged:
                 raise Failure('Resolve and `git add` these, then run this again:\n' + '\n'.join(unmerged))
@@ -145,7 +160,7 @@ def main():
 
     def commit_and_push():
         wt = state['wt']
-        if run('git', 'rev-parse', '-q', '--verify', 'MERGE_HEAD', cwd=wt, check=False).returncode == 0:
+        if merging(wt):
             trailers = [a for t in args.trailer for a in ('--trailer', t)]
             run('git', 'commit', '-q', '--no-edit', *trailers, cwd=wt)
         state['head'] = run('git', 'rev-parse', 'HEAD', cwd=wt).stdout.strip()
@@ -191,6 +206,7 @@ def main():
 
     step('find the worktree', find)
     step('merge origin/main', merge_main)
+    step('decision order', lambda: order_decisions(state['wt']))
     step('decision numbers', decisions)
     step('check.sh', checks)
     step('commit and push', commit_and_push)

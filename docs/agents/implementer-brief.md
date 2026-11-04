@@ -8,7 +8,7 @@ How to run a batch of tickets with one implementer agent per ticket. The orchest
 2. **Decision numbers.** Give each ticket the next free Decision number, in batch order, and note in the hand-off which number the next batch or parked work starts at.
 3. **Overlap.** When two tickets touch the same code, tell each agent which part the other owns.
 4. **Prompts.** Spawn the agents in parallel. Each prompt carries the brief below, filled in, plus the session's commit trailer lines.
-5. **Merge.** Merge each finished branch into the batch branch (`--no-ff`, with the trailer lines). `docs/RESET.md` merges by union, so put its Decisions back in order if `scripts/check-decisions.sh` complains. Decisions are append-only: a change to an earlier Decision is a new Decision that says "amends N".
+5. **Merge.** Merge each finished branch into the batch branch (`--no-ff`, with the trailer lines). `docs/RESET.md` merges by union, so put its Decisions back in order with `scripts/order-decisions.py`. Decisions are append-only: a change to an earlier Decision is a new Decision that says "amends N".
 6. **Verify.** Run the core tests, the strict pool and `build-for-testing` on the batch branch. Then run `scripts/ui-journeys.sh` with every journey the agents named, once nobody is using the screen.
 7. **Review.** Run `/code-review` against `origin/main`; the reviewer reads `CODING_STANDARDS.md`. Fix real bugs on the batch branch, one commit each, and ticket the judgement calls.
 8. **Ship.** Push, open one PR with `/pr`, and merge only on the owner's "merge". Remove the ticket worktrees once it lands.
