@@ -191,3 +191,12 @@ private func plugIn(_ url: URL, _ format: PlugInFormat, id: String, maker: Strin
     #expect(ApplicationsInventory.vendorTool(for: nativeAccess, among: apps) == nil, "The tool needs no tool")
     #expect(ApplicationsInventory.vendorTool(for: entry("Unknown", nil), among: apps) == nil)
 }
+/// #718: a tool is installed when an app has its exact bundle ID, in any case; the one lookup the vendor's tool and a sound's
+/// manager share.
+@Test func aVendorToolIsInstalledOnlyAsTheAppWithItsBundleID() {
+    func entry(_ name: String, _ bundleID: String?) -> InventoryEntry { InventoryEntry(id: name, name: name, maker: nil, volume: nil, parts: [], bundleID: bundleID) }
+    let central = entry("Waves Central", "com.WavesAudio.WavesCentral")
+    let tool = VendorTool(vendor: "com.wavesaudio", bundleID: "com.wavesaudio.wavescentral")
+    #expect(tool.installed(among: [entry("Waves Helper", "com.wavesaudio.helper"), central]) == central)
+    #expect(tool.installed(among: [entry("Waves Central", nil), entry("Wavesfactory", "com.wavesfactory.central")]) == nil, "Never by name")
+}

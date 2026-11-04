@@ -148,6 +148,6 @@ public enum AudioSoftware {
 
     /// The installed app that manages a sound library (#714): its vendor's manager, when it is among `apps`, by bundle ID only (41).
     public static func manager(of sound: InventoryEntry, among apps: [InventoryEntry]) -> InventoryEntry? {
-        sound.managers.lazy.compactMap { tool in apps.first { $0.bundleID?.lowercased() == tool.bundleID } }.first
+        sound.managers.lazy.compactMap { $0.installed(among: apps) }.first
     }
 }
