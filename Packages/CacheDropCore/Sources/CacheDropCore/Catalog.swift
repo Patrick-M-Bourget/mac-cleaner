@@ -58,6 +58,8 @@ public enum CatalogCategory: String, Codable, Sendable {
     case logs = "logs", icloud = "icloud", files = "files", managed = "managed", leftovers = "leftovers", apps = "apps"
     /// Audio software (Decision 151): rules written for audio apps, such as Ableton Live's cache.
     case audio = "audio"
+    /// Photo and video (Decision 164): rules written for photo and video apps, such as Adobe's media cache.
+    case photoVideo = "photo-video"
 }
 
 /// Who must be closed before a rule's data is touched.

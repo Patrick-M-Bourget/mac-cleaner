@@ -70,6 +70,24 @@ private func keys(_ json: String) throws -> Set<String> {
         #expect(plan.categories.first { $0.id == "audio" }?.items.map(\.path) == [file.deletingLastPathComponent().deletingLastPathComponent().path])
     }
 
+    /// Decision 164: Photo and video is a row like any other, with its own id, holding Adobe's media cache.
+    @Test func scanListsPhotoAndVideoWithAdobesMediaCache() throws {
+        let (home, sources) = try commandLineFixture()
+        defer { try? FileManager.default.removeItem(at: home) }
+        let empty = CommandLineReport.Scan(catalog: sources.catalog, discovery: SmartCleanReport.discover(sources), home: home, access: .granted)
+        #expect(empty.categories.first { $0.id == "photo-video" }?.status == "empty")
+        let file = home.appendingPathComponent("Library/Application Support/Adobe/Common/Peak Files/2026-11-03/clip 48000.pek")
+        try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data(repeating: 1, count: 8_192).write(to: file)
+        let scan = CommandLineReport.Scan(catalog: sources.catalog, discovery: SmartCleanReport.discover(sources), home: home, access: .granted)
+        let media = try #require(scan.categories.first { $0.id == "photo-video" })
+        #expect(media.title == "Photo and video" && media.status == "found" && media.items == 1)
+        let plan = CommandLineReport.Plan(SmartCleanReport.run(sources))
+        let peakFiles = file.deletingLastPathComponent().deletingLastPathComponent().path
+        let planned = plan.categories.first { $0.id == "photo-video" }?.items.map(\.path)
+        #expect(planned == [peakFiles])
+    }
+
     @Test func planSaysWhatSmartCleanWouldClean() throws {
         let (home, sources) = try commandLineFixture()
         defer { try? FileManager.default.removeItem(at: home) }

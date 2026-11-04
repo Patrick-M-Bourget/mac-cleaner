@@ -189,3 +189,15 @@ private func adobe(_ catalog: Catalog, _ home: URL) -> (candidates: [Candidate],
     #expect(!FileManager.default.fileExists(atPath: moved.appendingPathComponent("Media Cache Files").path))
     #expect(FileManager.default.fileExists(atPath: moved.appendingPathComponent("Edit notes.txt").path))
 }
+
+// #733, Decision 164: photo and video apps' rules have their own category, listed after App caches and Audio software.
+@Test func photoAndVideoFollowsAppCachesAndAudioSoftware() throws {
+    var order: [CatalogCategory] = []
+    for rule in fixtureRules where !order.contains(rule.category) { order.append(rule.category) }
+    let system = try #require(order.firstIndex(of: .system))
+    #expect(Array(order[system...].prefix(3)) == [.system, .audio, .photoVideo])
+    let catalog = Catalog(rules: fixtureRules)
+    for id in [AdobeMediaCache.ruleID, "premiere-pro-cache"] { #expect(catalog.rule(id)?.category == .photoVideo) }
+    #expect(CatalogCategory.photoVideo.overviewTitle == "Photo and video")
+    #expect(CatalogCategory(rawValue: "photo-video") == .photoVideo)
+}

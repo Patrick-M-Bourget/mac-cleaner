@@ -11,6 +11,7 @@ extension CatalogCategory {
         case .downloads: "Downloads"
         case .system: "App caches"
         case .audio: "Audio software"
+        case .photoVideo: "Photo and video"
         case .models: "Models and disk images"
         case .updaters: "App update downloads"
         case .logs: "Logs and crash reports"
