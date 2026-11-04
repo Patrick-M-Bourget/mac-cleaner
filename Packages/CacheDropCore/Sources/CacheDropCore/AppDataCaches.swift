@@ -114,6 +114,19 @@ public enum AppDataCaches {
         regen: .cache, action: .delete, locations: ["Library/Caches/Adobe/Premiere Pro/*"], owner: adobeVideoApps,
         itemName: { "Premiere Pro " + $0 })
 
+    /// After Effects' cache for each version, ~/Library/Caches/Adobe/After Effects/<version>, where its disk cache is kept by
+    /// default (#400, Decision 165). Adobe Help ("Memory and storage") documents the disk cache, "up to 100 GB" by default,
+    /// kept after quitting and separate per version, but not its macOS folder; that folder is from secondary sources
+    /// (freevisuals.net, MacKeeper, an Adobe community bug report on old versions' disk caches), not observed. Anything in
+    /// ~/Library/Caches is rebuilt by its app, so a folder named otherwise is simply not found. A disk cache moved in Settings ›
+    /// Disk isn't offered: where After Effects records it isn't documented, and CacheDrop doesn't guess. Real check: #736.
+    static let afterEffectsCache = CleanupRule(
+        id: "after-effects-cache", category: .photoVideo, title: "After Effects cache",
+        detail: "Files After Effects keeps to preview and work faster, per version.",
+        consequence: "Your projects, settings and media are kept, and After Effects rebuilds these files as you preview.",
+        regen: .cache, action: .delete, locations: ["Library/Caches/Adobe/After Effects/*"], owner: adobeVideoApps,
+        itemName: { "After Effects " + $0 })
+
     // MARK: Audio production (#139)
 
     /// Ableton Live's cache folder, by default ~/Library/Caches/Ableton/Cache (Ableton Help, "The file could not be read.
@@ -159,6 +172,7 @@ public enum AppDataCaches {
             abletonCache,
             adobeMediaCache,
             premiereProCache,
+            afterEffectsCache,
             vsCode(id: "vscode-cache", name: "Visual Studio Code", nameShort: "Code", bundleID: "com.microsoft.VSCode"),
             vsCode(id: "vscodium-cache", name: "VSCodium", nameShort: "VSCodium", bundleID: "com.vscodium"),
             vsCode(id: "cursor-cache", name: "Cursor", nameShort: "Cursor", bundleID: "com.todesktop.230313mzl4w4u92"),

@@ -201,3 +201,20 @@ private func adobe(_ catalog: Catalog, _ home: URL) -> (candidates: [Candidate],
     #expect(CatalogCategory.photoVideo.overviewTitle == "Photo and video")
     #expect(CatalogCategory(rawValue: "photo-video") == .photoVideo)
 }
+
+// #400, Decision 165: After Effects' cache per version, from its default folder only.
+@Test func afterEffectsCacheIsOfferedPerVersionInPhotoAndVideo() throws {
+    let home = try temporaryFolder("home")
+    defer { try? FileManager.default.removeItem(at: home) }
+    for version in ["25.0", "26.0"] { try write(home, "Library/Caches/Adobe/After Effects/\(version)/Disk Cache/frame", bytes: 4_096) }
+    for kept in ["Library/Preferences/Adobe/After Effects/26.0/Adobe After Effects 26.0 Prefs.txt", "Documents/Adobe/After Effects/comp.aep"] { try write(home, kept) }
+    let catalog = Catalog(rules: fixtureRules)
+    let found = catalog.discovery(fixture: home, access: .granted).candidates.filter { $0.ruleID == "after-effects-cache" }
+    #expect(found.compactMap(\.itemName).sorted() == ["After Effects 25.0", "After Effects 26.0"])
+    #expect(found.allSatisfy { $0.url.path.hasPrefix(home.appendingPathComponent("Library/Caches/Adobe/After Effects").path) })
+    #expect(catalog.rule("after-effects-cache")?.category == .photoVideo)
+    let item = try #require(found.first)
+    let afterEffects = ["/Applications/Adobe After Effects 2026/Adobe After Effects 2026.app/Contents/MacOS/After Effects"]
+    #expect(CandidateCheck(catalog: catalog, running: Running(processes: [afterEffects]), home: home).check(item) == .ownerRunning("Adobe video apps"))
+    #expect(RecommendedPlan.recommends(item, rule: try #require(catalog.rule("after-effects-cache")), now: Date()))
+}
