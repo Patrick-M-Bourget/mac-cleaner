@@ -47,6 +47,7 @@ struct AppearancePicker: View {
 struct CacheDropSettingsView: View {
     @State private var appearance = AppLifecycleController.shared.appearance
     @AppStorage(PreferenceKeys.showsMenuBarItem) private var showsMenuBarItem = true
+    @State private var sharing = SetupProgressSharing.shared
     @AppStorage(PreferenceKeys.checksForUpdatesAutomatically) private var checksForUpdatesAutomatically = true
     var body: some View {
         Form {
@@ -60,6 +61,11 @@ struct CacheDropSettingsView: View {
             LowSpaceAlertsSettings(controller: AppLifecycleController.shared.alerts)
             WeeklyReminderSettings(controller: AppLifecycleController.shared.weeklyReminder)
             Section { DryRunToggle(model: AppLifecycleController.shared.selection.catalog) }
+            Section {
+                Toggle(SetupProgressSharing.title, isOn: sharing.binding).accessibilityIdentifier("shareSetupProgressSettings")
+            } footer: {
+                Text(SetupProgressSharing.explanation).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+            }
             Section {
                 // #600: weekly; Sparkle asks before downloading or installing anything (Decision 145).
                 Toggle("Check for updates automatically", isOn: $checksForUpdatesAutomatically)

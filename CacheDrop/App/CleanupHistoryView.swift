@@ -107,6 +107,7 @@ private enum HistoryActivityItem: Identifiable {
             try lifecycle.locations.reset()
             try await StorageTrendsHistoryModel.shared.resetHistory()
             try await ProtectedItemsModel.shared.reset()
+            try await SetupProgressSharing.shared.reset()
             lifecycle.selection.endSession()
             await lifecycle.inspection.resetSession()
             lifecycle.planPresentation.reset()

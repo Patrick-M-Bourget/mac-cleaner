@@ -633,11 +633,13 @@ import SwiftUI
     /// was granted while it ran (#310).
     private func finishScan(home: URL, took: Duration, _ what: String) {
         preparedScan = UUID()
+        SetupProgressSharing.shared.record(.firstScanCompleted)
         if let preparedScan { applicationsRescan.scanPrepared(preparedScan) }
         Self.log.notice("\(what, privacy: .public) took \(took, privacy: .public)")
         // The weekly reminder speaks for this scan: Smart clean's ticked total, no scan of its own (#599).
         let ready = smartCleanCandidates.reduce(Int64(0)) { $0 + $1.estimatedBytes }
         Task { await AppLifecycleController.shared.weeklyReminder.scanFinished(readyBytes: ready) }
+        // Full Disk Access granted while it ran (from the welcome, during the launch scan): scan again once, by itself (#310).
         if fullDiskAccessRescan.scanEnded(probing: FullDiskAccessProbe(home: home)) { rescanPending = true }
     }
     private struct PartialScanResult: Sendable {
@@ -822,6 +824,7 @@ import SwiftUI
             applicationsRescan.runEnded(touched: touched)
             measureStoppedWorkAgain(outcome, of: approval, run: run)
             if !approval.dryRun { rescanFollowsCleanup = true }
+            if !approval.dryRun && !outcome.cleanedCandidateIDs.isEmpty { SetupProgressSharing.shared.record(.firstCleanupCompleted) }
             // What the run cleaned leaves every page; what it skipped keeps its tick (#349). Picked folders keep the large and old files this run didn't act on (#125).
             // The other rows stay, dimmed, until the rescan that follows replaces them (#375).
             selections.finishRun(cleaned: outcome.cleanedCandidateIDs); selections.revise()

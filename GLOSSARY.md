@@ -59,7 +59,7 @@ The names CacheDrop shows, what they mean, and where they live in code. Copy fol
 | license | What a purchase gives: up to 3 Macs, honour-based, checked on the Mac only (Decision 135) | `License`, `LicenseState` |
 | license key | The one copy-pasteable string a license comes as, starting `CD1-` | `LicenseKey`, `LicenseVerifier` |
 | trial | Clean up and uninstall, free until they have freed 2 GB on this Mac; Settings reads **X of free cleanup left**, then **Free trial used** (Decisions 135, 137) | `Trial`, `TrialController`, `CleanupAllowance` |
-| setup progress | The setup events CacheDrop sends only when the user opts in (Decision 127) | — |
+| setup progress | The setup events CacheDrop sends only when the user opts in (Decision 127) | `SetupProgressReporter`, `SetupProgressEvent` |
 
 ## Actions and outcomes
 
@@ -97,7 +97,7 @@ The names CacheDrop shows, what they mean, and where they live in code. Copy fol
 | Enter license | On a review sheet over the trial's cap, opens Settings, where the License section takes a key | `CleanupAllowance` |
 | Buy | Opens cachedrop.io/buy in the browser; shown beside the price, 29.99 struck through, then 19.99 | `LicensePrice` |
 | Remove from this Mac | Forgets the license key on this Mac; the license itself is unchanged | `LicenseController.remove` |
-| Share setup progress | The opt-in toggle on Welcome and in Settings that sends setup progress | — |
+| Share setup progress | The opt-in toggle on Welcome and in Settings that sends setup progress | `SetupProgressSharing` |
 
 ## Not shown to users
 

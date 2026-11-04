@@ -125,6 +125,7 @@ struct FirstRunWelcomeView: View {
     let model: WelcomeModel
     let catalog: CatalogCleanupModel
     @State private var access = FullDiskAccessModel()
+    @State private var sharing = SetupProgressSharing.shared
     @State private var furthestProgress = 0.0
 
     var body: some View {
@@ -149,6 +150,12 @@ struct FirstRunWelcomeView: View {
                     .font(CacheDropDesign.TypeStyle.note).foregroundStyle(.secondary)
                 StatusRow(text: "It never touches your logins or your Photos, Mail and Messages data, and changes your files only when you ask.",
                           symbol: "hand.raised", identifier: "welcomeNeverTouches")
+                Toggle(isOn: sharing.binding) {
+                    VStack(alignment: .leading, spacing: CacheDropDesign.Space.xs) {
+                        Text(SetupProgressSharing.title)
+                        Text(SetupProgressSharing.explanation).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                    }
+                }.toggleStyle(.checkbox).accessibilityIdentifier("welcomeShareSetupProgress")
             case .access:
                 Text("CacheDrop can request access to Downloads and app data. macOS may ask you to allow access. Full Disk Access is optional.")
                     .font(CacheDropDesign.TypeStyle.note).foregroundStyle(.secondary)
