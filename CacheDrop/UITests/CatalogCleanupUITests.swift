@@ -16,6 +16,17 @@ import AppKit
     return home
 }
 
+/// An app bundle in the fixture home's Applications folder.
+func addApp(_ name: String, id: String, bytes: Int, copyright: String? = nil, in home: URL) throws -> URL {
+    let bundle = home.appendingPathComponent("Applications/\(name).app")
+    try FileManager.default.createDirectory(at: bundle.appendingPathComponent("Contents/MacOS"), withIntermediateDirectories: true)
+    var info: [String: Any] = ["CFBundleIdentifier": id, "CFBundleExecutable": "main"]
+    if let copyright { info["NSHumanReadableCopyright"] = copyright }
+    try PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0).write(to: bundle.appendingPathComponent("Contents/Info.plist"))
+    try Data(repeating: 1, count: bytes).write(to: bundle.appendingPathComponent("Contents/MacOS/main"))
+    return bundle
+}
+
 /// Turns on the Settings dry run for this launch through the DEBUG-only test seam, for journeys that assert nothing changed.
 @MainActor func turnOnDryRun(_ app: XCUIApplication) {
     app.launchEnvironment["CACHEDROP_TEST_DRY_RUN"] = "1"
@@ -178,10 +189,10 @@ func waitForOverview(_ app: XCUIApplication, file: StaticString = #filePath, lin
 @MainActor func applicationsSection(_ app: XCUIApplication, _ section: String) -> XCUIElement {
     app.disclosureTriangles.matching(NSPredicate(format: "label BEGINSWITH %@", "Choose \(section) · ")).firstMatch
 }
-/// An element by an identifier longer than XCUITest's 128-character limit for identifier queries: a fixture folder's
-/// path makes `overviewLocation:` identifiers that long.
-@MainActor func element(identifier: String, in app: XCUIApplication) -> XCUIElement {
-    app.descendants(matching: .any).matching(NSPredicate(format: "identifier == %@", identifier)).firstMatch
+/// An element by identifier, of any type unless one is named. Identifiers carrying a fixture path (Applications' rows, #271;
+/// `overviewLocation:`) run longer than the 128 characters a subscript query allows, so this matches with a predicate (#273).
+@MainActor func element(_ app: XCUIApplication, _ identifier: String, _ type: XCUIElement.ElementType = .any) -> XCUIElement {
+    app.descendants(matching: type).matching(NSPredicate(format: "identifier == %@", identifier)).firstMatch
 }
 
 @MainActor func revealAndClick(_ element: XCUIElement, in app: XCUIApplication) {
@@ -668,7 +679,7 @@ final class CatalogCleanupUITests: XCTestCase {
         // #350: the installer goes to the Trash, so the total doesn't count it, and nothing on the page moves.
         let total = app.staticTexts["liveSelectionSummaryValue"], before = total.value as? String
         // #481: nothing is selected on Applications, so the count stands alone.
-        XCTAssertFalse(element(identifier: "liveSelectionSummaryElsewhere", in: app).exists)
+        XCTAssertFalse(element(app, "liveSelectionSummaryElsewhere").exists)
         // #484, Decision 92: the card's title is "Ready to clean", as on Smart clean.
         XCTAssertTrue(app.staticTexts["Ready to clean"].exists)
         XCTAssertFalse(app.staticTexts["Potential space released"].exists)
