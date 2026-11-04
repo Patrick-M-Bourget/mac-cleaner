@@ -4,7 +4,7 @@
 
 | Step | Who | How |
 |---|---|---|
-| 1. Version, build number and notes | Claude | `scripts/release.sh --bump x.y.z`, `docs/releases/x.y.z.html` (Decision 122), full UI suite, release PR |
+| 1. Version, build number and notes | Claude, for the version the owner names (a patch bump unless told otherwise) | `scripts/release.sh --bump x.y.z`, `docs/releases/x.y.z.html` (Decision 122), full UI suite, release PR |
 | 2. Merge the release PR | Owner says "merge" | `scripts/merge-pr.py PR --expect-none` |
 | 3. Signed, notarized, verified build | Claude | `scripts/ship-release.sh x.y.z` |
 | 4. Publish to the update feed and website | Owner says "publish" | cachedrop-website `scripts/publish-release.sh <artifacts>` (website Decision 55) |
