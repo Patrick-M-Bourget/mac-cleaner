@@ -157,6 +157,17 @@ sign_mode=(--signed)
 if ((adhoc)); then timestamp=(--timestamp=none); sign_mode=(--adhoc); fi
 "$repo/scripts/sign-release-app.sh" "$built" "$identity" "$team_id" "${sign_mode[@]}"
 
+# Apple's ticket server drops connections now and then (1.0.2 stopped twice on "Error 68"), so each stapler call gets
+# three tries, 20 s apart; a ticket that really is missing still fails after the third.
+stapler() { # staple|validate PATH
+  local attempt
+  for attempt in 1 2 3; do
+    xcrun stapler "$1" "$2" && return 0
+    if ((attempt < 3)); then echo "stapler $1 failed; trying again in 20 s" >&2; sleep 20; fi
+  done
+  die "stapler $1 $(basename "$2") failed 3 times"
+}
+
 notarize() { # path
   local result status id
   result="$(xcrun notarytool submit "$1" --keychain-profile "$notary_profile" --wait --output-format json)" || true
@@ -176,7 +187,7 @@ if ((!adhoc)); then
   step "Notarizing the app"
   ditto -c -k --keepParent "$built" "$work/CacheDrop.zip"
   notarize "$work/CacheDrop.zip"
-  xcrun stapler staple "$built"
+  stapler staple "$built"
 fi
 
 # 4. DMG: the app and a link to /Applications in one laid-out Finder window (#558), signed below.
@@ -201,7 +212,7 @@ codesign --verify --strict --verbose=2 "$dmg"
 if ((!adhoc)); then
   step "Notarizing the DMG"
   notarize "$dmg"
-  xcrun stapler staple "$dmg"
+  stapler staple "$dmg"
 fi
 
 # Keep the app next to the DMG for a launch check.
@@ -217,15 +228,15 @@ if ((adhoc)); then
 else
   spctl -a -t exec -vv "$app"
   spctl -a -t open --context context:primary-signature -vv "$dmg"
-  xcrun stapler validate "$app"
-  xcrun stapler validate "$dmg"
+  stapler validate "$app"
+  stapler validate "$dmg"
 fi
 # Verify the app actually carried by the final disk image, mounted read-only.
 mkdir "$work/verify-dmg"
 dmg_mount="$work/verify-dmg"
 hdiutil attach -readonly -nobrowse -mountpoint "$dmg_mount" "$dmg" >/dev/null
 "$repo/scripts/sign-release-app.sh" --verify "$dmg_mount/CacheDrop.app" "$identity" "$team_id" "${sign_mode[@]}"
-if ((!adhoc)); then xcrun stapler validate "$dmg_mount/CacheDrop.app"; fi
+if ((!adhoc)); then stapler validate "$dmg_mount/CacheDrop.app"; fi
 hdiutil detach "$dmg_mount" -quiet
 dmg_mount=""
 
