@@ -7,7 +7,7 @@ A native, local-first macOS app. It finds space you can reclaim on your Mac and 
 1. Download `CacheDrop-<version>.dmg` from [GitHub Releases](https://github.com/Patrick-M-Bourget/mac-cleaner/releases).
 2. Open it and drag CacheDrop to Applications.
 
-CacheDrop needs macOS 26 or later on a Mac with Apple silicon. Choose **Check for Updates…** in the CacheDrop menu or Settings to check for a new release. Checks, downloads and installation happen only when you ask; older builds can be updated by downloading a new release.
+CacheDrop needs macOS 14 Sonoma or later, on a Mac with Apple silicon or Intel. Choose **Check for Updates…** in the CacheDrop menu or Settings to check for a new release. Checks, downloads and installation happen only when you ask; older builds can be updated by downloading a new release.
 
 ## Development
 

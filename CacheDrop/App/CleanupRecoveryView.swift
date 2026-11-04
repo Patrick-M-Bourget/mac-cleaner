@@ -27,10 +27,16 @@ import SwiftUI
         guard !loaded else { return false }
         loaded = true
         do {
-            snapshot = try await Task.detached(priority: .utility) {
-                guard let reader = try CleanupJournalLocation.existingReader() else { return nil as CleanupRecoverySnapshot? }
-                return try CleanupRecoverySnapshot(journal: reader)
+            let read = try await Task.detached(priority: .utility) { () throws -> (busy: Bool, snapshot: CleanupRecoverySnapshot?) in
+                // A cleanup running now in `cachedrop clean` isn't interrupted (#627): while it holds the lock there's nothing
+                // to review, and a later refresh reads again.
+                guard case .free(let lock) = CleanupLock.forReading() else { return (true, nil) }
+                defer { lock?.release() }
+                guard let reader = try CleanupJournalLocation.existingReader() else { return (false, nil) }
+                return (false, try CleanupRecoverySnapshot(journal: reader))
             }.value
+            snapshot = read.snapshot
+            if read.busy { loaded = false; return false }
         } catch {
             self.error = "CacheDrop couldn’t read its cleanup history, so it can’t tell what happened to these items."
         }
@@ -149,10 +155,9 @@ struct CleanupRecoveryView: View {
             }
             DisclosureGroup("Details") {
                 VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
-                    Text(record.recoveryStateText + " · " + record.message)
+                    Text(record.recoveryLine)
                     Text("Location: " + record.scopeURL.path)
-                    Text("Action: " + record.actionTitle + (record.dryRun == true ? " · Dry run" : "") + " · Rules version \(record.policyVersion)")
-                    Text("File ID when chosen: " + record.resourceID)
+                    Text("Action: " + record.actionTitle + (record.dryRun == true ? " · Dry run" : ""))
                 }.font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).textSelection(.enabled)
             }
         }

@@ -56,6 +56,10 @@ public enum CategorySelectionState: Sendable { case unchecked, mixed, checked }
 public enum CatalogCategory: String, Codable, Sendable {
     case developer = "developer", browser = "browser", downloads = "downloads", system = "system", models = "models", updaters = "updaters"
     case logs = "logs", icloud = "icloud", files = "files", managed = "managed", leftovers = "leftovers", apps = "apps"
+    /// Audio software (Decision 151): rules written for audio apps, such as Ableton Live's cache.
+    case audio = "audio"
+    /// Photo and video (Decision 164): rules written for photo and video apps, such as Adobe's media cache.
+    case photoVideo = "photo-video"
 }
 
 /// Who must be closed before a rule's data is touched.
@@ -227,9 +231,9 @@ public enum BuiltInCatalog {
                     owner: pnpmOwner,
                     tool: ToolCommand(executables: ["/opt/homebrew/bin/pnpm", "/usr/local/bin/pnpm", NSHomeDirectory() + "/Library/pnpm/pnpm"], arguments: ["store", "prune"], timeout: 300,
                                       locationQuery: LocationQuery(["store", "path"], whenUnanswered: .defaultLocations))),
-        CleanupRule(id: "pnpm-cache", category: .developer, title: "pnpm metadata cache",
-                    detail: "Package metadata pnpm downloaded.",
-                    consequence: "pnpm downloads metadata again as needed.",
+        CleanupRule(id: "pnpm-cache", category: .developer, title: "pnpm package index cache",
+                    detail: "Package information pnpm downloaded.",
+                    consequence: "pnpm downloads it again as needed.",
                     regen: .cache, action: .delete, locations: ["Library/Caches/pnpm"],
                     owner: pnpmOwner),
         // Decision 44: uv's docs say to change its cache only through uv, so uv names the folder and prunes it.
@@ -266,7 +270,7 @@ public enum BuiltInCatalog {
                     regen: .cache, action: .delete, locations: ["Library/Caches/CocoaPods"],
                     owner: RuleOwner(name: "CocoaPods", executables: ["pod"], scripts: ["pod"])),
         CleanupRule(id: "homebrew", category: .developer, title: "Homebrew cache",
-                    detail: "Downloads Homebrew kept, plus old versions `brew cleanup -s` removes.",
+                    detail: "Downloads Homebrew kept, and old versions it no longer needs.",
                     consequence: "Homebrew downloads again when you install or upgrade.",
                     regen: .cache, action: .tool, locations: ["Library/Caches/Homebrew"],
                     owner: RuleOwner(name: "Homebrew", executables: ["brew"], scripts: ["brew", "brew.sh", "brew.rb"]),
@@ -458,11 +462,14 @@ public struct Catalog: Sendable {
 
     /// `discover`, plus notes on rules that kept items back, such as copies kept because their use couldn't be checked.
     /// A rule that needs Full Disk Access CacheDrop doesn't have (`access`) is never read; it comes back in `notAccessible`.
+    /// `only` reads just those rules, for the rescan after a run (Decision 133); every rule still yields to the others as in
+    /// a full scan, and `merging` puts what it found among the rows shown.
     public func discovery(home: URL, userFolder: URL? = nil, exclusions: ProtectedItemsPolicy = ProtectedItemsPolicy(), inUse: any InUseChecking = SystemInUseChecker(), sizer: KnownLocationSizer = KnownLocationSizer(), now: Date = Date(), locateTool: (ToolCommand) -> URL? = ToolCommand.installed,
                           systemRoot: URL = URL(fileURLWithPath: "/"), cloud: any UbiquitousItemAccess = SystemUbiquitousItems(), access: FullDiskAccessStatus = .unknown,
-                          cancellation: ScanCancellation? = nil, progress: (CatalogDiscoveryProgress) -> Void = { _ in }) -> CatalogDiscovery {
+                          only: Set<String>? = nil, cancellation: ScanCancellation? = nil, progress: (CatalogDiscoveryProgress) -> Void = { _ in }) -> CatalogDiscovery {
+        let rulesToRead = only.map { only in rules.filter { only.contains($0.id) } } ?? rules
         // Guidance rules report their own access (`guidance(home:)`).
-        let notAccessible = rules.filter { $0.action != .guidance && $0.access(given: access) == .needsFullDiskAccess }
+        let notAccessible = rulesToRead.filter { $0.action != .guidance && $0.access(given: access) == .needsFullDiskAccess }
         let homeBase = home.resolvingSymlinksInPath(), userBase = userFolder
         // One reading of the process table for every rule that asks what is in use.
         let inUse = inUse.snapshot()
@@ -477,7 +484,7 @@ public struct Catalog: Sendable {
         var simulators: [String: Result<SimulatorInventory, ToolDryRunError>] = [:]
         let overridden = Set(overriddenRules(home: home, systemRoot: systemRoot).map(\.id))
         // Guidance rules are sized by `guidance(home:)` and never become candidates.
-        let checked = rules.filter { $0.action != .guidance && !overridden.contains($0.id) && ($0.base == .home || userBase != nil) }
+        let checked = rulesToRead.filter { $0.action != .guidance && !overridden.contains($0.id) && ($0.base == .home || userBase != nil) }
         func offered(by rule: CleanupRule) -> [Candidate] {
             guard let base = rule.base == .home ? homeBase : userBase else { return [] }
             // Looked at but not read: What grew records it as not measured, so access granted later is coverage, not growth.
@@ -509,6 +516,8 @@ public struct Catalog: Sendable {
                     return remnants.map { $0.found(under: base) }
                 }
             }
+            // Adobe's media cache says which items are in its default folder and which in one its settings name (#730).
+            if rule.id == AdobeMediaCache.ruleID { folderSource = AdobeMediaCache.defaultSource }
             // A trailing `/*` offers each folder inside (DeviceSupport versions); a `*` inside the path names a profile.
             let located = reported.map { [($0, String?.none)] } ?? rule.locations.flatMap { location -> [(URL, String?)] in
                 // A pattern as the last component (`models--*`) also offers each matching folder.
@@ -589,7 +598,13 @@ public struct Catalog: Sendable {
             }
             // The default folder offered in place of one the tool didn't name says so (#170).
             if let defaultsNote, !found.isEmpty { notes.append(defaultsNote) }
-            return (found + remnants).map { $0.found(under: base) }
+            // A moved Adobe media cache is scoped to the folder Adobe's settings name, which may be outside the home folder (#730).
+            var moved: [Candidate] = []
+            if rule.id == AdobeMediaCache.ruleID {
+                let (offered, movedNotes) = movedAdobeMediaCaches(rule, home: base, sizer: sizer)
+                moved = offered; notes += movedNotes
+            }
+            return (found + remnants).map { $0.found(under: base) } + moved
         }
         var candidates: [Candidate] = []
         // One rule at a time, in catalog order, so progress can report each as it finishes (#128).

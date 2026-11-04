@@ -48,7 +48,7 @@ extension CleanupRecord {
     init(putBackOf original: CleanupRecord, batchID: UUID, at date: Date) {
         self.init(id: batchID.uuidString + "|putBack|" + original.id, batchID: batchID, originalURL: original.originalURL, resourceID: original.resourceID,
                   logicalBytes: original.logicalBytes, allocatedBytes: original.allocatedBytes, state: .pending, trashURL: original.trashURL,
-                  message: "Approved; not started", observedAt: date, scopeURL: original.scopeURL, scopeResourceID: original.scopeResourceID,
+                  message: "Not started", observedAt: date, scopeURL: original.scopeURL, scopeResourceID: original.scopeResourceID,
                   volumeID: original.volumeID, downloadsURL: nil, downloadsResourceID: nil, modifiedSeconds: original.modifiedSeconds,
                   modifiedNanoseconds: original.modifiedNanoseconds, action: Self.putBackAction, policyVersion: 2,
                   outcomeRecordedAt: nil, approvedAt: date, ruleID: original.ruleID, itemName: original.itemName)
@@ -86,7 +86,7 @@ public struct TrashPutBack: Sendable {
         var record = CleanupRecord(putBackOf: original, batchID: UUID(), at: date)
         do {
             guard try journal.claim(batchID: record.batchID, records: [record]) else { return .refused(.couldNotRecord) }
-            record.state = .intent; record.message = "Started; outcome not yet recorded"
+            record.state = .intent; record.message = "Started · Outcome unknown"
             try journal.intent(record)
         } catch { return .refused(.couldNotRecord) }
 

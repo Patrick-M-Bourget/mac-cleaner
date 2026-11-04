@@ -30,10 +30,17 @@ enum CacheDropDesign {
         static let hairline: CGFloat = 1
         /// The cleanup confirmation sheet (#334).
         static let sheetWide = CGSize(width: 640, height: 520)
+        /// The shortest a sheet that fits its content (#574) gets, so a one-line review doesn't look like an alert.
+        static let sheetWideMinHeight: CGFloat = 280
         /// The storage explorer's inspector: its width beside the list once the page is at least `explorerWide` wide, and
         /// below the list otherwise, at most `inspectorStacked` tall or `inspectorStackedShare` of the page (#320).
         static let explorerWide: CGFloat = 800; static let inspector: CGFloat = 280; static let inspectorStacked: CGFloat = 220
         static let inspectorStackedShare: CGFloat = 0.35
+        /// The storage map's narrowest labelled block: room for a truncated name (Decision 147); narrower ones merge. Its height
+        /// comes from the row type it shows (`StorageMap.labelHeight`).
+        static let storageMapLabelWidth: CGFloat = 64
+        /// The storage map's height at most, the prototype's: a calm block above the page's free space, never a wall of fills.
+        static let storageMap: CGFloat = 360
         /// The workspace's default content size and minimum outer-window size.
         static let defaultWindow = CGSize(width: 1120, height: 760)
         static let minimumWindow = CGSize(width: 900, height: 640)
@@ -135,15 +142,16 @@ enum StorageCategory {
     case appCaches, models, appUpdates, logs
     /// Files from deleted apps (#173), and the apps themselves on the Applications page (#267).
     case leftovers, apps
-    /// App-managed storage rows (SPEC section 3): each place keeps the app-managed colour with its own symbol.
-    case deviceBackups, mail, messages, photos, timeMachine, xcodeArchives, audioPlugIns
+    /// App-managed storage rows (SPEC section 3): each place keeps the app-managed colour with its own symbol. Audio software
+    /// is also the catalog category and the Applications section (Decision 151).
+    case deviceBackups, mail, messages, photos, timeMachine, xcodeArchives, audioSoftware, photoVideo
     var color: Color {
         switch self {
         case .cloud, .files: CacheDropDesign.blue
         case .developer: CacheDropDesign.purple
         case .downloads: CacheDropDesign.orange
         case .browser: CacheDropDesign.teal
-        case .managed, .appCaches, .models, .appUpdates, .logs, .deviceBackups, .mail, .messages, .photos, .timeMachine, .xcodeArchives, .audioPlugIns, .leftovers, .apps: CacheDropDesign.indigo
+        case .managed, .appCaches, .models, .appUpdates, .logs, .deviceBackups, .mail, .messages, .photos, .timeMachine, .xcodeArchives, .audioSoftware, .photoVideo, .leftovers, .apps: CacheDropDesign.indigo
         }
     }
     var symbol: String {
@@ -164,7 +172,8 @@ enum StorageCategory {
         case .photos: "photo.on.rectangle"
         case .timeMachine: "clock.arrow.circlepath"
         case .xcodeArchives: "archivebox"
-        case .audioPlugIns: "pianokeys"
+        case .audioSoftware: "pianokeys"
+        case .photoVideo: "film"
         case .leftovers: "ghost" // CacheDrop's own symbol (#550), so it never reads as App caches' dashed app
         case .apps: "macwindow"
         }
@@ -244,11 +253,13 @@ struct PageHeader: View {
     /// A page's one search, on the right of the title and level with its description, so the header is one band and the
     /// page keeps one left edge (Applications).
     var search: PageSearchField? = nil
+    /// Tells a page's title apart from its sidebar name when both read the same ("Overview", #570).
+    var titleIdentifier: String? = nil
     var body: some View {
         HStack(alignment: .bottom, spacing: CacheDropDesign.Space.lg) {
             VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
                 if let back { back }
-                Text(title).font(CacheDropDesign.TypeStyle.page).tracking(-0.6)
+                Text(title).font(CacheDropDesign.TypeStyle.page).tracking(-0.6).accessibilityIdentifier(titleIdentifier ?? "")
                 if let subtitle { Text(subtitle).font(CacheDropDesign.TypeStyle.note).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
             }.frame(maxWidth: .infinity, alignment: .leading)
             if let search { search }
@@ -343,6 +354,31 @@ struct BackButton: View {
         }.buttonStyle(.plain).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
             .accessibilityLabel("Back to " + destination).disabled(!enabled)
             .modifier(OptionalIdentifier(identifier: identifier))
+    }
+}
+/// A navigation trail's step (Decision 150), such as Explore storage's breadcrumb: secondary text like `BackButton`, the
+/// step on show in primary; a step you can go to underlines with the pointing hand on hover, never in the accent. One line,
+/// truncated in the middle. Actions stay `.buttonStyle(.link)`.
+struct QuietLink: View {
+    let title: String
+    var current = false
+    var identifier: String? = nil
+    let action: () -> Void
+    @State private var hovering = false
+    var body: some View {
+        Group {
+            if current {
+                Text(title).lineLimit(1).truncationMode(.middle).foregroundStyle(.primary)
+            } else {
+                Button(action: action) { Text(title).underline(hovering).lineLimit(1).truncationMode(.middle) }
+                    .buttonStyle(.plain).foregroundStyle(.secondary)
+                    .onHover { inside in
+                        hovering = inside
+                        if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+                    }
+                    .onDisappear { if hovering { hovering = false; NSCursor.pop() } }
+            }
+        }.modifier(OptionalIdentifier(identifier: identifier))
     }
 }
 /// Sets an accessibility identifier only when there is one, so the element keeps its default otherwise.
@@ -725,10 +761,15 @@ struct VolumeSummary: View {
                 HStack(alignment: .firstTextBaseline, spacing: CacheDropDesign.Space.md) {
                     Text(used.map { SizeFormatter.text($0) + " used" } ?? "Used space unknown").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).monospacedDigit()
                     Spacer(minLength: CacheDropDesign.Space.sm)
-                    Text(observation).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
-                        .help(observation).accessibilityValue(observation).accessibilityIdentifier("capacityObservation")
+                    // A refresh says so in this line's slot, never on a line of its own, so the page below never jumps when a
+                    // scan or cleanup ends (#655).
+                    // With no reading yet the observation already says it's checking, as the free-space column does.
+                    let line = refreshing && !status.isEmpty && available != nil ? status : observation
+                    Text(line).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                        .help(line).accessibilityValue(line).accessibilityIdentifier("capacityObservation")
                 }
-                if !status.isEmpty {
+                // Only a failed refresh takes a line, for its Try again button.
+                if !refreshing, !status.isEmpty {
                     HStack(spacing: CacheDropDesign.Space.md) {
                         Text(status).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).accessibilityIdentifier("capacityRefreshStatus")
                         Spacer(minLength: CacheDropDesign.Space.sm)
@@ -881,6 +922,10 @@ struct CategoryRow<Notice: View, Items: View>: View {
     let identifier: String
     let itemCount: Int?
     var staying = 0
+    /// What the disclosure names: "Choose apps · 12" for an Applications section (Decision 153); "Show sounds · 3" where nothing
+    /// in it can be ticked (#701).
+    var chooseVerb = "Choose"
+    var chooseNoun = "items"
     /// An app's own icon, in the badge's place (Applications).
     var icon: NSImage? = nil
     @Binding var expanded: Bool
@@ -897,7 +942,7 @@ struct CategoryRow<Notice: View, Items: View>: View {
             }
             if !detail.isEmpty { notice().padding(.leading, CacheDropDesign.Size.categoryContentIndent) }
             if let itemCount {
-                ActionDisclosureGroup("Choose items · \(itemCount)" + (staying == 1 ? " · 1 stays" : staying > 1 ? " · \(staying) stay" : ""), isExpanded: $expanded) {
+                ActionDisclosureGroup("\(chooseVerb) \(chooseNoun) · \(itemCount)" + (staying == 1 ? " · 1 stays" : staying > 1 ? " · \(staying) stay" : ""), isExpanded: $expanded) {
                     items().padding(.top, CacheDropDesign.Space.sm)
                 }.padding(.leading, CacheDropDesign.Size.categoryContentIndent)
             }
@@ -1027,6 +1072,21 @@ struct InspectableItemRow<Selection: View>: View {
 }
 
 /// Enforce the outer-window minimum independently of a destination's intrinsic content size.
+/// No title bar band or title above the page (#549, #162). The SwiftUI modifiers are macOS 15 and later; on macOS 14
+/// `NativeWindowContract` makes the title bar transparent and hides the title instead (Decision 144).
+struct HiddenWindowTitleBar: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(macOS 15, *) {
+            content.toolbarBackgroundVisibility(.hidden, for: .windowToolbar).toolbar(removing: .title)
+        } else {
+            content
+        }
+    }
+}
+extension View {
+    func hiddenWindowTitleBar() -> some View { modifier(HiddenWindowTitleBar()) }
+}
+
 struct NativeWindowContract: NSViewRepresentable {
     func makeNSView(context: Context) -> ContractView { ContractView() }
     func updateNSView(_ nsView: ContractView, context: Context) {}
@@ -1039,6 +1099,8 @@ struct NativeWindowContract: NSViewRepresentable {
             // #162: the sidebar header shows the logo and name, so the title bar doesn't repeat it. The window keeps its
             // title for accessibility, Mission Control and the Window menu; the traffic lights and dragging are unchanged.
             window.titleVisibility = .hidden
+            // macOS 14 has no SwiftUI way to hide the toolbar's background (`hiddenWindowTitleBar`): AppKit does it there.
+            if #unavailable(macOS 15) { window.titlebarAppearsTransparent = true }
             DispatchQueue.main.async { self.fit(window) }
         }
         private func fit(_ window: NSWindow) {
@@ -1252,7 +1314,7 @@ extension CacheDropDesign {
     /// What a disabled Review cleanup or Clean up says while a scan runs (#308).
     static let waitForScanHelp = "Wait for the scan to finish"
     /// The tooltip on the Cleanup plan's and Smart clean's selection totals (#370).
-    static let selectionEstimateHelp = "Sizes are estimates from the scan, not guaranteed space freed. Linked files count once. Each item is checked again just before CacheDrop acts on it."
+    static let selectionEstimateHelp = "Sizes are estimates from the scan; each item is checked again just before it’s cleaned."
 }
 
 /// A bar's main action while its click-time checks run (#308): a small spinner beside it, and the action ignores more
@@ -1320,16 +1382,17 @@ struct ScanPreparationProgress: View {
     let text: String
     var fraction: Double? = nil
     var identifier = ""
-    /// False keeps the line's height but shows nothing under the bar, when a heading already says the same (#546).
+    /// False shows nothing under the bar, and takes no room for it, when a heading already says the same (#546, #573).
     var showsText = true
     var body: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
             ProgressView(value: fraction).progressViewStyle(.linear).controlSize(.small)
                 .accessibilityLabel(text).accessibilityValue(text).accessibilityIdentifier(identifier)
                 .animation(reduceMotion ? nil : .easeInOut(duration: CacheDropDesign.Motion.waiting), value: fraction)
-            Text(text).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
-                .lineLimit(2).frame(minHeight: CacheDropDesign.Space.xl, alignment: .topLeading)
-                .opacity(showsText ? 1 : 0).accessibilityHidden(!showsText)
+            if showsText {
+                Text(text).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                    .lineLimit(2).frame(minHeight: CacheDropDesign.Space.xl, alignment: .topLeading)
+            }
         }
     }
 }

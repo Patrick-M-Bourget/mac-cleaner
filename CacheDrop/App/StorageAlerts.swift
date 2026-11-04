@@ -60,10 +60,17 @@ extension Notification.Name {
         center.delegate = self
         let open = UNNotificationAction(identifier: "CacheDrop.open", title: "Open CacheDrop", options: [.foreground])
         let later = UNNotificationAction(identifier: "CacheDrop.remindLater", title: "Remind me later", options: [])
-        center.setNotificationCategories([UNNotificationCategory(identifier: "CacheDrop.capacity", actions: [open, later], intentIdentifiers: [])])
+        center.setNotificationCategories([UNNotificationCategory(identifier: "CacheDrop.capacity", actions: [open, later], intentIdentifiers: []),
+                                          UNNotificationCategory(identifier: WeeklyReminderNotification.category, actions: [], intentIdentifiers: [])])
     }
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
         let action = response.actionIdentifier
+        // The weekly reminder opens Smart clean (#599); dismissing it does nothing.
+        if response.notification.request.content.categoryIdentifier == WeeklyReminderNotification.category {
+            guard action == UNNotificationDefaultActionIdentifier else { return }
+            await MainActor.run { AppLifecycleController.shared.openSmartCleanFromReminder() }
+            return
+        }
         let context = AlertOpenContext(notificationUserInfo: response.notification.request.content.userInfo)
         await MainActor.run {
             if action == "CacheDrop.remindLater" { remindLater(); return }
@@ -201,7 +208,8 @@ struct CacheDropMenuBarLabel: View {
     }
 }
 
-/// The menu bar item's menu: Open CacheDrop, Scan again, Smart clean… when it has something, Settings… and Quit.
+/// The menu bar item's menu: Open CacheDrop, Scan again, Smart clean… when it has something, Overview's Trash line with
+/// Empty Trash… when the Trash can be read (#605) and Open Trash whenever Overview shows it (#603), Settings… and Quit.
 struct CacheDropMenuBarMenu: View {
     @Environment(\.openWindow) private var openWindow
     let lifecycle: AppLifecycleController
@@ -215,6 +223,18 @@ struct CacheDropMenuBarMenu: View {
             .disabled(lifecycle.scanAgainBlockedReason != nil).help(lifecycle.scanAgainBlockedReason ?? "")
         if hasRecommendedPlan {
             Button(MenuBarStatus.Item.smartClean.title) { openCacheDrop(); lifecycle.openSmartClean?() }
+        }
+        // Overview's Trash line, from the same measurement (`TrashModel`) and wording, shown exactly when Overview shows it
+        // (Decision 141); refreshed by Overview, Scan again and each run, not when the menu opens.
+        if let line = TrashContents.line(TrashModel.shared.contents, fromCacheDrop: TrashModel.shared.emptyableBytes) {
+            Divider()
+            Text(line)
+            // The sheet opens in the window, on Overview: the menu never empties anything by itself (Decision 142).
+            if case .holds = TrashModel.shared.contents {
+                Button(MenuBarStatus.Item.emptyTrash.title) { openCacheDrop(); lifecycle.openEmptyTrash?() }
+                    .disabled(lifecycle.updateInstallation.blocksNewWork).accessibilityIdentifier("menuBarEmptyTrash")
+            }
+            Button(MenuBarStatus.Item.openTrash.title) { TrashModel.shared.open() }.accessibilityIdentifier("menuBarOpenTrash")
         }
         Divider()
         SettingsLink { Text(MenuBarStatus.Item.settings.title) }.keyboardShortcut(",")

@@ -9,7 +9,7 @@ public enum RemovedAppLeftovers {
     public static let possiblyRelatedRuleID = "removed-app-possibly-related"
     static let consequence = ""
     static let leftoversRule = CleanupRule(id: ruleID, category: .leftovers, title: "Files from deleted apps",
-        detail: "Settings, caches and data of apps no longer on this Mac, tied to each app by its bundle ID or installer receipt.",
+        detail: "Settings, caches and data of apps no longer on this Mac, each tied to its app for sure.",
         consequence: consequence, regen: .userFile, action: .trash, locations: [], owner: nil, protectedDepth: AppCaches.liveWorkDepth,
         family: .removedAppLeftovers)
     static let possiblyRelatedRule = CleanupRule(id: possiblyRelatedRuleID, category: .leftovers, title: "Possibly related",
@@ -43,9 +43,10 @@ public enum RemovedAppLeftovers {
     }
 
     /// The leftovers under `home`. Read-only. Offers nothing when the installed apps can't be listed: an app counts as removed
-    /// only when no copy is found, by Launch Services or Spotlight, on any volume.
+    /// only when no copy is found, by Launch Services or Spotlight, on any volume. `only` keeps, and sizes, just the leftovers
+    /// whose tie it accepts (Decision 134).
     public static func scan(home: URL, apps: any AppPresence, receipts: any InstallerReceiptReading, exclusions: ProtectedItemsPolicy = ProtectedItemsPolicy(),
-                            sizer: KnownLocationSizer = KnownLocationSizer(), skipping: Set<String> = []) -> [Candidate] {
+                            sizer: KnownLocationSizer = KnownLocationSizer(), skipping: Set<String> = [], only: ((LeftoverTie) -> Bool)? = nil) -> [Candidate] {
         guard let installed = apps.installedApps() else { return [] }
         let base = home.resolvingSymlinksInPath()
         let catalog = Catalog(rules: rules)
@@ -86,7 +87,7 @@ public enum RemovedAppLeftovers {
                 guard isRemovedApp(id) else { return nil }
                 if appIDs.contains(id.lowercased()) { return LeftoverTie(app: appName(from: id), bundleID: id, vendor: vendor(of: id), evidence: .bundleID) }
                 return LeftoverTie(app: appName(from: id), bundleID: id, vendor: vendor(of: id), evidence: .nameOnly(
-                    "Named for \(id), but no app, plug-in or installer receipt on this Mac has that ID, and nothing shows it was an app's. A command-line tool may use it."))
+                    "Named for \(id), but no app, plug-in or installer receipt on this Mac has that ID, and nothing shows it was an app’s. A command-line tool may use it."))
             }
             if let receipt = removedReceipts.first(where: { $0.paths.contains(url.path) || $0.paths.contains { $0.hasPrefix(url.path + "/") } }) {
                 return LeftoverTie(app: receipt.apps.first.map(receiptAppName) ?? receipt.id, bundleID: nil, vendor: vendor(of: receipt.id), evidence: .receipt(receipt.id))
@@ -102,7 +103,7 @@ public enum RemovedAppLeftovers {
             return nil
         }
         return entries.compactMap { url, info in
-            guard !skipping.contains(url.path), let tie = tie(url) else { return nil }
+            guard !skipping.contains(url.path), let tie = tie(url), only?(tie) ?? true else { return nil }
             let rule = tie.isNameOnly ? possiblyRelatedRule : leftoversRule
             let size = sizer.size(url)
             var item = catalog.candidate(rule, url, info, logical: size.logicalBytes, allocated: size.allocatedBytes, complete: size.complete, lastUsed: nil)

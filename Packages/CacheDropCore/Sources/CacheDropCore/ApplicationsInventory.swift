@@ -41,6 +41,8 @@ public struct InventoryEntry: Sendable, Equatable, Identifiable {
     public let bundleID: String?
     /// The name of the app's own uninstaller, its second part (#285); nil when it has none.
     public internal(set) var ownUninstaller: String? = nil
+    /// The vendor managers that install a sound library and can remove or move it (#714); none for the user's own content.
+    public internal(set) var managers: [VendorTool] = []
     public init(id: String, name: String, maker: String?, volume: String?, parts: [Part], bundleID: String? = nil) {
         self.id = id; self.name = name; self.maker = maker; self.volume = volume; self.parts = parts; self.bundleID = bundleID
     }
@@ -174,7 +176,8 @@ public struct VendorTool: Sendable, Equatable {
 
     public static let known = [VendorTool(vendor: "com.native-instruments", bundleID: "com.native-instruments.nativeaccess2"),  // checked on this Mac
                                VendorTool(vendor: "com.uaudio", bundleID: "com.uaudio.ua-connect"),                            // checked on this Mac
-                               // Not checked: none of these is installed on the Mac this was written on.
+                               // Not checked: none of these is installed on the Mac this was written on, and no vendor
+                               // source was found (#704, `docs/reference/audio-bundle-ids.md`).
                                VendorTool(vendor: "com.wavesaudio", bundleID: "com.wavesaudio.wavescentral"),
                                VendorTool(vendor: "com.arturia", bundleID: "com.arturia.arturiasoftwarecenter"),
                                VendorTool(vendor: "com.softube", bundleID: "com.softube.softubecentral")]

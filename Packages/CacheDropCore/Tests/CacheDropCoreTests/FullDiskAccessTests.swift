@@ -74,7 +74,7 @@ private func rule(requiringFullDiskAccess: Bool) -> CleanupRule {
 @Test func theExplanationSaysFullDiskAccessIsBroadOptionalAndScansStayReadOnly() {
     // #161: a sheet-sized title and a two-line explanation, as in the prototype.
     #expect(FullDiskAccessGuide.title == "Broader access is optional")
-    #expect(FullDiskAccessGuide.summary == "Full Disk Access lets CacheDrop see protected places like Mail and Safari data. It’s broad authority, not read-only. CacheDrop’s scans stay read-only either way.")
+    #expect(FullDiskAccessGuide.summary == "Full Disk Access lets CacheDrop see protected places like Mail and Safari data. macOS grants more than reading; CacheDrop’s scans only read.")
 }
 
 @Test func theNoteSaysWhereToTurnFullDiskAccessOn() {

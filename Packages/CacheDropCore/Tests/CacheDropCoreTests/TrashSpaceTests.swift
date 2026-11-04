@@ -86,12 +86,6 @@ private func write(_ url: URL, bytes: Int) throws {
     #expect(TrashContents.unknown.overviewText(fromCacheDrop: 0) == nil)
 }
 
-/// #359: Results says what CacheDrop's items hold in the Trash, never the whole Trash's size, and nothing when none is left.
-@Test func resultsSayWhatIsInTheTrashUntilItIsEmptied() {
-    #expect(TrashSpace.emptyHint(bytes: 7_100_000_000) == "7.1 GB is in the Trash. Empty it to free the space.")
-    #expect(TrashSpace.emptyHint(bytes: 0) == nil)
-}
-
 private final class RecordingOpener: TrashOpening, @unchecked Sendable {
     var opened: [URL] = []
     func open(_ folder: URL) -> Bool { opened.append(folder); return true }
@@ -167,4 +161,17 @@ private func inTrash(_ url: URL, _ home: URL) -> Bool { url.standardizedFileURL.
         .execute(CatalogApproval(candidates: candidates, dryRun: false))
     #expect(result.records.allSatisfy { $0.state == .skipped })
     for path in ["movie.mov", "Setup.dmg", "_cacache/content-v2/blob"] { #expect(FileManager.default.fileExists(atPath: trash.appendingPathComponent(path).path)) }
+}
+
+/// #603 (Decision 141): Overview and the menu bar menu say the same Trash line, from one function: what the Trash holds
+/// when it can be read, CacheDrop's own items' share when there are any, and no line when it is empty or can't be read
+/// and holds none of CacheDrop's items (Decision 68).
+@Test func overviewAndTheMenuShareOneTrashLine() {
+    #expect(TrashContents.line(.holds(14_000_000_000), fromCacheDrop: 0) == "Trash holds 14 GB")
+    #expect(TrashContents.line(.holds(9_400_000_000), fromCacheDrop: 7_100_000_000) == "Trash holds 9.4 GB · 7.1 GB from CacheDrop")
+    #expect(TrashContents.line(.unknown, fromCacheDrop: 7_100_000_000) == "7.1 GB from CacheDrop")
+    #expect(TrashContents.line(nil, fromCacheDrop: 7_100_000_000) == "7.1 GB from CacheDrop")
+    #expect(TrashContents.line(.unknown, fromCacheDrop: 0) == nil)
+    #expect(TrashContents.line(.empty, fromCacheDrop: 0) == nil)
+    #expect(TrashContents.line(nil, fromCacheDrop: 0) == nil)
 }

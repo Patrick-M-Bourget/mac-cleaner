@@ -3,12 +3,20 @@ import CacheDropCore
 import Sparkle
 import SwiftUI
 
-/// Sparkle owns every normal update dialog. Only its final user approval waits for CacheDrop's work.
+/// Sparkle owns every normal update dialog. Only its final user approval waits for CacheDrop's work. Checks are requested
+/// (Check for Updates…) or scheduled once a week while Check for updates automatically is on (#600, Decision 145).
 @MainActor final class ManualUpdater: NSObject, SPUUpdaterDelegate {
     private let lifecycle: AppLifecycleController
     private var updater: SPUUpdater!
     private var driver: InstallationUserDriver!
+    private var started = false
+    /// A scheduled check this updater refused aborts its cycle; that abort must not touch a pending installation.
+    private var refusedScheduledCheck = false
     private var waitingWindow: NSWindowController?
+    private var automaticChecks: Bool {
+        AutomaticUpdateChecks.isOn(saved: UserDefaults.standard.object(forKey: PreferenceKeys.checksForUpdatesAutomatically),
+                                   disposableTest: LocalStateLocation.isDisposableTest)
+    }
     init(lifecycle: AppLifecycleController) {
         self.lifecycle = lifecycle
         super.init()
@@ -19,9 +27,26 @@ import SwiftUI
         driver.approve = { [weak self] reply in self?.approve(reply) }
         updater = SPUUpdater(hostBundle: .main, applicationBundle: .main, userDriver: driver, delegate: self)
         // Set these before starting, overriding preferences from older or experimental copies.
-        updater.automaticallyChecksForUpdates = false
+        updater.automaticallyChecksForUpdates = automaticChecks
+        updater.updateCheckInterval = AutomaticUpdateChecks.interval
         updater.automaticallyDownloadsUpdates = false
         updater.sendsSystemProfile = false
+    }
+    private func startIfNeeded() throws {
+        configureIfNeeded()
+        guard !started else { return }
+        try updater.start()
+        started = true
+    }
+    /// At launch: Sparkle keeps the weekly schedule only while it runs, so it starts when automatic checks are on.
+    func startScheduledChecks() {
+        guard automaticChecks else { return }
+        try? startIfNeeded()
+    }
+    /// The Settings toggle changed: Sparkle reschedules or stops; nothing is checked right away.
+    func automaticChecksChanged() {
+        if automaticChecks { try? startIfNeeded() }
+        updater?.automaticallyChecksForUpdates = automaticChecks
     }
     func checkForUpdates() {
         guard !lifecycle.updateInstallation.blocksNewWork else { waitingWindow?.showWindow(nil); return }
@@ -34,9 +59,8 @@ import SwiftUI
             return
         }
         #endif
-        configureIfNeeded()
         do {
-            try updater.start()
+            try startIfNeeded()
             updater.checkForUpdates()
         } catch {
             lifecycle.updateInstallation.failed()
@@ -51,8 +75,15 @@ import SwiftUI
             ?? "https://cachedrop.io/updates/appcast.xml"
     }
     func updater(_ updater: SPUUpdater, mayPerform updateCheck: SPUUpdateCheck) throws {
-        guard updateCheck == .updates, !lifecycle.updateInstallation.blocksNewWork else {
-            throw NSError(domain: "CacheDrop.Updates", code: 1, userInfo: [NSLocalizedDescriptionKey: "Updates are checked only when you choose Check for Updates…."])
+        let check: AutomaticUpdateChecks.Check? = switch updateCheck {
+        case .updates: .requested
+        case .updatesInBackground: .scheduled
+        default: nil
+        }
+        guard let check, AutomaticUpdateChecks.allows(check, automaticChecksOn: automaticChecks,
+                                                      installationPending: lifecycle.updateInstallation.blocksNewWork) else {
+            if updateCheck == .updatesInBackground { refusedScheduledCheck = true }
+            throw NSError(domain: "CacheDrop.Updates", code: 1, userInfo: [NSLocalizedDescriptionKey: "Wait for the update to finish"])
         }
     }
     private func approve(_ reply: @escaping (SPUUserUpdateChoice) -> Void) {
@@ -77,9 +108,12 @@ import SwiftUI
     }
     private func closeWaiting() { waitingWindow?.close(); waitingWindow = nil }
     func updater(_ updater: SPUUpdater, didAbortWithError error: Error) {
+        if refusedScheduledCheck { refusedScheduledCheck = false; return }
         lifecycle.updateInstallation.failed(); closeWaiting()
     }
     func updater(_ updater: SPUUpdater, didFinishUpdateCycleFor updateCheck: SPUUpdateCheck, error: Error?) {
+        // A scheduled check that finds nothing or can't reach the feed leaves any pending installation alone.
+        if updateCheck == .updatesInBackground { refusedScheduledCheck = false; return }
         if error != nil { lifecycle.updateInstallation.failed(); closeWaiting() }
     }
 }

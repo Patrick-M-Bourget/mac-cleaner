@@ -1,7 +1,7 @@
 import Foundation
 
 /// Whether a rule's locations can be read with the current access. A row or catalog rule declares the
-/// requirement with `CleanupRule.requiresFullDiskAccess`; views show `needsFullDiskAccess` as "Not accessible".
+/// requirement with `CleanupRule.requiresFullDiskAccess`; views show `needsFullDiskAccess` as "Needs Full Disk Access".
 public enum RuleAccess: Sendable, Equatable { case available, needsFullDiskAccess }
 
 extension CleanupRule {

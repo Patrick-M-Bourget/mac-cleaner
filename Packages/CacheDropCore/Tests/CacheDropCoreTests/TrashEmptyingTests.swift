@@ -108,6 +108,8 @@ private func trashedInstallers(_ names: [String] = ["Setup.dmg", "Other.pkg"], d
     let run = try #require(history.completedRuns.first { $0.isEmptyFromTrash })
     #expect(run.title == "Emptied from the Trash · 2 items")
     #expect(run.measuredFreedBytes == Int64(2 * 4_096))
+    // #569: its History row leads with that freed space, as a cleanup's does.
+    #expect(run.headline == CleanupHistoryRun.Headline(bytes: Int64(2 * 4_096), note: "Freed"))
     #expect(history.emptiedIDs == Set(fixture.records.map(\.id)))
     let trashRun = try #require(history.completedRuns.first { $0.records.contains { $0.id == fixture.records[0].id } })
     #expect(trashRun.trashHeldAllocatedBytes == 0, "What was emptied is no longer held in the Trash")
@@ -246,4 +248,89 @@ private final class OutcomeLosingJournal: CleanupJournaling, @unchecked Sendable
     func outcome(_ record: CleanupRecord) throws { throw CleanupJournalError.unavailable }
     func records() throws -> [CleanupRecord] { try base.records() }
     func append(_ records: [CleanupRecord]) throws { try base.append(records) }
+}
+
+// #605, Decision 142: Empty Trash… deletes everything in the Trash, but only the items read when its sheet opened, each
+// checked again first.
+
+@Test func theWholeTrashIsReviewedItemByItemWithoutFindersBookkeeping() async throws {
+    let fixture = try await trashedInstallers()
+    defer { try? FileManager.default.removeItem(at: fixture.home) }
+    try Data().write(to: fixture.trash.appendingPathComponent(".DS_Store"))
+
+    let review = try #require(TrashEmptying.reviewWholeTrash(home: fixture.home))
+
+    #expect(review.items.map(\.name) == ["Mine.txt", "Other.pkg", "Setup.dmg"])
+    #expect(review.bytes == review.items.reduce(0) { $0 + $1.bytes })
+    #expect(review.bytes >= 6_500)
+}
+
+@Test func anEmptyMissingOrUnreadableTrashOffersNothing() throws {
+    let home = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropWhole-\(UUID())").resolvingSymlinksInPath()
+    defer { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: home.appendingPathComponent(".Trash").path); try? FileManager.default.removeItem(at: home) }
+    try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
+    #expect(TrashEmptying.reviewWholeTrash(home: home) == nil, "no Trash folder")
+    let trash = home.appendingPathComponent(".Trash")
+    try FileManager.default.createDirectory(at: trash, withIntermediateDirectories: true)
+    try Data().write(to: trash.appendingPathComponent(".localized"))
+    #expect(TrashEmptying.reviewWholeTrash(home: home) == nil, "only Finder's bookkeeping")
+    try Data(repeating: 1, count: 10).write(to: trash.appendingPathComponent("Mine.txt"))
+    try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: trash.path)
+    #expect(TrashEmptying.reviewWholeTrash(home: home) == nil, "can't be read: never guessed")
+}
+
+@Test func emptyingTheWholeTrashDeletesWhatWasReviewedMeasuresItAndEndsPutBack() async throws {
+    let fixture = try await trashedInstallers()
+    defer { try? FileManager.default.removeItem(at: fixture.home) }
+    let emptying = fixture.emptying(measure: FreeingVolume().read)
+    let review = try #require(TrashEmptying.reviewWholeTrash(home: fixture.home))
+
+    let result = emptying.emptyWholeTrash(review.items, dryRun: false)
+
+    #expect(result.deletedCount == 3)
+    #expect(result.journalFailure == nil)
+    #expect(result.measuredFreedBytes == Int64(3 * 4_096))
+    #expect(try fixture.trashListing().isEmpty)
+    // CacheDrop's own items are recorded as emptied, so nothing is left to offer and Put back ends.
+    #expect(Set(result.records.compactMap(\.emptyOf)) == Set(fixture.records.map(\.id)))
+    #expect(try emptying.review().items.isEmpty)
+    #expect(result.records.allSatisfy { $0.isEmptyFromTrash })
+}
+
+@Test func anItemTrashedOrChangedAfterTheReviewStaysAndALinkGoesWithoutItsTarget() async throws {
+    let fixture = try await trashedInstallers()
+    defer { try? FileManager.default.removeItem(at: fixture.home) }
+    let target = fixture.home.appendingPathComponent("Target.txt")
+    try Data(repeating: 9, count: 20).write(to: target)
+    try FileManager.default.createSymbolicLink(at: fixture.trash.appendingPathComponent("Link"), withDestinationURL: target)
+    let emptying = fixture.emptying()
+    let review = try #require(TrashEmptying.reviewWholeTrash(home: fixture.home))
+
+    try Data(repeating: 1, count: 10).write(to: fixture.trash.appendingPathComponent("Later.txt"))
+    let mine = fixture.trash.appendingPathComponent("Mine.txt")
+    try FileManager.default.setAttributes([.modificationDate: Date(timeIntervalSince1970: 1_000)], ofItemAtPath: mine.path)
+
+    let result = emptying.emptyWholeTrash(review.items, dryRun: false)
+
+    let byName = Dictionary(uniqueKeysWithValues: result.records.map { ($0.originalURL.lastPathComponent, $0) })
+    #expect(byName["Mine.txt"]?.state == .skipped)
+    #expect(byName["Mine.txt"]?.message == "It changed in the Trash. Nothing was changed.")
+    #expect(byName["Link"]?.state == .succeeded)
+    #expect(FileManager.default.fileExists(atPath: target.path), "a link is removed itself, never followed")
+    #expect(try Set(fixture.trashListing().keys) == ["Later.txt", "Mine.txt"])
+}
+
+@Test func aDryRunOfTheWholeTrashChangesNothing() async throws {
+    let fixture = try await trashedInstallers()
+    defer { try? FileManager.default.removeItem(at: fixture.home) }
+    let before = try fixture.trashListing()
+    let emptying = fixture.emptying()
+    let review = try #require(TrashEmptying.reviewWholeTrash(home: fixture.home))
+
+    let result = emptying.emptyWholeTrash(review.items, dryRun: true)
+
+    #expect(result.deletedCount == 0)
+    #expect(result.measuredFreedBytes == nil)
+    #expect(try fixture.trashListing() == before)
+    #expect(try emptying.review().items.count == fixture.records.count, "a dry run ends no Put back")
 }

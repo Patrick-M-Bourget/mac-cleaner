@@ -18,7 +18,7 @@ public enum EmptyRefusal: Equatable, Sendable {
         case .alreadyPutBack: "It was put back. Nothing was changed."
         case .alreadyEmptied: "It was already deleted from the Trash."
         case .notInTrash: "It’s no longer in the Trash. Nothing was changed."
-        case .changed: "It changed in the Trash since CacheDrop moved it. Nothing was changed."
+        case .changed: "It changed in the Trash. Nothing was changed."
         case .failed: "Couldn’t delete it. Nothing was changed."
         }
     }
@@ -38,7 +38,7 @@ extension CleanupRecord {
     init(emptying original: CleanupRecord, trashURL: URL, batchID: UUID, at date: Date, dryRun: Bool) {
         self.init(id: batchID.uuidString + "|emptyFromTrash|" + original.id, batchID: batchID, originalURL: trashURL, resourceID: original.resourceID,
                   logicalBytes: original.logicalBytes, allocatedBytes: original.allocatedBytes, state: .pending, trashURL: nil,
-                  message: "Approved; not started", observedAt: date, scopeURL: trashURL.deletingLastPathComponent(), scopeResourceID: "",
+                  message: "Not started", observedAt: date, scopeURL: trashURL.deletingLastPathComponent(), scopeResourceID: "",
                   volumeID: original.volumeID, downloadsURL: nil, downloadsResourceID: nil, modifiedSeconds: original.modifiedSeconds,
                   modifiedNanoseconds: original.modifiedNanoseconds, action: Self.emptyFromTrashAction, policyVersion: 2,
                   outcomeRecordedAt: nil, approvedAt: date, ruleID: original.ruleID, dryRun: dryRun, itemName: original.itemName)
@@ -106,15 +106,15 @@ public struct TrashEmptyingResult: Sendable {
     }
 }
 
-/// Deletes from the Trash only items CacheDrop moved there itself, and only when you ask (Decision 68, SPEC section 2).
-/// It never empties the Trash: each item is the one recorded `trashURL`, found by search (no Full Disk Access needed),
+/// Deletes from the Trash only items CacheDrop moved there itself, and only when you ask (Decision 68, SPEC section 2);
+/// `emptyWholeTrash` empties everything a sheet listed (Decision 142). Each of CacheDrop's items is the one recorded `trashURL`, found by search (no Full Disk Access needed),
 /// with the identity and dates it had when it was moved, and checked again just before it goes. Journaled like a cleanup
 /// (pending, intent, outcome), as its own History run.
 public struct TrashEmptying: Sendable {
-    private static let log = Logger(subsystem: "CacheDrop", category: "emptyFromTrash")
-    private let journal: any CleanupJournaling
-    private let measure: @Sendable (URL) -> CapacitySample?
-    private let clock: @Sendable () -> Date
+    static let log = Logger(subsystem: "CacheDrop", category: "emptyFromTrash")
+    let journal: any CleanupJournaling
+    let measure: @Sendable (URL) -> CapacitySample?
+    let clock: @Sendable () -> Date
     public init(journal: any CleanupJournaling, measure: @escaping @Sendable (URL) -> CapacitySample? = CapacitySample.read,
                 clock: @escaping @Sendable () -> Date = Date.init) {
         self.journal = journal; self.measure = measure; self.clock = clock
@@ -139,19 +139,31 @@ public struct TrashEmptying: Sendable {
         guard !originals.isEmpty else { return result([]) }
         let date = clock(), batchID = UUID()
         let pending = originals.map { CleanupRecord(emptying: $0, trashURL: $0.trashURL!, batchID: batchID, at: date, dryRun: dryRun) }
+        return journaled(pending, batchID: batchID, dryRun: dryRun) { index, record in
+            perform(originals[index], dryRun: dryRun, ledger: ledger, into: &record)
+        }
+    }
+
+    /// Runs `pending` as one journaled emptying (pending, intent, outcome per item, #309): `perform` deletes item `index`
+    /// into its record. After a journal failure the rest are not started.
+    func journaled(_ pending: [CleanupRecord], batchID: UUID, dryRun: Bool,
+                   perform: (Int, inout CleanupRecord) -> Void) -> TrashEmptyingResult {
+        func result(_ records: [CleanupRecord], _ failure: String? = nil) -> TrashEmptyingResult {
+            TrashEmptyingResult(records: records, dryRun: dryRun, journalFailure: failure)
+        }
         do { guard try journal.claim(batchID: batchID, records: pending) else { return result([]) } }
         catch { return result([], "CacheDrop couldn’t save the emptying before starting, so nothing was changed.") }
 
         var done: [CleanupRecord] = [], failure: String?
-        for (original, initial) in zip(originals, pending) {
+        for (index, initial) in pending.enumerated() {
             var record = initial
             if failure != nil {
                 record.state = .cancelled; record.message = "Not started"; done.append(record); continue
             }
-            record.state = .intent; record.message = "Started; outcome not yet recorded"
+            record.state = .intent; record.message = "Started · Outcome unknown"
             do { try journal.intent(record) }
             catch { record.state = .cancelled; record.message = "CacheDrop couldn’t save its progress, so it stopped. This item wasn’t changed."; failure = record.message; done.append(record); continue }
-            perform(original, dryRun: dryRun, ledger: ledger, into: &record)
+            perform(index, &record)
             do { try journal.outcome(record) }
             catch { record.state = .unknown; record.message = "CacheDrop couldn’t save what happened. Review the interrupted cleanup before cleaning again."; failure = record.message }
             Self.log.info("\(record.state.rawValue, privacy: .public) delete from the Trash \(record.originalURL.path, privacy: .public)")
@@ -167,9 +179,14 @@ public struct TrashEmptying: Sendable {
             record.state = .skipped; record.message = CleanupRecord.previewPrefix + " would delete from the Trash (\(size)). Checks passed; nothing changed."
             return
         }
+        measured(&record) { Self.delete(original, at: $0.originalURL, into: &$0) }
+    }
+
+    /// Runs `delete` with the available space read before and after it, as a cleanup measures each item (SPEC section 6).
+    func measured(_ record: inout CleanupRecord, delete: (inout CleanupRecord) -> Void) {
         let folder = record.originalURL.deletingLastPathComponent()
         let before = measure(folder)
-        Self.delete(original, at: record.originalURL, into: &record)
+        delete(&record)
         if record.state == .succeeded, let before, let after = measure(folder) {
             record.itemCapacity = CleanupCapacityObservation(from: before, to: after)
         }
@@ -177,7 +194,7 @@ public struct TrashEmptying: Sendable {
 
     /// Renames the item aside inside its Trash folder, confirms it is the one CacheDrop moved there, then removes it. The
     /// folder is opened for search only: without Full Disk Access the Trash can be searched but not listed.
-    private static func delete(_ original: CleanupRecord, at trashURL: URL, into record: inout CleanupRecord) {
+    static func delete(_ original: CleanupRecord, at trashURL: URL, into record: inout CleanupRecord) {
         func skip(_ refusal: EmptyRefusal) { record.state = refusal == .failed ? .failed : .skipped; record.message = refusal.reason }
         let folderURL = trashURL.deletingLastPathComponent()
         let folder = open(folderURL.path, O_SEARCH | O_NOFOLLOW | O_CLOEXEC)

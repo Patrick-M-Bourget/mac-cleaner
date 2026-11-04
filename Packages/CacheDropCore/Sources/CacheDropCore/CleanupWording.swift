@@ -16,10 +16,10 @@ public struct ActionWording: Sendable {
     fileprivate static let partlyDeletedRecovery = "Failed · It may be partly deleted"
 
     static let unknown = ActionWording(title: "", previewOutcome: "Would run", succeeded: "Done",
-                                       partlyFailed: "Partly removed", unresolved: "Unfinished · Outcome unknown",
+                                       partlyFailed: "Partly deleted", unresolved: "Unfinished · Outcome unknown",
                                        partlyFailedRecovery: partlyDeletedRecovery, historyPhrase: nil)
     /// Putting an item back from the Trash (#159): a rename, never a delete.
-    static let putBack = ActionWording(title: "Put back from Trash", previewOutcome: "Would put back", succeeded: "Put back",
+    static let putBack = ActionWording(title: "Put back from the Trash", previewOutcome: "Would put back", succeeded: "Put back",
                                        partlyFailed: "Failed", unresolved: "Unfinished · It is either back in its folder or still in the Trash",
                                        partlyFailedRecovery: "Failed · Not changed", historyPhrase: nil)
     /// Deleting an item CacheDrop moved to the Trash from the Trash (#359).
@@ -33,15 +33,15 @@ extension CleanupAction {
         switch self {
         case .delete:
             ActionWording(title: "Delete permanently", previewOutcome: "Would delete", succeeded: "Deleted",
-                          partlyFailed: "Partly removed", unresolved: "Unfinished · It may be partly deleted",
+                          partlyFailed: "Partly deleted", unresolved: "Unfinished · It may be partly deleted",
                           partlyFailedRecovery: ActionWording.partlyDeletedRecovery, historyPhrase: "deleted")
         case .tool:
             ActionWording(title: "Run its cleanup command", previewOutcome: "Would run", succeeded: "Deleted",
-                          partlyFailed: "Partly removed", unresolved: "Unfinished · It may be partly deleted",
+                          partlyFailed: "Partly deleted", unresolved: "Unfinished · It may be partly deleted",
                           partlyFailedRecovery: ActionWording.partlyDeletedRecovery, historyPhrase: "deleted")
         case .trash:
             ActionWording(title: "Move to Trash", previewOutcome: "Would move to Trash",
-                          succeeded: "Moved to Trash", partlyFailed: "Partly removed", unresolved: "Unfinished · It may or may not be in the Trash",
+                          succeeded: "Moved to Trash", partlyFailed: "Partly moved to Trash", unresolved: "Unfinished · It may or may not be in the Trash",
                           partlyFailedRecovery: ActionWording.partlyDeletedRecovery, historyPhrase: "moved to Trash")
         case .evict:
             ActionWording(title: "Remove local copy", previewOutcome: "Would remove local copy", succeeded: "Removed local copy", partlyFailed: "Partly removed local copies",
@@ -49,7 +49,7 @@ extension CleanupAction {
                           partlyFailedRecovery: "Failed · Some local copies were removed · The originals stay in iCloud", historyPhrase: "removed local iCloud copies")
         case .guidance:
             ActionWording(title: "Guidance only", previewOutcome: "Would run", succeeded: "Done",
-                          partlyFailed: "Partly removed", unresolved: "Unfinished · Outcome unknown",
+                          partlyFailed: "Partly deleted", unresolved: "Unfinished · Outcome unknown",
                           partlyFailedRecovery: ActionWording.partlyDeletedRecovery, historyPhrase: nil)
         }
     }
@@ -83,11 +83,22 @@ extension CleanupRecord {
         }
     }
     /// Success messages that only restate the outcome, which History leaves out (#312).
-    private static let restatesOutcome: Set<String> = ["Permanently removed", "Moved to Trash", "Put back from the Trash", "Deleted from the Trash"]
+    private static let restatesOutcome: Set<String> = ["Deleted", "Permanently removed", "Moved to Trash", "Put back from the Trash", "Deleted from the Trash"]
+    /// Progress messages journaled in words kept off screen ("approval", "records"), and how they read (#571). The journal
+    /// keeps what it stored; only what's drawn changes.
+    static let plainProgress = ["Approved; not started": "Not started", "Started; outcome not yet recorded": "Started · Outcome unknown"]
+    /// The record's message as every page draws it.
+    public var shownMessage: String { Self.plainProgress[message] ?? message }
     /// History's line for a record: its outcome, then its message when that adds something (#312).
     public var outcomeLine: String {
-        let restates = message == outcomeTitle || (state == .succeeded && Self.restatesOutcome.contains(message))
-        return restates ? outcomeTitle : outcomeTitle + " · " + message
+        let shown = shownMessage
+        let restates = shown == outcomeTitle || (state == .succeeded && Self.restatesOutcome.contains(shown))
+        return restates ? outcomeTitle : outcomeTitle + " · " + shown
+    }
+    /// Recovery's detail line: its state, then its message when that adds something, so a state is said once.
+    public var recoveryLine: String {
+        let state = recoveryStateText, shown = shownMessage
+        return shown.isEmpty || state.contains(shown) ? state : state + " · " + shown
     }
     public var recoveryStateText: String {
         switch state {
@@ -108,6 +119,20 @@ extension CleanupHistoryRun {
     public var isPutBack: Bool { !records.isEmpty && records.allSatisfy(\.isPutBack) }
     /// A deletion of CacheDrop's own items from the Trash (#359), recorded as its own run.
     public var isEmptyFromTrash: Bool { !records.isEmpty && records.allSatisfy(\.isEmptyFromTrash) }
+    /// The figure a History row leads with (#569, Decision 128). A cleanup leads with the measured freed space Results leads
+    /// with (Decision 93), "Unknown" when a reading is missing, and so does Empty from Trash, which frees space too; a run
+    /// that only moved items to the Trash, with what went there; a Put back, with what it returned; a dry run, with what it
+    /// would affect.
+    public struct Headline: Sendable, Equatable {
+        public let bytes: Int64?
+        public let note: String
+    }
+    public var headline: Headline {
+        if isPreview { return Headline(bytes: plannedBytes, note: "Dry run") }
+        if isPutBack { return Headline(bytes: plannedBytes, note: "From Trash") }
+        if records.movedOnlyToTrash { return Headline(bytes: plannedBytes, note: "In Trash") }
+        return Headline(bytes: MeasuredFreedSpace.shown(measuredFreedBytes), note: "Freed")
+    }
     /// "A", "A and B", "A, B and C".
     private static func list(_ items: [String]) -> String {
         items.count < 2 ? items.joined() : items.dropLast().joined(separator: ", ") + " and " + items[items.count - 1]
@@ -119,7 +144,7 @@ extension CleanupHistoryRun {
             return deleted == 0 ? "Empty from the Trash · Nothing changed" : "Emptied from the Trash · " + (deleted == 1 ? "1 item" : "\(deleted) items")
         }
         if isPutBack {
-            return records.contains { $0.state == .succeeded } ? "Put back from Trash" : "Put back · Nothing changed"
+            return records.contains { $0.state == .succeeded } ? "Put back from the Trash" : "Put back · Nothing changed"
         }
         let done = records.filter { $0.state == .succeeded }
         // An uninstall (#177, Decision 51): "Uninstalled <App> · N items".

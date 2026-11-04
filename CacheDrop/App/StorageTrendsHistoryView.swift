@@ -93,8 +93,8 @@ enum StorageTrendsPresentation {
         }
     }
     static let checkBack = "Check back tomorrow to see trends."
-    static let retention = "History is stored on this Mac: sizes per category and location only, at most \(StorageTrendsRetention().baselines) scans over \(StorageTrendsRetention().days) days, "
-        + "and no more than \(SizeFormatter.text(Int64(StorageTrendsRetention().bytes)))."
+    /// One name per thing (#570): History is another screen, and the byte cap is an internal limit.
+    static let retention = "Trends are kept on this Mac: sizes per category and location only, up to \(StorageTrendsRetention().baselines) scans over \(StorageTrendsRetention().days) days."
 }
 
 /// A growth row as in the prototype: name, what it is, a bar relative to the largest change, and the signed change.
@@ -148,8 +148,8 @@ struct StorageTrendsHistoryView: View {
                 SkeletonRows(.line, identifier: "growthSkeleton")
             } else {
                 PageHeader(title: "Storage trends", subtitle: "What grew or shrank between two scans.")
-                EmptyState(title: "No scans yet", detail: "Scan now, then check back tomorrow to see trends.",
-                           symbol: "chart.line.uptrend.xyaxis", action: EmptyStateAction("Scan now", perform: scanNow), identifier: "growthEmpty")
+                EmptyState(title: "No scans yet", detail: "Scan again, then check back tomorrow to see trends.",
+                           symbol: "chart.line.uptrend.xyaxis", action: EmptyStateAction("Scan again", perform: scanNow), identifier: "growthEmpty")
             }
             if let error = model.error, model.comparison != nil { StatusRow(text: error, symbol: "exclamationmark.circle", role: .caution) }
             Text(StorageTrendsPresentation.retention).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)

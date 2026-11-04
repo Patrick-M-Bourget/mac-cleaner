@@ -86,19 +86,46 @@ public enum AppDataCaches {
 
     // MARK: Adobe
 
+    /// The Adobe video apps that share the media cache; nothing Adobe keeps for them is touched while one runs.
+    static let adobeVideoApps = RuleOwner(name: "Adobe video apps",
+                                          executables: ["Adobe Premiere*", "After Effects", "Adobe After Effects*", "Adobe Media Encoder*", "Adobe Audition*",
+                                                        "Adobe Character Animator*", "Adobe Prelude*", "dynamiclinkmanager"])
+
     /// Adobe's video apps share one media cache, by default in ~/Library/Application Support/Adobe/Common (Adobe Help,
-    /// "Delete media cache files manually": quit the app, then delete the files there): conformed audio, peak and
-    /// index files in `Media Cache Files`, and the database that links them in `Media Cache`. A cache moved in
-    /// Preferences > Media Cache isn't found; what stays in the default folder is still cache.
+    /// "Delete media cache files manually": quit the app, then delete the files there): conformed audio and index files in
+    /// `Media Cache Files`, the database that links them in `Media Cache`, and peak files in `Peak Files` (Adobe Help, "Manage
+    /// media cache"). A cache moved in Settings › Media Cache is found from Adobe's settings (`AdobeMediaCache`, #730); the rest
+    /// of Common (Motion Graphics Templates, LUTs, Team Projects) is never a location.
     static let adobeMediaCache = CleanupRule(
-        id: "adobe-media-cache", category: .system, title: "Adobe media cache",
+        id: AdobeMediaCache.ruleID, category: .photoVideo, title: "Adobe media cache",
         detail: "Conformed audio, peak and index files Premiere, After Effects and Media Encoder made from your media.",
         consequence: "Your projects and media are kept, and Adobe apps rebuild these files when you open a project.",
         regen: .cache, action: .delete,
-        locations: ["Library/Application Support/Adobe/Common/Media Cache Files", "Library/Application Support/Adobe/Common/Media Cache"],
-        owner: RuleOwner(name: "Adobe video apps",
-                         executables: ["Adobe Premiere*", "After Effects", "Adobe After Effects*", "Adobe Media Encoder*", "Adobe Audition*",
-                                       "Adobe Character Animator*", "Adobe Prelude*", "dynamiclinkmanager"]))
+        locations: AdobeMediaCache.cacheFolders.map { AdobeMediaCache.defaultFolder + "/" + $0 },
+        owner: adobeVideoApps)
+
+    /// Premiere Pro's own cache for each version, ~/Library/Caches/Adobe/Premiere Pro/<version> (observed on 26.0, #730: its
+    /// type support cache and crash reporter's database). Its settings (~/Library/Preferences/Adobe) and projects and
+    /// auto-saves (~/Documents/Adobe) are never locations.
+    static let premiereProCache = CleanupRule(
+        id: "premiere-pro-cache", category: .photoVideo, title: "Premiere Pro cache",
+        detail: "Files Premiere Pro keeps to start and work faster, per version.",
+        consequence: "Your projects, settings and media are kept, and Premiere Pro rebuilds these files as you use it.",
+        regen: .cache, action: .delete, locations: ["Library/Caches/Adobe/Premiere Pro/*"], owner: adobeVideoApps,
+        itemName: { "Premiere Pro " + $0 })
+
+    /// After Effects' cache for each version, ~/Library/Caches/Adobe/After Effects/<version>, where its disk cache is kept by
+    /// default (#400, Decision 165). Adobe Help ("Memory and storage") documents the disk cache, "up to 100 GB" by default,
+    /// kept after quitting and separate per version, but not its macOS folder; that folder is from secondary sources
+    /// (freevisuals.net, MacKeeper, an Adobe community bug report on old versions' disk caches), not observed. Anything in
+    /// ~/Library/Caches is rebuilt by its app, so a folder named otherwise is simply not found. A disk cache moved in Settings ›
+    /// Disk isn't offered: where After Effects records it isn't documented, and CacheDrop doesn't guess. Real check: #736.
+    static let afterEffectsCache = CleanupRule(
+        id: "after-effects-cache", category: .photoVideo, title: "After Effects cache",
+        detail: "Files After Effects keeps to preview and work faster, per version.",
+        consequence: "Your projects, settings and media are kept, and After Effects rebuilds these files as you preview.",
+        regen: .cache, action: .delete, locations: ["Library/Caches/Adobe/After Effects/*"], owner: adobeVideoApps,
+        itemName: { "After Effects " + $0 })
 
     // MARK: Audio production (#139)
 
@@ -108,7 +135,7 @@ public enum AppDataCaches {
     /// "Managing Files and Sets": Decoding Cache). A cache folder moved in Settings > File & Folder isn't found. The
     /// bundle identifier and executable are from Live 12's Info.plist (`com.ableton.live`, `Live`).
     static let abletonCache = CleanupRule(
-        id: "ableton-cache", category: .system, title: "Ableton Live cache",
+        id: "ableton-cache", category: .audio, title: "Ableton Live cache",
         detail: "WAV files Live decoded from your MP3, AAC and other compressed samples.",
         consequence: "Your Sets, samples and Packs are kept, and Live decodes samples again when it next plays them.",
         regen: .cache, action: .delete, locations: ["Library/Caches/Ableton/Cache"],
@@ -139,9 +166,13 @@ public enum AppDataCaches {
     public static func rules(apps: any AppLookup) -> [CleanupRule] {
         [
             jetBrains(apps: apps),
-            adobeMediaCache,
-            abletonCache,
+            // A category is listed where its first rule is, so App caches' first rule here comes before the field categories:
+            // App caches, Audio software, then Photo and video (Decision 164).
             sandboxedCaches(apps: apps),
+            abletonCache,
+            adobeMediaCache,
+            premiereProCache,
+            afterEffectsCache,
             vsCode(id: "vscode-cache", name: "Visual Studio Code", nameShort: "Code", bundleID: "com.microsoft.VSCode"),
             vsCode(id: "vscodium-cache", name: "VSCodium", nameShort: "VSCodium", bundleID: "com.vscodium"),
             vsCode(id: "cursor-cache", name: "Cursor", nameShort: "Cursor", bundleID: "com.todesktop.230313mzl4w4u92"),

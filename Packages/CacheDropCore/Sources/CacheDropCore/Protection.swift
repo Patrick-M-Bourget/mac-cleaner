@@ -4,8 +4,8 @@ import Foundation
 /// Discovery, leaked copies, Downloads files and the check all use this one computation, so a scan never offers
 /// what the check would refuse.
 struct Protection {
-    /// Never acted on by a rule: git work, the Trash, backups (spec section 2). CacheDrop never empties the Trash; it
-    /// deletes from it only items it moved there itself, when you ask (Decision 68).
+    /// Never acted on by a rule: git work, the Trash, backups (spec section 2). CacheDrop deletes from the Trash only when
+    /// you ask, never through a rule: its own items (Decision 68) or everything an Empty Trash sheet listed (Decision 142).
     static let names: Set<String> = [".git", ".Trash", ".Trashes", "Backups.backupdb"]
     /// Packages and libraries that are never acted on, whatever folder holds them.
     static let extensions: Set<String> = ["app", "bundle", "framework", "xcarchive", "photoslibrary", "photolibrary", "musiclibrary", "backupbundle", "sparsebundle", "band", "logicx"]

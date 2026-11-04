@@ -42,11 +42,13 @@ struct AppearancePicker: View {
 }
 
 /// The Settings window (⌘,). Appearance follows the system unless overridden here; the menu bar item is shown and
-/// low-space alerts are off unless changed here (#131); the dry run is off unless turned on here.
+/// low-space alerts are off unless changed here (#131); the dry run is off unless turned on here; the license key is
+/// entered and removed here (#594).
 struct CacheDropSettingsView: View {
     @State private var appearance = AppLifecycleController.shared.appearance
     @AppStorage(PreferenceKeys.showsMenuBarItem) private var showsMenuBarItem = true
     @State private var sharing = SetupProgressSharing.shared
+    @AppStorage(PreferenceKeys.checksForUpdatesAutomatically) private var checksForUpdatesAutomatically = true
     var body: some View {
         Form {
             Section {
@@ -57,6 +59,7 @@ struct CacheDropSettingsView: View {
             }
             // #131: low-space alerts live here, not in the sidebar.
             LowSpaceAlertsSettings(controller: AppLifecycleController.shared.alerts)
+            WeeklyReminderSettings(controller: AppLifecycleController.shared.weeklyReminder)
             Section { DryRunToggle(model: AppLifecycleController.shared.selection.catalog) }
             Section {
                 Toggle(SetupProgressSharing.title, isOn: sharing.binding).accessibilityIdentifier("shareSetupProgressSettings")
@@ -64,11 +67,50 @@ struct CacheDropSettingsView: View {
                 Text(SetupProgressSharing.explanation).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
             }
             Section {
+                // #600: weekly; Sparkle asks before downloading or installing anything (Decision 145).
+                Toggle("Check for updates automatically", isOn: $checksForUpdatesAutomatically)
+                    .accessibilityIdentifier("automaticUpdateChecksToggle")
+                    .onChange(of: checksForUpdatesAutomatically) { _, _ in AppLifecycleController.shared.manualUpdater.automaticChecksChanged() }
                 Button("Check for Updates…") { AppLifecycleController.shared.manualUpdater.checkForUpdates() }
                     .buttonStyle(.link).accessibilityIdentifier("checkForUpdatesSettings")
+            } footer: {
+                Text("CacheDrop checks once a week. Nothing is downloaded or installed until you choose.")
+                    .font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
             }
+            LicenseSettings(license: AppLifecycleController.shared.license, trial: AppLifecycleController.shared.trial)
         }.formStyle(.grouped).frame(width: CacheDropDesign.Size.sheetNarrow).fixedSize(horizontal: false, vertical: true)
-            .cacheDropButtonRule()
+            .cacheDropButtonRule().background { SettingsOpensUnfocused() }
+    }
+}
+
+/// Settings opens with no field focused (#689, Decision 156). The License key field is its only text field, so AppKit
+/// would put the cursor there each time the window opens; it takes focus only when clicked or tabbed to. Each opening
+/// clears it once, after AppKit's own pick; switching back to an open Settings window keeps whatever was focused.
+private struct SettingsOpensUnfocused: NSViewRepresentable {
+    func makeNSView(context: Context) -> WatchView { WatchView() }
+    func updateNSView(_ nsView: WatchView, context: Context) {}
+    @MainActor final class WatchView: NSView {
+        private var opening = true
+        private var observers: [NSObjectProtocol] = []
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            observers.forEach(NotificationCenter.default.removeObserver)
+            observers = []
+            guard let window else { return }
+            let center = NotificationCenter.default
+            observers.append(center.addObserver(forName: NSWindow.didBecomeKeyNotification, object: window, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.clearIfOpening() }
+            })
+            observers.append(center.addObserver(forName: NSWindow.willCloseNotification, object: window, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.opening = true }
+            })
+            if window.isKeyWindow { clearIfOpening() }
+        }
+        private func clearIfOpening() {
+            guard opening else { return }
+            opening = false
+            DispatchQueue.main.async { [weak self] in self?.window?.makeFirstResponder(nil) }
+        }
     }
 }
 

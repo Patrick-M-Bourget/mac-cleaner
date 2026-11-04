@@ -74,7 +74,7 @@ private let cargoOnly = Catalog(rules: fixtureRules.filter { $0.id == "cargo-cac
     let record = try #require(await run.execute(CatalogApproval(candidates: [candidate], dryRun: false)).records.first)
     #expect(record.state == .failed)
     #expect(record.partlyRemoved == true)
-    #expect(record.outcomeTitle == "Partly removed")
+    #expect(record.outcomeTitle == "Partly deleted")
     #expect(!record.recoveryStateText.contains("Not changed"))
 
     // The rest is offered again under the same rule, and the next cleanup finishes it.

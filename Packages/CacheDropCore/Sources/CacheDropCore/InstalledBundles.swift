@@ -5,8 +5,8 @@ import Foundation
 /// plug-ins and the helpers makers keep in `Application Support`. Read-only: only Info.plists are read, nothing is sized or loaded.
 public enum InstalledBundles {
     /// Folders read under both the system root and the home; locations of bundles that aren't audio plug-ins.
-    static let places = ["Library/PreferencePanes", "Library/Services", "Library/Application Support", "Library/Audio/Plug-Ins/HAL",
-                         "Library/Audio/MIDI Drivers", "Library/Internet Plug-Ins", "Library/Spotlight", "Library/QuickLook"]
+    static let places = ["Library/PreferencePanes", "Library/Services", "Library/Application Support"] + AudioSoftware.driverPlaces
+        + ["Library/Internet Plug-Ins", "Library/Spotlight", "Library/QuickLook"]
     static let extensions: Set<String> = ["app", "bundle", "plugin", "prefpane", "service", "driver", "component", "appex", "xpc", "qlgenerator", "mdimporter"]
     /// Levels looked into below each place, never inside a bundle: `Application Support/<maker>/<product>/<helper>.app`.
     static let depth = 3

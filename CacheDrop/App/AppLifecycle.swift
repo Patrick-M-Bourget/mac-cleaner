@@ -3,6 +3,7 @@ import AppKit
 import ServiceManagement
 import Combine
 import CacheDropCore
+import StorageAlerts
 
 @MainActor private final class NativeLoginService: LoginService {
     var status: LoginStatus {
@@ -21,8 +22,11 @@ import CacheDropCore
 @MainActor final class AppLifecycleController: ObservableObject {
     static let shared = AppLifecycleController()
     let alerts = StorageAlertsController()
+    let weeklyReminder = WeeklyReminderController(system: NativeWeeklyReminderSystem())
     let capacity = CapacityRefreshController(system: NativeCapacityRefreshSystem())
     let appearance = AppearancePreferenceController(store: NativeAppearancePreferenceStore())
+    let license = LicenseController.forApp()
+    let trial = TrialController.forApp()
     let selection = CleanupPlan()
     let recovery = CleanupRecoveryModel()
     let workspaceNavigation = WorkspaceNavigation()
@@ -57,6 +61,16 @@ import CacheDropCore
     }
     /// Opens the Smart clean page, for the menu bar item (#131, #141).
     var openSmartClean: (() -> Void)?
+    /// Opens Overview with the Empty Trash sheet, for the menu bar item (#605).
+    var openEmptyTrash: (() -> Void)?
+    /// A clicked weekly reminder that launched CacheDrop asks for Smart clean before the workspace has appeared (#599).
+    var smartCleanPending = false
+    /// The weekly reminder was clicked: the workspace opens on Smart clean, which never cleans by itself (#599).
+    func openSmartCleanFromReminder() {
+        openWorkspace?()
+        NSApp.activate(ignoringOtherApps: true)
+        if let openSmartClean { openSmartClean() } else { smartCleanPending = true }
+    }
     /// Requests both stops before waiting. Completion includes discovery and every final History/Storage trends write.
     func stopScansAndWait() async {
         selection.catalog.requestScanStop()
@@ -129,13 +143,18 @@ import CacheDropCore
         }
         loginIntent = false; loginStatus = LocalStateLocation.isDisposableTest ? .disabled : registration.status
         try alerts.resetPreferences()
+        try weeklyReminder.resetPreferences()
+        if !LocalStateLocation.isDisposableTest {
+            UserDefaults.standard.removeObject(forKey: PreferenceKeys.checksForUpdatesAutomatically)
+            manualUpdater.automaticChecksChanged()
+        }
     }
     func refreshLogin() {
         registration.refresh(); loginStatus = registration.status
     }
     func chooseLogin(_ enabled: Bool) {
         do { try registration.choose(enabled); loginError = nil }
-        catch { loginError = "Login registration could not be changed. You can continue using CacheDrop on demand." }
+        catch { loginError = "CacheDrop couldn’t change Start at Login. You can still open it yourself." }
         loginIntent = registration.intent; loginStatus = registration.status
         UserDefaults.standard.set(loginIntent, forKey: PreferenceKeys.startAtLogin)
     }
@@ -201,6 +220,8 @@ import CacheDropCore
         // Low-space alerts (#131): restore a saved choice. Nothing is asked for until you turn alerts on.
         if !LocalStateLocation.isDisposableTest { lifecycle.alerts.configureNotifications() }
         lifecycle.alerts.configure()
+        // Weekly update checks while they're on (#600, Decision 145); never in a disposable test run.
+        lifecycle.manualUpdater.startScheduledChecks()
         // A copy relaunched by Move to Applications ejects the disk image it came from (#559).
         MoveToApplicationsModel.ejectIfAsked()
     }

@@ -44,11 +44,9 @@ extension LocalStateLocation {
 
 /// Local app-owned journal location; recovery opens existing storage only.
 enum CleanupJournalLocation {
-    static func writer() throws -> SQLiteCleanupJournal {
-        try SQLiteCleanupJournal(url: LocalStateLocation.root(create: true).appendingPathComponent("cleanup.sqlite"))
-    }
+    static func writer() throws -> SQLiteCleanupJournal { try LocalStateLocation.cleanupJournal() }
     static func existingReader() throws -> SQLiteCleanupJournal? {
-        let url = try LocalStateLocation.root(create: false).appendingPathComponent("cleanup.sqlite")
+        let url = try LocalStateLocation.root(create: false).appendingPathComponent(LocalStateLocation.cleanupJournalName)
         var info = stat()
         if lstat(url.path, &info) != 0 {
             if errno == ENOENT { return nil }

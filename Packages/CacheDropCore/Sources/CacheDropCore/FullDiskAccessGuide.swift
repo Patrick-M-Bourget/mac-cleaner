@@ -3,7 +3,7 @@ import Foundation
 /// The one explanation every "not accessible" row and System access show (SPEC section 7).
 public enum FullDiskAccessGuide {
     public static let title = "Broader access is optional"
-    public static let summary = "Full Disk Access lets CacheDrop see protected places like Mail and Safari data. It’s broad authority, not read-only. CacheDrop’s scans stay read-only either way."
+    public static let summary = "Full Disk Access lets CacheDrop see protected places like Mail and Safari data. macOS grants more than reading; CacheDrop’s scans only read."
     /// The one note on how to turn it on. CacheDrop never asks for it at launch.
     public static let howToTurnOn = "Turn on CacheDrop in System Settings › Privacy & Security › Full Disk Access."
 

@@ -14,6 +14,13 @@ public struct CatalogApproval: Sendable, Identifiable {
     }
 }
 
+extension CleanupRecord {
+    /// The items the measured freed space covers, and so the estimate set against it (Decision 140): removed by an action
+    /// that frees space, and measured. A Trash move frees nothing yet, and an item that finished after the stop (#209)
+    /// freed its space where nothing measured it.
+    public var countsTowardMeasuredFreedSpace: Bool { state == .succeeded && cleanupAction != .trash && !finishedAfterStop }
+}
+
 extension Array where Element == CleanupRecord {
     /// True when the run moved something to the Trash and removed nothing else: nothing is freed until the Trash is emptied,
     /// so Results and History show no measured freed space (Decision 66).
@@ -26,16 +33,24 @@ extension Array where Element == CleanupRecord {
     /// History and Empty from Trash all read it (#433).
     var measuredFreedBytes: Int64? {
         var total: Int64 = 0
-        for record in self where record.state == .succeeded && record.cleanupAction != .trash && !record.finishedAfterStop {
+        for record in self where record.countsTowardMeasuredFreedSpace {
             guard let change = record.itemCapacity?.observedChange else { return nil }
             total += change
         }
         return total
     }
+    /// What the measured freed space's items were sized at before cleanup, each space once (#587, Decision 140): the
+    /// estimate that figure is set against, like for like. Trash moves are In the Trash, failed and skipped items are Not
+    /// cleaned, and an item that finished after the stop is in neither figure. Results and History both read it.
+    var estimatedFreedBytes: Int64 {
+        var seen = Set<String>()
+        return filter { $0.countsTowardMeasuredFreedSpace && seen.insert(SpaceKey.of(resourceID: $0.resourceID, ruleID: $0.ruleID, action: $0.cleanupAction, item: $0.toolItem)).inserted }
+            .reduce(0) { $0 + $1.recordedBytes }
+    }
 }
 
 /// How a measured freed space is shown (#418): never below 0. Other activity can move free space the other way while an
-/// item's space hasn't reached macOS yet (Docker's, #411); the caption beside it says other activity can affect it.
+/// item's space hasn't reached macOS yet (Docker's, #411); Results' line under it says how it was measured (#577).
 public enum MeasuredFreedSpace {
     public static func shown(_ measured: Int64?) -> Int64? { measured.map { max(0, $0) } }
 }
@@ -50,6 +65,9 @@ public struct CatalogExecutionResult: Sendable {
     public let estimatedBytes: Int64
     /// Sum of the available-space change read around each removed item; nil when any reading is missing.
     public var measuredFreedBytes: Int64? { dryRun ? nil : records.measuredFreedBytes }
+    /// Results' "Estimated before cleanup" under the measured freed space: the approved items whose action frees space
+    /// (#587). A run that only moved items to the Trash shows `estimatedBytes` as its figure instead (Decision 132).
+    public var estimatedFreedBytes: Int64 { records.estimatedFreedBytes }
     /// Results' line under the measured freed space once the disk was read again a minute after completed Docker prunes
     /// (#411). It isn't added to the measured freed space. Before the check (`checked` false) there is none; a check that
     /// couldn't read the disk says so, so Results' "check again" is always answered.
@@ -85,7 +103,7 @@ extension CleanupRecord {
     public init(batchID: UUID, approvedAt: Date, candidate: Candidate, dryRun: Bool) {
         id = Self.id(batchID: batchID, candidateID: candidate.id); self.batchID = batchID; originalURL = candidate.url
         resourceID = candidate.resourceID; logicalBytes = candidate.logicalBytes; allocatedBytes = candidate.allocatedBytes
-        state = .pending; trashURL = nil; message = "Approved; not started"; observedAt = candidate.observedAt
+        state = .pending; trashURL = nil; message = "Not started"; observedAt = candidate.observedAt
         let parent = candidate.url.deletingLastPathComponent()
         var info = stat()
         scopeURL = parent; scopeResourceID = lstat(parent.path, &info) == 0 ? info.resourceID : ""
@@ -143,7 +161,7 @@ public actor CleanupExecutor {
                 if failure == nil { do { try journal.outcome(record) } catch { failure = "CacheDrop couldn’t save that the cleanup stopped." } }
                 records.append(record); await progress(.init(resolved: records.count, total: total, last: record)); continue
             }
-            record.state = .intent; record.message = "Started; outcome not yet recorded"
+            record.state = .intent; record.message = "Started · Outcome unknown"
             do { try journal.intent(record) }
             catch { record.state = .cancelled; record.message = "CacheDrop couldn’t save its progress, so it stopped. This item wasn’t changed."; failure = record.message; records.append(record); await progress(.init(resolved: records.count, total: total, last: record)); continue }
             if self.check.needsInUseCheck(candidate), reading.map({ clock().timeIntervalSince($0.takenAt) > Self.inUseReadingMaxAge }) ?? true {
@@ -316,7 +334,7 @@ public actor CleanupExecutor {
             var info = stat()
             if lstat(candidate.url.path, &info) != 0, errno == ENOENT { record.state = .succeeded; record.message = "Ran \(name); it removed the folder itself"; return }
             delete(candidate, into: &record)
-            if record.state == .succeeded { record.message = "Ran \(name) and permanently removed the folder" }
+            if record.state == .succeeded { record.message = "Ran \(name) and deleted the folder" }
             else { record.message = "Ran \(name). " + record.message }
         case .failure(let error as ToolTimeout):
             Self.recordStopped(.timeLimit(seconds: Int(command.timeout.rounded(.up))), output: error.output, command: command, name: name, candidate: candidate, into: &record)
@@ -392,7 +410,7 @@ public actor CleanupExecutor {
         }
         do {
             try FileManager.default.removeItem(at: aside)
-            record.state = .succeeded; record.message = "Permanently removed"
+            record.state = .succeeded; record.message = "Deleted"
         } catch {
             // Never "not changed": part of it is gone. The rest is offered again on the next scan, under the same rule.
             record.state = .failed; record.partlyRemoved = true

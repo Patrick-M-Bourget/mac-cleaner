@@ -1,7 +1,8 @@
 #!/bin/bash
 # Runs what CI runs, on this Mac: the source checks, the Core suite (normal, then strict pool with the pool guard alone,
 # #242), StorageAlerts' suite and Debug/Release app builds. Run it before every commit; UI journeys are separate
-# (scripts/ui-journeys.sh). Failed steps retain full logs in .build/check-logs; successful logs are removed.
+# (scripts/ui-journeys.sh). Failed steps retain full logs in .build/check-logs; successful logs are removed. A full
+# passing run records the pass stamp that commits need (scripts/check-stamp.sh, #667).
 #
 #   scripts/check.sh            everything
 #   scripts/check.sh --fast     the source checks and the Core suite only
@@ -52,5 +53,6 @@ if [ "$fast" -eq 0 ]; then
   else
     echo "Skipping Release: Debug app build failed."
   fi
+  [ "$failed" -eq 0 ] && step "pass stamp" scripts/check-stamp.sh write
 fi
 exit $failed

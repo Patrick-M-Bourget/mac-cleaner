@@ -9,8 +9,10 @@ import Foundation
 public struct ReviewHeldItems: Sendable {
     /// Each refused row's reason, by candidate id.
     public private(set) var refusals: [String: CheckRefusal]
-    /// The known app holding each row, open or not, by candidate id.
+    /// The known app holding each row, open or not, by candidate id: one value per app (`sameApp`).
     private var holders: [String: RuleOwner] = [:]
+    /// Each app met so far, as the first rule that named it described it.
+    private var apps: [RuleOwner] = []
     /// The holders open as apps at the last look, which the rows offer to quit.
     private var open: Set<RuleOwner> = []
     private let candidates: [Candidate]
@@ -50,14 +52,15 @@ public struct ReviewHeldItems: Sendable {
     }
 
     /// The skipped lines among `candidates`, in their order: one per holder, told apart by the holding app itself when it is
-    /// a known one, else by its reason; any other refused row on a line of its own. Rows that pass have none.
+    /// a known one (one app however its rules describe it, #564), else by its reason; any other refused row on a line of its
+    /// own. Rows that pass have none.
     public func lines(in candidates: [Candidate]) -> [Line] {
         enum Key: Hashable { case app(RuleOwner), hold(CheckRefusal), item(String) }
         var order: [Key] = [], rows: [Key: [Candidate]] = [:]
         for candidate in candidates {
             guard let refusal = refusals[candidate.id] else { continue }
             let hold = CandidateHold(refusal, of: candidate, catalog: catalog)
-            let key: Key = hold?.app.map(Key.app) ?? (hold != nil ? .hold(refusal) : .item(candidate.id))
+            let key: Key = (holders[candidate.id] ?? hold?.app).map(Key.app) ?? (hold != nil ? .hold(refusal) : .item(candidate.id))
             if rows[key] == nil { order.append(key) }
             rows[key, default: []].append(candidate)
         }
@@ -69,6 +72,9 @@ public struct ReviewHeldItems: Sendable {
                         isUpperBound: items.contains { catalog.rule($0.ruleID)?.estimateIsUpperBound == true }, quitOwner: holder(of: items[0]))
         }
     }
+    /// The review sheet's skipped lines, shown once above its consequence groups (#564, Decision 162): a holder whose rows sit
+    /// in several groups gets one line covering all of them, in the sheet's group order.
+    public func lines(in groups: [ReviewGroup]) -> [Line] { lines(in: groups.flatMap(\.candidates)) }
     private static func text(_ refusal: CheckRefusal, items: [Candidate], catalog: Catalog) -> String {
         switch refusal {
         case .ownerRunning(let name):
@@ -100,9 +106,18 @@ public struct ReviewHeldItems: Sendable {
         }
     }
 
+    /// The app `owner` is, as first met: rules describe one app differently (an app cache by its bundle, its update download
+    /// by its bundle and folder too, a browser rule by its executables), and the user sees it as one app, the one its bundle
+    /// identifiers name, which is also how it is asked to quit (#564, Decision 162).
+    private mutating func sameApp(as owner: RuleOwner) -> RuleOwner {
+        if let known = apps.first(where: { !Set($0.bundleIDs).isDisjoint(with: owner.bundleIDs) }) { return known }
+        apps.append(owner)
+        return owner
+    }
+
     private mutating func findHolder(of candidate: Candidate, isOpen: ([String]) -> Bool) {
-        let owner = refusals[candidate.id].flatMap { CandidateHold($0, of: candidate, catalog: catalog)?.app }
-        holders[candidate.id] = owner.flatMap { $0.bundleIDs.isEmpty ? nil : $0 }
+        let found = refusals[candidate.id].flatMap { CandidateHold($0, of: candidate, catalog: catalog)?.app }
+        holders[candidate.id] = found.flatMap { $0.bundleIDs.isEmpty ? nil : sameApp(as: $0) }
         guard let owner = holders[candidate.id] else { return }
         if isOpen(owner.bundleIDs) { open.insert(owner) } else { open.remove(owner) }
     }

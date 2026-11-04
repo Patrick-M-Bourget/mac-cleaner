@@ -17,15 +17,15 @@ extension BuiltInCatalog {
     /// included, so pruning images first would leave behind an image only a stopped container used. The run follows this order.
     static let dockerRules = [
         docker(.stoppedContainers, id: "docker-containers", title: "Stopped Docker containers",
-               detail: "Containers that aren’t running. Size is an estimate.",
+               detail: "Containers that aren’t running.",
                effect: "Stopped containers go with any changes made inside them; running containers and volumes are kept.",
                regen: .build, arguments: ["container", "prune", "-f"]),
         docker(.images, id: "docker-images", title: "Docker images",
-               detail: "Images no running container uses. Size is an estimate.",
+               detail: "Images no running container uses.",
                effect: "Images no container uses go, and Docker downloads or builds them again when needed.",
                regen: .cache, arguments: ["image", "prune", "-a", "-f"]),
         docker(.buildCache, id: "docker-build-cache", title: "Docker build cache",
-               detail: "Layers Docker kept to speed up builds. Size is an estimate.",
+               detail: "Layers Docker kept to speed up builds.",
                effect: "All unused build cache goes, and Docker rebuilds it on the next build.",
                regen: .build, arguments: ["builder", "prune", "-a", "-f"]),
     ]

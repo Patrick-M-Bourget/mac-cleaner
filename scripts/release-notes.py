@@ -4,7 +4,8 @@
 docs/releases/<version>.html holds only the content, in one fixed shape: a card with the eyebrow
 "What’s new in <version>", one summary sentence and at most six changes. docs/releases/notes.css is the one
 shared style. This joins them into the single file release.sh signs into the appcast, and refuses content
-outside the shape, so the same notes can also feed an email or an in-app page later.
+outside the shape, so the same notes can also feed an email later; the app's Help → What’s New reads the same
+content (CacheDropCore's ReleaseNotes, Decision 161), which refuses what this refuses.
 
     scripts/release-notes.py 0.9.4 --out .build/release-notes/0.9.4.html
 """

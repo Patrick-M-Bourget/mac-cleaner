@@ -16,6 +16,23 @@ Use the gh CLI for issue operations.
   otherwise reference the parent in each child.
 - Do not close or modify a parent merely because tickets were created.
 
+## Reading, checking and editing a batch
+
+`scripts/issues.py` (`--help` for usage) works on many tickets at once, in one GraphQL call per 40 tickets:
+
+- `dump 590-645` or `dump --milestone TITLE`: each ticket's raw body with its labels, milestone, parent, blockers and sub-issues. Read a batch this way rather than one `gh issue view` per ticket.
+- `check` (same arguments): run it after creating or editing a batch and fix every line it prints. It catches malformed references (`##590`), a `## Parent` section that disagrees with the native parent, conflicting triage labels, cited Decisions that don't exist, and leftover "transfer it there" notes. Missing blocking links, stale questions and contradictions between tickets stay a reviewer's judgement.
+- `edit N --replace OLD NEW ... [--title T]`: changes the body only if every OLD matches exactly once, so a failed match never posts half an edit. Copy OLD from `dump`: GitHub stores some references as `owner/repo#N` even where the page shows `#N`.
+- `decision N [--site]`: prints one whole Decision from `docs/RESET.md` (`--site`: cachedrop-website's `docs/DECISIONS.md`). It ends with the later Decisions that amend it (Decisions are append-only, #668); read those too before saying what it covers.
+
+## Merging a PR
+
+After the owner says "merge", run `scripts/merge-pr.py PR ISSUE... --trailer "Co-Authored-By: ..." --trailer "Claude-Session: ..."` (`--help` for the steps). It merges `origin/main` in without committing, runs the Decision check and `scripts/check.sh`, commits and pushes, waits for CI, validates the closing references, squash-merges, deletes the remote branch and confirms the issues closed, one line per step. A merge conflict stops it: resolve the conflict in the PR's worktree, then run the same command again. Run any UI journeys the merge touches before it. A PR that closes no issue (a release bump, a docs-only change) takes `--expect-none` in place of the issues; giving neither is refused. Waiting for CI takes about 10 minutes, longer than a foreground tool call allows, so run it in the background.
+
+## Moving a ticket to cachedrop-website
+
+`gh issue transfer N Patrick-M-Bourget/cachedrop-website` keeps the parent and blocking links (they work across the two repos) but drops the milestone and any label the website lacks (`parity`, `area:*`, `size:*`). Right after the move the API can report the links as missing for a moment; adding them again then fails with 422 "already taken", so read them back before re-adding. GitHub also rewrites some references to the moved ticket in other bodies, so `dump` again before editing those.
+
 ## PR closing references
 
 After creating or editing a PR, and immediately before merging, compare GitHub's actual closing references with the issues the work completes. Use an explicit empty expectation for partial-ticket PRs. GitHub can interpret a closing keyword even when the surrounding sentence negates it; check its metadata rather than the prose.

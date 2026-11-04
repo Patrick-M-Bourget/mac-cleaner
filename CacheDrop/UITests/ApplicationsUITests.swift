@@ -47,6 +47,10 @@ final class ApplicationsUITests: XCTestCase {
         let leftover = home.appendingPathComponent("Library/Containers/com.gone.synth/Data/state.db")
         try FileManager.default.createDirectory(at: leftover.deletingLastPathComponent(), withIntermediateDirectories: true)
         try Data(repeating: 4, count: 60_000).write(to: leftover)
+        // A second app's files, so the row has "Choose items · 2" to open.
+        let other = home.appendingPathComponent("Library/Containers/com.gone.drums/Data/state.db")
+        try FileManager.default.createDirectory(at: other.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data(repeating: 4, count: 30_000).write(to: other)
         app.launch()
         waitForCatalogScan(app)
 
@@ -55,6 +59,12 @@ final class ApplicationsUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["applicationsHeader"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["Applications"].isSelected)
         XCTAssertTrue(app.checkBoxes["planCategory-leftovers"].waitForExistence(timeout: 5))
+        // The row opened its own section (Decision 153); the other sections stay closed until opened for the checks below.
+        let leftoverItems = app.disclosureTriangles.matching(NSPredicate(format: "label == 'Choose items · 2'")).firstMatch
+        XCTAssertTrue(leftoverItems.waitForExistence(timeout: 5))
+        XCTAssertEqual(leftoverItems.value as? Int, 1, "Files from deleted apps arrives open")
+        XCTAssertNotEqual(applicationsSection(app, "apps").value as? Int, 1)
+        openApplicationsSections(app, ["apps", "plug-ins"])
 
         // Apps: largest first, read-only, never Apple's or CacheDrop. Identifiers carry each entry's path, not its name (#271).
         let big = element(app, "applicationsApp-" + bigApp.path), small = element(app, "applicationsApp-" + smallApp.path)
@@ -79,15 +89,159 @@ final class ApplicationsUITests: XCTestCase {
         // Plug-ins: one row per product, its formats as items to tick (#176).
         // A product's identifier carries its first file's path.
         let product = element(app, "applicationsPlugIn-" + home.appendingPathComponent("Library/Audio/Plug-Ins/Components/Pro Synth.component").path)
-        XCTAssertTrue(product.exists)
+        XCTAssertTrue(product.waitForExistence(timeout: 5), "Under Other makers: it has no maker")
         XCTAssertTrue(app.disclosureTriangles.matching(NSPredicate(format: "label == 'Choose items · 2'")).firstMatch.exists, "AU and VST3")
 
         app.typeKey("3", modifierFlags: .command)
         XCTAssertTrue(app.staticTexts["Cleanup plan"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.checkBoxes["planCategory-leftovers"].exists, "Leftovers leave the Cleanup plan")
-        app.typeKey("4", modifierFlags: .command)
+        openApplications(app)
         XCTAssertTrue(app.descendants(matching: .any)["applicationsHeader"].waitForExistence(timeout: 5), "⌘4 opens Applications")
         XCTAssertTrue(FileManager.default.fileExists(atPath: leftover.path))
+    }
+
+    /// Decisions 151 and 153: sections start closed behind "Choose apps · N"; a search opens the ones with a match, and they stay as left.
+    @MainActor func testApplicationsSectionsStartClosedAndASearchOpensTheOnesWithAMatch() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        let big = try addApp("Big Synth", id: "com.maker.bigsynth", bytes: 900_000, in: home)
+        _ = try addApp("Zed Tool", id: "com.third.zed", bytes: 300_000, in: home)
+        app.launch()
+        waitForCatalogScan(app)
+        app.typeKey("4", modifierFlags: .command)
+
+        let apps = applicationsSection(app, "apps")
+        XCTAssertTrue(apps.waitForExistence(timeout: 10))
+        XCTAssertEqual(apps.label, "Choose apps · 2", "A category row for the section, counting what it lists")
+        XCTAssertNotEqual(apps.value as? Int, 1, "Sections start closed")
+        XCTAssertFalse(app.checkBoxes["applicationsSection-apps"].exists, "A section is never ticked whole")
+        let row = element(app, "applicationsApp-" + big.path)
+        XCTAssertFalse(row.exists, "A closed section shows no rows")
+
+        let search = app.textFields["applicationsSearch"]
+        search.click(); search.typeText("bi")
+        XCTAssertTrue(row.waitForExistence(timeout: 5), "A search opens the section its match is in")
+        XCTAssertEqual(apps.value as? Int, 1)
+        apps.click()
+        XCTAssertTrue(row.waitForNonExistence(timeout: 5))
+        search.click(); search.typeText("g")
+        XCTAssertNotEqual(apps.value as? Int, 1, "Closed during a search, it stays closed while its matches don't change")
+        apps.click()
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        search.typeKey("a", modifierFlags: .command); search.typeKey(.delete, modifierFlags: [])
+        XCTAssertEqual(apps.value as? Int, 1, "Clearing the search leaves it open")
+
+        apps.click()
+        XCTAssertTrue(row.waitForNonExistence(timeout: 5), "Choose apps closes it again")
+        app.typeKey("1", modifierFlags: .command); app.typeKey("4", modifierFlags: .command)
+        XCTAssertTrue(apps.waitForExistence(timeout: 5))
+        XCTAssertNotEqual(apps.value as? Int, 1, "It stays as it was left")
+    }
+
+    /// Decision 151: a DAW leaves Apps for Audio software; plug-ins group by maker, and a maker with one product shows it directly.
+    @MainActor func testAudioSoftwareHoldsDAWsAndPlugInsGroupedByMaker() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        let live = try addApp("Ableton Live 12 Suite", id: "com.ableton.live", bytes: 400_000, in: home)
+        let zed = try addApp("Zed Tool", id: "com.third.zed", bytes: 300_000, in: home)
+        // Audio Units are named "Maker: Name", which is where a plug-in's maker comes from.
+        for (name, id, maker) in [("Alpha", "com.maker.alpha", "Maker Audio Inc"), ("Beta", "com.maker.beta", "Maker Audio Inc"), ("Solo", "com.solo.solo", "Solo Sounds")] {
+            let bundle = home.appendingPathComponent("Library/Audio/Plug-Ins/Components/\(name).component")
+            try FileManager.default.createDirectory(at: bundle.appendingPathComponent("Contents"), withIntermediateDirectories: true)
+            let info: [String: Any] = ["CFBundleIdentifier": id,
+                                       "AudioComponents": [["name": "\(maker): \(name)", "manufacturer": "Mkr\(name.prefix(1))", "type": "aufx", "subtype": "test"]]]
+            try PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0).write(to: bundle.appendingPathComponent("Contents/Info.plist"))
+        }
+        app.launch()
+        waitForCatalogScan(app)
+        openApplications(app, ["apps"])
+
+        XCTAssertEqual(applicationsSection(app, "apps").label, "Choose apps · 1", "Apps keeps only Zed Tool")
+        XCTAssertTrue(element(app, "applicationsApp-" + zed.path).waitForExistence(timeout: 10))
+        XCTAssertFalse(element(app, "applicationsApp-" + live.path).exists, "The DAW isn't under Apps")
+
+        let audio = applicationsSection(app, "audio software")
+        XCTAssertEqual(audio.label, "Choose audio software · 4", "One DAW and three plug-ins")
+        XCTAssertFalse(app.checkBoxes["applicationsSection-audio"].exists, "A section is never ticked whole")
+        // A search opens the section, the group and the maker its match is in.
+        let beta = element(app, "applicationsPlugIn-" + home.appendingPathComponent("Library/Audio/Plug-Ins/Components/Beta.component").path)
+        let search = app.textFields["applicationsSearch"]
+        search.click(); search.typeText("beta")
+        XCTAssertTrue(beta.waitForExistence(timeout: 5), "Audio software, Plug-ins and Maker Audio Inc open for the match")
+        search.typeKey("a", modifierFlags: .command); search.typeKey(.delete, modifierFlags: [])
+
+        openApplicationsSections(app, ["audio software", "apps", "plug-ins"])
+        XCTAssertTrue(element(app, "applicationsApp-" + live.path).waitForExistence(timeout: 5), "DAWs and apps lists it")
+        XCTAssertTrue(element(app, "applicationsGroup-maker:Maker Audio Inc").waitForExistence(timeout: 5), "Two products of one maker make a group")
+        XCTAssertFalse(element(app, "applicationsGroup-maker:Solo Sounds").exists, "A maker with one product shows it directly")
+        let solo = element(app, "applicationsPlugIn-" + home.appendingPathComponent("Library/Audio/Plug-Ins/Components/Solo.component").path)
+        XCTAssertTrue(solo.waitForExistence(timeout: 5), "Solo is listed on its own")
+    }
+
+    /// Decision 154: sounds and samples are read-only behind "Show sounds"; a driver the user can move and a Reason device have
+    /// checkboxes, nothing ticked; the driver has Reveal in Finder (Decision 158). Decision 157: a library whose vendor's manager
+    /// is installed offers Open <tool>; one whose manager isn't installed, and Splice's, offer none.
+    @MainActor func testAudioSoftwareShowsSoundsAndOffersDriversAndReasonDevices() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        func write(_ relative: String, bytes: Int = 20_000) throws {
+            let file = home.appendingPathComponent(relative)
+            try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data(repeating: 1, count: bytes).write(to: file)
+        }
+        try write("Splice/sounds/kick.wav")
+        // The test home stands in for the system root: Waves' sample libraries, with Waves Central installed, and Arturia's
+        // resources without Arturia Software Center.
+        try write("Applications/Waves/Data/Instrument Data/Waves Sample Libraries/piano.wav")
+        try write("Library/Arturia/Presets/lead.preset")
+        _ = try addApp("Waves Central", id: "com.wavesaudio.wavescentral", bytes: 10_000, in: home)
+        try write("Library/Application Support/Propellerhead Software/Optional REs/Pangea/data.bin", bytes: 60_000)
+        let driver = home.appendingPathComponent("Library/Audio/Plug-Ins/HAL/Loopback.driver")
+        try FileManager.default.createDirectory(at: driver.appendingPathComponent("Contents"), withIntermediateDirectories: true)
+        try PropertyListSerialization.data(fromPropertyList: ["CFBundleIdentifier": "com.loop.back"], format: .xml, options: 0)
+            .write(to: driver.appendingPathComponent("Contents/Info.plist"))
+        app.launch()
+        waitForCatalogScan(app)
+        openApplications(app, ["audio software"])
+
+        let sounds = app.disclosureTriangles.matching(NSPredicate(format: "label == 'Show sounds · 3'")).firstMatch
+        XCTAssertTrue(sounds.waitForExistence(timeout: 10), "Read-only: Show, not Choose")
+        revealAndClick(sounds, in: app)
+        let splice = home.appendingPathComponent("Splice").path
+        XCTAssertTrue(element(app, "applicationsSoundReveal-" + splice, .link).waitForExistence(timeout: 5), "Splice sounds, with Reveal in Finder")
+        let waves = home.appendingPathComponent("Applications/Waves/Data/Instrument Data/Waves Sample Libraries").path
+        let openWaves = element(app, "applicationsSoundOpen-" + waves, .link)
+        XCTAssertTrue(openWaves.waitForExistence(timeout: 5), "Waves' libraries offer their installed manager")
+        XCTAssertEqual(openWaves.label, "Open Waves Central")
+        XCTAssertTrue(element(app, "applicationsSoundReveal-" + waves, .link).exists, "Reveal in Finder stays")
+        revealAndClick(openWaves, in: app)
+        let status = app.staticTexts["applicationsStatus"]
+        XCTAssertTrue(status.waitForExistence(timeout: 5))
+        XCTAssertEqual(status.value as? String ?? status.label, "Test run: would open Waves Central.")
+        let arturia = home.appendingPathComponent("Library/Arturia").path
+        XCTAssertTrue(element(app, "applicationsSoundReveal-" + arturia, .link).waitForExistence(timeout: 5), "Arturia's resources are listed, so a missing link below is really missing")
+        XCTAssertFalse(element(app, "applicationsSoundOpen-" + arturia, .link).exists, "No link when the manager isn't installed")
+        XCTAssertFalse(element(app, "applicationsSoundOpen-" + splice, .link).exists, "No link for a vendor with no known manager")
+        openApplicationsSections(app, ["drivers", "plug-ins"])
+        let driverBox = app.descendants(matching: .checkBox).matching(NSPredicate(format: "identifier == %@", "applicationsDriver-" + driver.path)).firstMatch
+        XCTAssertTrue(driverBox.waitForExistence(timeout: 5), "A driver the user can move has a checkbox")
+        XCTAssertEqual(driverBox.value as? Int, 0, "Never pre-ticked")
+        // #715: before ticking it, the user can see where it lives.
+        XCTAssertTrue(element(app, "applicationsReveal-" + driver.path, .link).waitForExistence(timeout: 5),
+                      "A driver the user can move has Reveal in Finder")
+        let pangea = home.appendingPathComponent("Library/Application Support/Propellerhead Software/Optional REs/Pangea").path
+        let device = app.descendants(matching: .checkBox).matching(NSPredicate(format: "identifier == %@", "applicationsPlugIn-" + pangea)).firstMatch
+        XCTAssertTrue(device.waitForExistence(timeout: 5), "Reason's device can go to the Trash")
+        XCTAssertEqual(device.value as? Int, 0)
     }
 
     /// #295, #352: one sortable column header (Name or Size, either way round) and one search order and filter every section;
@@ -106,7 +260,7 @@ final class ApplicationsUITests: XCTestCase {
         try Data(repeating: 4, count: 60_000).write(to: leftover)
         app.launch()
         waitForCatalogScan(app)
-        app.typeKey("4", modifierFlags: .command)
+        openApplications(app, ["apps"])
 
         let rows = [big, apex, zed].map { element(app, "applicationsApp-" + $0.path, .checkBox) }
         XCTAssertTrue(rows[0].waitForExistence(timeout: 10))
@@ -177,7 +331,7 @@ final class ApplicationsUITests: XCTestCase {
         }
         app.launch()
         waitForCatalogScan(app)
-        app.typeKey("4", modifierFlags: .command)
+        openApplications(app, ["apps"])
 
         let row = element(app, "applicationsApp-" + synth.path, .checkBox)
         XCTAssertTrue(row.waitForExistence(timeout: 10), "An app CacheDrop can uninstall has a checkbox")
@@ -232,7 +386,7 @@ final class ApplicationsUITests: XCTestCase {
         verification.waitUntilExit()
         XCTAssertEqual(verification.terminationStatus, 0, "The fixture app needs a valid bundle signature before launch (#383)")
         waitForCatalogScan(app)
-        app.typeKey("4", modifierFlags: .command)
+        openApplications(app, ["apps"])
         let row = element(app, "applicationsApp-" + synth.path, .checkBox)
         XCTAssertTrue(row.waitForExistence(timeout: 10))
         revealAndClick(row, in: app)
@@ -332,7 +486,7 @@ final class ApplicationsUITests: XCTestCase {
         }
         app.launch()
         waitForCatalogScan(app)
-        app.typeKey("4", modifierFlags: .command)
+        openApplications(app, ["apps"])
 
         let synthRow = element(app, "applicationsApp-" + synth.path, .checkBox)
         XCTAssertTrue(synthRow.waitForExistence(timeout: 10))
@@ -362,20 +516,22 @@ final class ApplicationsUITests: XCTestCase {
         XCTAssertFalse(app.checkBoxes["planCategory-leftovers"].exists)
     }
 
-    /// #303, #306: an uninstall rescans when it ends. After Done, while that scan runs, the bar shows its progress and the
-    /// other app's row stays, dimmed with its checkbox disabled (#308, #375); then it can be clicked again.
-    @MainActor func testApplicationsRescansAfterAnUninstallAndRowsWaitDimmed() throws {
+    /// #303, #306: an uninstall rescans when it ends, and the bar shows its progress. Decision 134 (#647): that rescan reads
+    /// again only what the uninstall touched, so while it runs the uninstalled app's row is gone and the other app's row can be
+    /// ticked and reviewed; Clean up waits for the scan.
+    @MainActor func testTheRescanAfterAnUninstallKeepsOtherAppsUsableAndTheUninstalledRowGone() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
         let state = try configureIsolatedState(app)
         let home = try configureCatalogHome(app)
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
         let synth = try addApp("Synth", id: "com.maker.synth", bytes: 90_000, in: home)
-        let pad = try addApp("Pad", id: "com.maker.pad", bytes: 90_000, in: home)
-        app.launchEnvironment["CACHEDROP_TEST_DISCOVERY_PAUSE"] = "0.5"
+        let pad = try addApp("Pad", id: "com.padmaker.pad", bytes: 90_000, in: home)
+        // The rescan after the run holds, so it is still running while the page is used.
+        app.launchEnvironment["CACHEDROP_TEST_RESCAN_PAUSE"] = "20"
         app.launch()
         waitForCatalogScan(app)
-        app.typeKey("4", modifierFlags: .command)
+        openApplications(app, ["apps"])
 
         let synthRow = element(app, "applicationsApp-" + synth.path, .checkBox)
         XCTAssertTrue(synthRow.waitForExistence(timeout: 10))
@@ -386,15 +542,124 @@ final class ApplicationsUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 20))
         app.buttons["Done"].click()
 
-        XCTAssertTrue(app.staticTexts["catalogScanProgress"].waitForExistence(timeout: 10), "The run rescans, and the bar shows its progress")
-        // #308, #375: the row stays listed with its checkbox, dimmed and disabled, until the rescan replaces it.
+        let progress = app.staticTexts["catalogScanProgress"]
+        XCTAssertTrue(progress.waitForExistence(timeout: 10), "The run rescans, and the bar shows its progress")
+        XCTAssertTrue(synthRow.waitForNonExistence(timeout: 5), "The uninstalled app's row is gone at once")
         let padRow = element(app, "applicationsApp-" + pad.path, .checkBox)
-        XCTAssertTrue(padRow.waitForExistence(timeout: 5), "The row stays listed during the rescan")
-        XCTAssertFalse(padRow.isEnabled, "It can't be clicked until the scan ends")
-        let enabled = NSPredicate(format: "isEnabled == true")
-        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: enabled, object: padRow)], timeout: 120), .completed,
-                       "It can be clicked again after the scan")
-        XCTAssertTrue(app.staticTexts["catalogScanProgress"].waitForNonExistence(timeout: 120))
+        XCTAssertTrue(padRow.waitForExistence(timeout: 5), "The other app stays listed")
+        XCTAssertTrue(progress.exists, "Still rescanning")
+        XCTAssertTrue(padRow.isEnabled, "Not dimmed: the rescan doesn't read it again")
+        revealAndClick(padRow, in: app)
+        XCTAssertEqual(padRow.value as? Int, 1, "Ticked during the rescan")
+        let review = app.buttons["Review cleanup"]
+        XCTAssertTrue(review.isEnabled, "Review cleanup doesn't wait for the rescan")
+        review.click()
+        XCTAssertTrue(reviewLine(app, "movedToTrash", "apps").waitForExistence(timeout: 10))
+        let footer = app.descendants(matching: .any).matching(identifier: "sheetFooter").firstMatch
+        XCTAssertTrue(progress.exists, "Still rescanning")
+        XCTAssertFalse(footer.buttons["Clean up"].isEnabled, "Clean up waits for the scan")
+        XCTAssertTrue(progress.waitForNonExistence(timeout: 120))
+        let enabled = XCTNSPredicateExpectation(predicate: NSPredicate(format: "isEnabled == true"), object: footer.buttons["Clean up"])
+        XCTAssertEqual(XCTWaiter.wait(for: [enabled], timeout: 10), .completed, "The scan kept Pad's choices: the review stays open and can run")
+        footer.buttons["Cancel"].click()
+        XCTAssertFalse(synthRow.exists, "Still gone after the rescan")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: pad.path), "Pad was only reviewed")
+    }
+
+    /// Decision 159 (#716): uninstalling a driver and one of Reason's devices reads only their rows again, as an app's uninstall
+    /// does (134): while the rescan after it runs, their rows are gone, Audio software's count drops, and the other device stays
+    /// listed and clickable, undimmed. The rescan holds only when it isn't a full scan, so the held progress shows it read less.
+    @MainActor func testUninstallingADriverAndAReasonDeviceUpdatesTheirRowsWithoutAFullScan() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        let devices = home.appendingPathComponent("Library/Application Support/Propellerhead Software/Optional REs")
+        for (name, bytes) in [("Pangea", 60_000), ("Humana", 90_000)] {
+            let file = devices.appendingPathComponent(name).appendingPathComponent("data.bin")
+            try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data(repeating: 1, count: bytes).write(to: file)
+        }
+        let driver = home.appendingPathComponent("Library/Audio/Plug-Ins/HAL/Loopback.driver")
+        try FileManager.default.createDirectory(at: driver.appendingPathComponent("Contents"), withIntermediateDirectories: true)
+        try PropertyListSerialization.data(fromPropertyList: ["CFBundleIdentifier": "com.loop.back"], format: .xml, options: 0)
+            .write(to: driver.appendingPathComponent("Contents/Info.plist"))
+        app.launchEnvironment["CACHEDROP_TEST_RESCAN_PAUSE"] = "20"
+        app.launch()
+        waitForCatalogScan(app)
+        openApplications(app, ["drivers", "plug-ins"])
+
+        XCTAssertEqual(applicationsSection(app, "audio software").label, "Choose audio software · 3", "One driver and two devices")
+        func box(_ id: String) -> XCUIElement { element(app, id, .checkBox) }
+        let driverBox = box("applicationsDriver-" + driver.path)
+        let pangea = box("applicationsPlugIn-" + devices.appendingPathComponent("Pangea").path)
+        let humana = box("applicationsPlugIn-" + devices.appendingPathComponent("Humana").path)
+        XCTAssertTrue(driverBox.waitForExistence(timeout: 10) && pangea.waitForExistence(timeout: 5) && humana.exists)
+        tick(driverBox, in: app); tick(pangea, in: app)
+        app.buttons["Review cleanup"].click()
+        cleanUpFromReview(app)
+        XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 20))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: driver.path), "The driver went to the Trash")
+        app.buttons["Done"].click()
+
+        let progress = app.staticTexts["catalogScanProgress"]
+        XCTAssertTrue(progress.waitForExistence(timeout: 10), "The run rescans")
+        XCTAssertTrue(driverBox.waitForNonExistence(timeout: 5), "The driver's row is gone at once")
+        XCTAssertFalse(pangea.exists, "So is the device's")
+        XCTAssertEqual(applicationsSection(app, "audio software").label, "Choose audio software · 1", "The section's count drops at once")
+        XCTAssertTrue(humana.waitForExistence(timeout: 5), "The other device stays listed")
+        XCTAssertTrue(progress.exists, "Still rescanning: the held rescan reads only the touched rows")
+        XCTAssertTrue(humana.isEnabled, "Not dimmed: the rescan doesn't read it again")
+        XCTAssertTrue(progress.waitForNonExistence(timeout: 120))
+        XCTAssertTrue(humana.exists && !driverBox.exists && !pangea.exists, "The same rows after the rescan")
+    }
+
+    /// #556, Decision 123: a Smart clean that uninstalled nothing leaves Apps and Plug-ins readable and clickable during the
+    /// rescan that follows, even on a first visit: an app can be ticked and reviewed without waiting. Clean up waits for the
+    /// scan, and the review stays open when it ends without changing the choices (Decision 54).
+    @MainActor func testApplicationsDontWaitForTheRescanAfterASmartCleanThatUninstalledNothing() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        let synth = try addApp("Synth", id: "com.maker.synth", bytes: 90_000, in: home)
+        // The rescan after the run holds, so it is still running when the review opens.
+        app.launchEnvironment["CACHEDROP_TEST_RESCAN_PAUSE"] = "20"
+        app.launch()
+        waitForCatalogScan(app)
+        app.typeKey("2", modifierFlags: .command)
+        let cleanUp = app.buttons["smartCleanCleanUp"]
+        XCTAssertTrue(cleanUp.waitForExistence(timeout: 10))
+        cleanUp.click()
+        XCTAssertTrue(reviewLine(app, "permanentlyRemoved", "developer").waitForExistence(timeout: 10))
+        cleanUpFromReview(app)
+        let done = app.buttons["smartCleanDone"]
+        XCTAssertTrue(done.waitForExistence(timeout: 20))
+        done.click()
+        let progress = app.staticTexts["catalogScanProgress"]
+        XCTAssertTrue(progress.waitForExistence(timeout: 10), "The run rescans")
+
+        openApplications(app, ["apps"])
+        let row = element(app, "applicationsApp-" + synth.path, .checkBox)
+        XCTAssertTrue(row.waitForExistence(timeout: 10), "The apps are listed during the rescan")
+        XCTAssertTrue(progress.exists, "Still rescanning")
+        XCTAssertTrue(row.isEnabled, "Not dimmed: the run changed no app")
+        revealAndClick(row, in: app)
+        XCTAssertEqual(row.value as? Int, 1, "Ticked during the rescan")
+        let review = app.buttons["Review cleanup"]
+        XCTAssertTrue(review.isEnabled, "Review cleanup doesn't wait for the rescan")
+        review.click()
+        XCTAssertTrue(reviewLine(app, "movedToTrash", "apps").waitForExistence(timeout: 10))
+        let footer = app.descendants(matching: .any).matching(identifier: "sheetFooter").firstMatch
+        XCTAssertTrue(progress.exists, "Still rescanning")
+        XCTAssertFalse(footer.buttons["Clean up"].isEnabled, "Clean up waits for the scan")
+        XCTAssertTrue(progress.waitForNonExistence(timeout: 120))
+        let enabled = XCTNSPredicateExpectation(predicate: NSPredicate(format: "isEnabled == true"), object: footer.buttons["Clean up"])
+        XCTAssertEqual(XCTWaiter.wait(for: [enabled], timeout: 10), .completed, "The scan kept the choices: the review stays open and can run")
+        footer.buttons["Cancel"].click()
+        XCTAssertTrue(FileManager.default.fileExists(atPath: synth.path), "Nothing was uninstalled")
     }
 
     /// #306: Put back from History rescans, so the app it returned is listed on Applications again without Scan again.
@@ -407,7 +672,7 @@ final class ApplicationsUITests: XCTestCase {
         let synth = try addApp("Synth", id: "com.maker.synth", bytes: 90_000, in: home)
         app.launch()
         waitForCatalogScan(app)
-        app.typeKey("4", modifierFlags: .command)
+        openApplications(app, ["apps"])
 
         let row = element(app, "applicationsApp-" + synth.path, .checkBox)
         XCTAssertTrue(row.waitForExistence(timeout: 10))
@@ -430,7 +695,7 @@ final class ApplicationsUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["putBackDone-Synth.app"].waitForExistence(timeout: 10))
         XCTAssertTrue(FileManager.default.fileExists(atPath: synth.path), "The app is back where it was")
 
-        app.typeKey("4", modifierFlags: .command)
+        openApplications(app, ["apps"])
         XCTAssertTrue(row.waitForExistence(timeout: 120), "The app is listed on Applications again")
     }
 
@@ -461,7 +726,7 @@ final class ApplicationsUITests: XCTestCase {
         try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: au.path)
         app.launch()
         waitForCatalogScan(app)
-        app.typeKey("4", modifierFlags: .command)
+        openApplications(app, ["plug-ins"])
 
         let row = element(app, "applicationsPlugIn-" + au.path, .checkBox)
         XCTAssertTrue(row.waitForExistence(timeout: 10), "A product CacheDrop can partly uninstall has a checkbox")
@@ -480,7 +745,7 @@ final class ApplicationsUITests: XCTestCase {
         let staying = element(app, "reviewStaying-" + au.path + "-password", .staticText)
         XCTAssertTrue(staying.waitForExistence(timeout: 5))
         let line = reviewLine(app, "movedToTrash", "apps").value as? String ?? ""
-        XCTAssertTrue(line.hasPrefix("Apps, plug-ins and their files"), "The review names plug-ins too: " + line)
+        XCTAssertTrue(line.hasPrefix("Apps, audio software and their files"), "The review names audio software too: " + line)
         XCTAssertEqual(staying.value as? String, "Pro Synth: 1 file needs your password to remove, so it stays. Remove it in Finder if you want it gone.",
                        "The review says what stays, why and what to do (#354)")
         XCTAssertTrue(element(app, "reviewStayingLink-" + au.path + "-password", .link).exists, "With Reveal in Finder (#354)")
@@ -502,18 +767,21 @@ final class ApplicationsUITests: XCTestCase {
         app.launchEnvironment["CACHEDROP_TEST_DISCOVERY_PAUSE"] = "0.5"
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
         app.launch()
-        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
-        app.typeKey("4", modifierFlags: .command)
+        waitForOverview(app)
+        openApplications(app)
         XCTAssertTrue(app.descendants(matching: .any)["applicationsLoading-apps"].waitForExistence(timeout: 5), "Apps say they are loading")
         XCTAssertTrue(app.descendants(matching: .any)["applicationsLoading-leftovers"].exists)
-        for section in ["apps", "plugIns", "leftovers"] {
+        XCTAssertTrue(app.descendants(matching: .any)["applicationsSummary"].exists, "While the lists load, the summary waits with them")
+        for section in ["apps", "audio", "leftovers"] {
             XCTAssertTrue(app.descendants(matching: .any)["applicationsEmpty-" + section].waitForExistence(timeout: 120), "\(section) says nothing was found")
         }
         XCTAssertFalse(app.descendants(matching: .any)["applicationsLoading-apps"].exists)
+        // #575: nothing on the page can be ticked, so no card reading "—" and "0 items selected".
+        XCTAssertFalse(app.descendants(matching: .any)["applicationsSummary"].exists)
     }
 
-    /// #310: when the list of apps can't be read (Spotlight didn't answer), Apps says so with Try again, never "no apps";
-    /// once it can be read, Try again lists them.
+    /// #310: when the list of apps can't be read (Spotlight didn't answer), Apps says so with Scan again, never "no apps";
+    /// once it can be read, Scan again lists them.
     @MainActor func testAppsSayTheListCouldntBeReadAndTryAgainListsThem() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
@@ -524,15 +792,16 @@ final class ApplicationsUITests: XCTestCase {
         try Data().write(to: unreadable)
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
         app.launch()
-        XCTAssertTrue(app.staticTexts["Storage overview"].waitForExistence(timeout: 10))
-        app.typeKey("4", modifierFlags: .command)
+        waitForOverview(app)
+        openApplications(app)
         let notice = element(app, "applicationsUnreadable")
         XCTAssertTrue(notice.waitForExistence(timeout: 60), "Apps say the list couldn't be read")
         XCTAssertFalse(element(app, "applicationsEmpty-apps").exists, "Never \"Only Apple's apps\"")
 
         try FileManager.default.removeItem(at: unreadable)
         element(app, "applicationsUnreadableAction", .button).click()
-        XCTAssertTrue(element(app, "applicationsApp-" + pad.path).waitForExistence(timeout: 60), "Try again listed the app")
+        openApplicationsSections(app, ["apps"])
+        XCTAssertTrue(element(app, "applicationsApp-" + pad.path).waitForExistence(timeout: 5), "Scan again listed the app")
         XCTAssertFalse(notice.exists)
     }
 
@@ -551,7 +820,7 @@ final class ApplicationsUITests: XCTestCase {
         app.launch()
         waitForCatalogScan(app)
 
-        app.typeKey("4", modifierFlags: .command)
+        openApplications(app)
         let category = app.checkBoxes["planCategory-leftovers"]
         XCTAssertTrue(category.waitForExistence(timeout: 10))
         // Tied to its removed app by its container, so it arrives ticked: the recommended default, not "Selected".
@@ -568,7 +837,7 @@ final class ApplicationsUITests: XCTestCase {
         XCTAssertTrue(row.waitForExistence(timeout: 5))
         XCTAssertFalse((row.value as? String ?? "").contains("Selected"), String(describing: row.value))
 
-        app.typeKey("4", modifierFlags: .command)
+        openApplications(app)
         XCTAssertEqual(app.checkBoxes["planCategory-leftovers"].value as? Int, 1, "Its tick is kept")
         app.buttons["Review cleanup"].click()
         XCTAssertTrue(reviewLine(app, "movedToTrash", "leftovers").waitForExistence(timeout: 5))
@@ -594,7 +863,7 @@ final class ApplicationsUITests: XCTestCase {
         try Data(repeating: 4, count: 100_000).write(to: leftover)
         app.launchEnvironment["CACHEDROP_TEST_DISCOVERY_PAUSE"] = "0.1"
         app.launch(); waitForCatalogScan(app)
-        app.typeKey("4", modifierFlags: .command)
+        openApplications(app, ["apps", "plug-ins"])
         let count = app.staticTexts["applicationsSummary"], size = app.staticTexts["applicationsSummaryValue"]
         XCTAssertTrue(size.waitForExistence(timeout: 5))
         func text(_ element: XCUIElement) -> String { element.value as? String ?? element.label }
@@ -628,7 +897,7 @@ final class ApplicationsUITests: XCTestCase {
         search.typeKey("a", modifierFlags: .command); search.typeKey(.delete, modifierFlags: [])
         app.typeKey("2", modifierFlags: .command)
         revealAndClick(app.checkBoxes["smartCleanCategory-leftovers"], in: app)
-        app.typeKey("4", modifierFlags: .command)
+        openApplications(app, ["apps", "plug-ins"])
         XCTAssertEqual(text(count), "2 items selected", "Another page changes the same selection")
         XCTAssertNotEqual(text(size), selectedSize)
         revealAndClick(synthRow, in: app); revealAndClick(plugInRow, in: app)

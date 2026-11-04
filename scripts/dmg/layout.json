@@ -1,0 +1,29 @@
+{
+  "comment": "The disk image window (#558). scripts/dmg/background.swift draws the art from it and scripts/dmg-layout.py lays out Finder from it; change both images with the generator, never by hand.",
+  "window": {
+    "width": 640,
+    "height": 360
+  },
+  "iconSize": 128,
+  "textSize": 13,
+  "app": {
+    "name": "CacheDrop.app",
+    "x": 170,
+    "y": 200
+  },
+  "applications": {
+    "name": "Applications",
+    "x": 470,
+    "y": 200
+  },
+  "instruction": {
+    "text": "Drag CacheDrop to Applications",
+    "y": 66,
+    "pointSize": 18
+  },
+  "colors": {
+    "surface": "#F5F5F7",
+    "ink": "#1D1D1F",
+    "accent": "#0071E3"
+  }
+}

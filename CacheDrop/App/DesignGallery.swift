@@ -11,8 +11,11 @@ struct DesignGallery: View {
     @State private var shellExamplesExpanded = false
     @State private var historyExamplesExpanded = false
     @State private var growthExamplesExpanded = false
+    @State private var mapExamplesExpanded = false
     @State private var alertExamplesExpanded = false
     @State private var categoryRowExpanded = false
+    @State private var applicationsSectionExpanded = true
+    @State private var makerGroupExpanded = true
     var body: some View {
         VStack(spacing: 0) {
             HStack {
@@ -26,6 +29,14 @@ struct DesignGallery: View {
                 VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
                     PageHeader(title: "Native design system", subtitle: "Developer examples only · No personal storage measurements",
                                back: BackButton(destination: "Overview", action: {}))
+                    // A navigation trail (Decision 150): quiet steps, the one on show in primary, a long name truncated in the middle.
+                    HStack(spacing: CacheDropDesign.Space.sm) {
+                        QuietLink(title: "Scanned folders") {}
+                        Image(systemName: "chevron.right").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                        QuietLink(title: "Music") {}
+                        Image(systemName: "chevron.right").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                        QuietLink(title: "Logic Pro Projects archived from the old studio drive", current: true) {}
+                    }.font(CacheDropDesign.TypeStyle.note)
                     Button { shellExamplesExpanded.toggle() } label: {
                         Label("Synthetic shell and appearance examples", systemImage: shellExamplesExpanded ? "chevron.down" : "chevron.right")
                     }.buttonStyle(.plain).accessibilityValue(shellExamplesExpanded ? "Expanded" : "Collapsed").accessibilityIdentifier("galleryShellExamples")
@@ -42,11 +53,19 @@ struct DesignGallery: View {
                         HistoryActivityGalleryExamples()
                     }
                     DisclosureGroup("Synthetic Storage trends examples", isExpanded: $growthExamplesExpanded) { StorageTrendsGalleryExamples() }
+                    DisclosureGroup("Synthetic storage map examples", isExpanded: $mapExamplesExpanded) { StorageMapGalleryExamples() }
                     DisclosureGroup("Synthetic storage alert settings", isExpanded: $alertExamplesExpanded) {
                         AlertThresholdEditor(draft: .constant("60"), canApply: true, apply: {})
                         AlertThresholdEditor(draft: .constant("invalid"), canApply: false, invalidDraft: true, apply: {})
                         AlertPermissionDetails(authorization: .denied, checked: true, settingsFeedback: "System Settings could not be opened.", openSettings: {})
                     }
+                    // Help → What’s New (#553, Decision 161): the notes, and a development build without its version's notes.
+                    Text("Synthetic What’s New · Inert examples").font(.headline)
+                    WhatsNewContent(notes: .success(ReleaseNotes(version: "9.9.9", summary: "An example summary sentence about this version.",
+                                                                 changes: ["An example change that wraps onto a second line because it is long enough to.", "A second example change."])),
+                                    version: "9.9.9").frame(width: CacheDropDesign.Size.sheetNarrow).background(CacheDropDesign.reading)
+                    WhatsNewContent(notes: .failure(ReleaseNotesError.notBundled), version: "9.9.9")
+                        .frame(width: CacheDropDesign.Size.sheetNarrow).background(CacheDropDesign.reading)
                     CapacityGalleryExamples()
                     Text("Synthetic Saved data entry · Inert example").font(.headline)
                     SavedDataEntry(action: {})
@@ -56,7 +75,7 @@ struct DesignGallery: View {
                     SavedDataMaintenanceControls(clear: {}, reset: {})
                     StatusRow(text: "Reset waits until the interrupted cleanup is reviewed.", symbol: "exclamationmark.triangle", role: .caution)
                     StatusRow(text: "Downloads · Access unavailable", role: .caution, action: StatusAction(title: "Choose again…") {})
-                    StatusRow(text: "Synth will be skipped: Synth is running. Quit it, then scan again.", symbol: "exclamationmark.circle", role: .caution,
+                    StatusRow(text: "Synth is open, so its caches will be skipped · 1.2 GB", symbol: "exclamationmark.circle", role: .caution,
                               action: StatusAction(title: "Quitting…", isDisabled: true) {})
                     Text("Synthetic unavailable controls · Cleanup or maintenance in progress").font(.headline)
                     SavedDataMaintenanceControls(enabled: false, clear: {}, reset: {})
@@ -75,7 +94,7 @@ struct DesignGallery: View {
                         Text("Why it’s listed").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
                         Text("Not opened since Mar 2, 2026.")
                         Text("Action").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
-                        Text("Move to Trash. The space stays used until you empty the Trash.")
+                        Text("Move to Trash")
                     }
                     ExplorerInspector(name: "Cloud file (example)", close: {}) {
                         Text("Example cloud file")
@@ -110,7 +129,7 @@ struct DesignGallery: View {
                     SelectionSummary(value: "3 files", detail: "Example selection · No action will run", title: "Ready to clean")
                     SelectionSummary(value: "Synthetic mixed selection", detail: "Downloads and browser caches · No action will run", title: "Ready to clean")
                     HStack(spacing: CacheDropDesign.Space.lg) {
-                        ForEach(0..<7) { index in CategoryBadge(category: [StorageCategory.cloud, .developer, .downloads, .browser, .managed, .appCaches, .leftovers][index]) }
+                        ForEach(0..<9) { index in CategoryBadge(category: [StorageCategory.cloud, .developer, .downloads, .browser, .managed, .appCaches, .audioSoftware, .photoVideo, .leftovers][index]) }
                     }
                     SettingsRow(title: "Selection states", detail: "Native controls retain focus, Space, disabled and mixed semantics.") {
                         NativeCategoryCheckbox(state: .unchecked, label: "Unchecked", enabled: true, action: {}, identifier: "galleryUnchecked")
@@ -125,6 +144,8 @@ struct DesignGallery: View {
                             StatusRow(text: "Scanned 10:42 · Not fully read", symbol: "exclamationmark.circle", role: .caution)
                             StatusRow(text: "Access unavailable · Choose the folder again", symbol: "lock", role: .failure)
                             ScanPreparationProgress(text: "Reading files…", fraction: 0.4)
+                            // A heading already says it: the line under the bar takes no room (#573).
+                            ScanPreparationProgress(text: "Your results are ready", fraction: 1, showsText: false)
                             Text("Workspace behind onboarding").frame(maxWidth: .infinity, minHeight: CacheDropDesign.Space.page)
                                 .modifier(OnboardingBackdrop(active: true))
                         }
@@ -164,6 +185,9 @@ struct DesignGallery: View {
                         BusyAction(busy: false) { Button("Clean up") {}.buttonStyle(.borderedProminent).accessibilityIdentifier("galleryIdleAction") }
                         ReviewCleanupButton(enabled: false, focusRequest: 0, tooltip: CacheDropDesign.waitForScanHelp, action: {}).fixedSize()
                     }.controlSize(.large)
+                    // Decision 126: the review sheet opens at the click and shows its checks running (#565).
+                    Text("Review sheet · Checks running").font(.headline)
+                    ReviewChecksRunning(cancel: {}, identifier: "galleryReview")
                     CapacityMeter(available: nil, total: nil)
                     CapacityMeter(available: 40_000_000_000, total: 512_000_000_000, compact: true)
                     SettingsRow(title: "Shared navigation and brand", detail: "Reference accents identify destinations; labels and selected traits carry meaning.") {
@@ -188,6 +212,34 @@ struct DesignGallery: View {
                     CategoryRow(category: .apps, state: nil, title: "Example app without a maker", detail: "", size: "12 MB", enabled: true,
                                 identifier: "galleryNoDetailRow", itemCount: nil, expanded: .constant(false), toggle: {}) {
                         StatusRow(text: "Needs your password to remove", symbol: "lock", action: StatusAction(title: "Reveal in Finder", action: {}))
+                    } items: { EmptyView() }
+                    // An Applications section (Decision 153): a category row with no checkbox, its rows behind "Choose apps · N".
+                    CategoryRow(category: .apps, state: nil, title: "Example section", detail: "Apps in your Applications folders", size: "812 MB", enabled: true,
+                                identifier: "galleryApplicationsSection", itemCount: 1, chooseNoun: "apps", expanded: $applicationsSectionExpanded, toggle: {}) { EmptyView() } items: {
+                        CategoryRow(category: .apps, state: nil, title: "Example app in a section", detail: "Example maker", size: "800 MB", enabled: true,
+                                    identifier: "galleryApplicationsSectionRow", itemCount: nil, expanded: .constant(false), toggle: {}) { EmptyView() } items: { EmptyView() }
+                    }
+                    // Audio software's groups and makers (Decisions 151, 153): category rows with no checkbox inside the section.
+                    CategoryRow(category: .audioSoftware, state: nil, title: "Example maker", detail: "", size: "2.4 GB", enabled: true,
+                                identifier: "galleryMakerGroup", itemCount: 2, chooseNoun: "plug-ins", expanded: $makerGroupExpanded, toggle: {}) { EmptyView() } items: {
+                        CategoryRow(category: .audioSoftware, state: .unchecked, title: "Example plug-in", detail: "Example maker", size: "1.9 GB", enabled: true,
+                                    identifier: "galleryMakerGroupProduct", itemCount: nil, expanded: .constant(false), toggle: {}) { EmptyView() } items: { EmptyView() }
+                        CategoryRow(category: .audioSoftware, state: .unchecked, title: "Another example plug-in", detail: "Example maker", size: "500 MB", enabled: true,
+                                    identifier: "galleryMakerGroupProduct2", itemCount: nil, expanded: .constant(false), toggle: {}) { EmptyView() } items: { EmptyView() }
+                    }
+                    // A group where nothing can be ticked says Show (Decision 154).
+                    CategoryRow(category: .audioSoftware, state: nil, title: "Example read-only group", detail: "", size: "6.3 GB", enabled: true,
+                                identifier: "galleryShowGroup", itemCount: 3, chooseVerb: "Show", chooseNoun: "sounds", expanded: .constant(false), toggle: {}) { EmptyView() } items: { EmptyView() }
+                    // A read-only sound row; its vendor's installed manager can remove or move it (Decision 157).
+                    InspectableItemRow(name: "Example sample library", detail: "Example maker", size: "4.1 GB", symbol: "waveform", inspected: false, inspect: nil,
+                                       reveal: {}, revealIdentifier: "gallerySoundReveal") { EmptyView() }
+                    StatusRow(text: "Example manager can remove or move it", symbol: "shippingbox", identifier: "gallerySoundManager",
+                              action: StatusAction(title: "Open Example manager", identifier: "gallerySoundOpen") {})
+                        .padding(.leading, CacheDropDesign.Space.md * 2 + CacheDropDesign.Size.itemIcon).padding(.bottom, CacheDropDesign.Space.md)
+                    // A driver the user can move: its place and Reveal in Finder before it's ticked (Decision 158).
+                    CategoryRow(category: .audioSoftware, state: .unchecked, title: "Example driver", detail: "Example maker", size: "4 MB", enabled: true,
+                                identifier: "galleryDriverRow", itemCount: nil, expanded: .constant(false), toggle: {}) {
+                        StatusRow(text: "…/Plug-Ins/HAL", symbol: "folder", action: StatusAction(title: "Reveal in Finder", action: {}))
                     } items: { EmptyView() }
                     VolumeSummary(available: 40_000_000_000, total: 512_000_000_000, observation: "Example disk space")
                     VolumeSummary(available: nil, total: nil, observation: "Free space unknown")

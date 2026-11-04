@@ -19,6 +19,10 @@ public struct CatalogDiscovery: Sendable {
     /// Locations, by rule id, that were looked at but not measured: a folder that exists but can't be read, or every
     /// location of a rule whose tool didn't answer (Docker's daemon down). What grew records them as coverage, never as 0.
     public var notMeasured: [String: Set<String>] = [:]
+    /// What the catalog shows, to merge a partial rescan into (Decision 133).
+    public init(candidates: [Candidate], notes: [CatalogNote], scannedRuleIDs: [String] = [], notAccessible: [CleanupRule] = [], notMeasured: [String: Set<String>] = [:]) {
+        self.candidates = candidates; self.notes = notes; self.scannedRuleIDs = scannedRuleIDs; self.notAccessible = notAccessible; self.notMeasured = notMeasured
+    }
 }
 
 /// Discovery's progress, one rule at a time in catalog order, so a first scan can show what it is checking and fill in as it goes.

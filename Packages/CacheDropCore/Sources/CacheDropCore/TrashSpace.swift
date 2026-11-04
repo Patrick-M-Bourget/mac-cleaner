@@ -8,9 +8,9 @@ public enum TrashContents: Equatable, Sendable {
     case unknown
 }
 
-/// The Finder Trash, sized read-only. CacheDrop never empties the Trash (SPEC section 2, Decision 68): this only reads it,
-/// and `Protection` keeps every rule and the check away from it. CacheDrop deletes from the Trash only items it moved there
-/// itself, and only when you ask (`TrashEmptying`); the user's own trashed files are never touched.
+/// The Finder Trash, sized read-only: this only reads it, and `Protection` keeps every rule and the check away from it.
+/// CacheDrop deletes from the Trash only when you ask (`TrashEmptying`): its own items (Decision 68), or everything an Empty
+/// Trash sheet listed (Decision 142).
 public enum TrashSpace {
     /// The user's Trash folder in `home`.
     public static func folder(home: URL) -> URL { home.appendingPathComponent(".Trash", isDirectory: true) }
@@ -35,7 +35,7 @@ public protocol TrashOpening: Sendable {
 }
 
 extension TrashSpace {
-    /// Opens `home`'s Trash folder. Only ever opens it; emptying the whole Trash is left to Finder.
+    /// Opens `home`'s Trash folder. Only ever opens it.
     @discardableResult
     public static func open(home: URL, with opener: any TrashOpening) -> Bool { opener.open(folder(home: home)) }
 }
@@ -53,11 +53,10 @@ extension TrashContents {
         guard bytes > 0 else { return overviewText }
         return (overviewText.map { $0 + " · " } ?? "") + SizeFormatter.text(bytes) + " from CacheDrop"
     }
-}
-
-extension TrashSpace {
-    /// The results line while CacheDrop's own items hold `bytes` in the Trash (#359), from their recorded sizes; nil with none.
-    public static func emptyHint(bytes: Int64) -> String? {
-        bytes > 0 ? SizeFormatter.text(bytes) + " is in the Trash. Empty it to free the space." : nil
+    /// The Trash line Overview and the menu bar menu both say (#603, Decision 141): with CacheDrop's own items in the Trash,
+    /// `overviewText(fromCacheDrop:)`; otherwise what the whole Trash holds when it can be read. Nil when there is nothing
+    /// to say, so an empty or unreadable Trash shows no line (Decision 68), never 0. `contents` is nil until measured.
+    public static func line(_ contents: TrashContents?, fromCacheDrop bytes: Int64) -> String? {
+        bytes > 0 ? (contents ?? .unknown).overviewText(fromCacheDrop: bytes) : contents?.overviewText
     }
 }

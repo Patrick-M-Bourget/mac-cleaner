@@ -12,7 +12,9 @@ Usage: scripts/release.sh [--adhoc] [--team-id ID] [--notary-profile NAME]
 Builds CacheDrop Release from a clean export of HEAD, signs it with the
 Developer ID, makes build/release/CacheDrop-<version>.dmg, notarizes and
 staples the app and the DMG, verifies them, and prints the architecture,
-version, minimum macOS and SHA-256.
+version, minimum macOS and SHA-256. Finder lays out the DMG's window
+(scripts/make-dmg.sh), so run it logged in; it may ask once to let the
+terminal control Finder.
 
 Options:
   --bump <x.y.z>         Prepare an explicit increasing stable version and the
@@ -26,7 +28,9 @@ Options:
   --notary-profile NAME  notarytool keychain profile (see
                          `xcrun notarytool store-credentials`).
                          Env CACHEDROP_NOTARY_PROFILE. Default cachedrop-notary.
-  --sparkle-tools DIR   Sparkle 2.10.1 bin directory; CACHEDROP_SPARKLE_TOOLS.
+  --sparkle-tools DIR    Sparkle 2.10.1 bin directory. Env CACHEDROP_SPARKLE_TOOLS.
+                         Default: .build/sparkle-tools/bin in this checkout,
+                         then in the main checkout (for release worktrees).
   --artifact-base-url URL  Immutable HTTPS directory for this version's DMG.
                          CACHEDROP_ARTIFACT_BASE_URL. Required for signed mode.
   --release-notes FILE   Reviewed HTML fragment embedded in the local appcast.
@@ -89,7 +93,21 @@ echo "Building $commit"
 
 identity="-"
 if ((!adhoc)); then
-  [[ -n "$sparkle_tools" && -n "$artifact_base_url" && -n "$release_notes" ]] || die "signed releases require --sparkle-tools, --artifact-base-url and --release-notes (see docs/RELEASING.md)"
+  [[ -n "$artifact_base_url" && -n "$release_notes" ]] || die "signed releases require --artifact-base-url and --release-notes (see docs/RELEASING.md)"
+  # #657: a fresh release worktree has no .build, so fall back to the main checkout's tools.
+  if [[ -n "$sparkle_tools" ]]; then
+    candidates=("$sparkle_tools")
+  else
+    main_checkout="$(dirname "$(git -C "$repo" rev-parse --path-format=absolute --git-common-dir)")"
+    candidates=("$repo/.build/sparkle-tools/bin")
+    [[ "$main_checkout" == "$repo" ]] || candidates+=("$main_checkout/.build/sparkle-tools/bin")
+  fi
+  sparkle_tools=""
+  for dir in "${candidates[@]}"; do
+    if [[ -f "$dir/generate_keys" && -f "$dir/sign_update" && -f "$dir/generate_appcast" ]]; then sparkle_tools="$dir"; break; fi
+  done
+  [[ -n "$sparkle_tools" ]] || die "no Sparkle 2.10.1 tools (generate_keys, sign_update, generate_appcast) in: ${candidates[*]}; see docs/RELEASING.md, Sparkle prerequisite setup"
+  echo "Sparkle tools: $sparkle_tools"
   python3 "$repo/scripts/sparkle-release.py" preflight --plist "$repo/CacheDrop/UpdateInfo.plist" \
     --tools "$sparkle_tools" --artifact-base-url "$artifact_base_url" --release-notes "$release_notes" --account "$keychain_account"
   # The identity's SHA-1, so a second certificate with the same name can't make codesign ambiguous.
@@ -127,6 +145,10 @@ version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$plis
 build_number="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$plist")"
 min_os="$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' "$plist")"
 exe="$built/Contents/MacOS/$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$plist")"
+# The command line ships inside the app, built like it (Decision 146, #680).
+helper="$built/Contents/Helpers/cachedrop"
+[[ -x "$helper" ]] || die "no Contents/Helpers/cachedrop in the app"
+[[ "$(lipo -archs "$helper")" == "$(lipo -archs "$exe")" ]] || die "cachedrop is built for $(lipo -archs "$helper"), the app for $(lipo -archs "$exe")"
 
 # 3. Sign each Sparkle helper explicitly, then the framework and outer app.
 step "Signing and verifying every nested executable"
@@ -134,6 +156,17 @@ timestamp=(--timestamp)
 sign_mode=(--signed)
 if ((adhoc)); then timestamp=(--timestamp=none); sign_mode=(--adhoc); fi
 "$repo/scripts/sign-release-app.sh" "$built" "$identity" "$team_id" "${sign_mode[@]}"
+
+# Apple's ticket server drops connections now and then (1.0.2 stopped twice on "Error 68"), so each stapler call gets
+# three tries, 20 s apart; a ticket that really is missing still fails after the third.
+stapler() { # staple|validate PATH
+  local attempt
+  for attempt in 1 2 3; do
+    xcrun stapler "$1" "$2" && return 0
+    if ((attempt < 3)); then echo "stapler $1 failed; trying again in 20 s" >&2; sleep 20; fi
+  done
+  die "stapler $1 $(basename "$2") failed 3 times"
+}
 
 notarize() { # path
   local result status id
@@ -154,10 +187,10 @@ if ((!adhoc)); then
   step "Notarizing the app"
   ditto -c -k --keepParent "$built" "$work/CacheDrop.zip"
   notarize "$work/CacheDrop.zip"
-  xcrun stapler staple "$built"
+  stapler staple "$built"
 fi
 
-# 4. DMG: the app and a link to /Applications.
+# 4. DMG: the app and a link to /Applications in one laid-out Finder window (#558), signed below.
 step "Making the DMG"
 mkdir -p "$out_dir"
 # An if, not $( ((adhoc)) && … ): under set -e a failing substitution in an assignment ends the script.
@@ -165,13 +198,10 @@ suffix=""
 if ((adhoc)); then suffix="-adhoc"; fi
 dmg_name="CacheDrop-$version$suffix.dmg"
 dmg="$out_dir/$dmg_name"
-mkdir "$work/dmg"
-ditto "$built" "$work/dmg/CacheDrop.app"
-ln -s /Applications "$work/dmg/Applications"
 # Invalidate old local success metadata before replacing any artifact bytes.
 rm -f "$out_dir/appcast.xml" "$out_dir/release-identity.json"
 rm -f "$dmg"
-hdiutil create -quiet -volname CacheDrop -srcfolder "$work/dmg" -fs HFS+ -format UDZO -ov "$dmg"
+"$repo/scripts/make-dmg.sh" "$built" "$dmg"
 
 # 5. Sign the DMG.
 step "Signing the DMG"
@@ -182,7 +212,7 @@ codesign --verify --strict --verbose=2 "$dmg"
 if ((!adhoc)); then
   step "Notarizing the DMG"
   notarize "$dmg"
-  xcrun stapler staple "$dmg"
+  stapler staple "$dmg"
 fi
 
 # Keep the app next to the DMG for a launch check.
@@ -198,15 +228,15 @@ if ((adhoc)); then
 else
   spctl -a -t exec -vv "$app"
   spctl -a -t open --context context:primary-signature -vv "$dmg"
-  xcrun stapler validate "$app"
-  xcrun stapler validate "$dmg"
+  stapler validate "$app"
+  stapler validate "$dmg"
 fi
 # Verify the app actually carried by the final disk image, mounted read-only.
 mkdir "$work/verify-dmg"
 dmg_mount="$work/verify-dmg"
 hdiutil attach -readonly -nobrowse -mountpoint "$dmg_mount" "$dmg" >/dev/null
 "$repo/scripts/sign-release-app.sh" --verify "$dmg_mount/CacheDrop.app" "$identity" "$team_id" "${sign_mode[@]}"
-if ((!adhoc)); then xcrun stapler validate "$dmg_mount/CacheDrop.app"; fi
+if ((!adhoc)); then stapler validate "$dmg_mount/CacheDrop.app"; fi
 hdiutil detach "$dmg_mount" -quiet
 dmg_mount=""
 
@@ -237,7 +267,7 @@ step "Done"
 binary_min_os="$(vtool -show-build "$app/Contents/MacOS/$(basename "$exe")" 2>/dev/null | awk '/minos/ && !n++ { print $2 }')"
 echo "Mode:         $( ((adhoc)) && echo "ad hoc (not notarized, not for distribution)" || echo "Developer ID, notarized, stapled")"
 echo "Commit:       $commit"
-echo "Architecture: $(lipo -archs "$app/Contents/MacOS/$(basename "$exe")")"
+echo "Architecture: $(lipo -archs "$app/Contents/MacOS/$(basename "$exe")") (cachedrop: $(lipo -archs "$app/Contents/Helpers/cachedrop"))"
 echo "Version:      $version ($build_number)"
 echo "Minimum OS:   macOS $min_os (binary minos ${binary_min_os:-unknown})"
 echo "App:          $app"

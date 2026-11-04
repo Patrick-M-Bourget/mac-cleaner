@@ -1,5 +1,18 @@
 # Preparing a local release
 
+## A release, start to finish
+
+| Step | Who | How |
+|---|---|---|
+| 1. Version, build number and notes | Claude, for the version the owner names (a patch bump unless told otherwise) | `scripts/release.sh --bump x.y.z`, `docs/releases/x.y.z.html` (Decision 122), full UI suite, release PR |
+| 2. Merge the release PR | Owner says "merge" | `scripts/merge-pr.py PR --expect-none` |
+| 3. Signed, notarized, verified build | Claude | `scripts/ship-release.sh x.y.z` |
+| 4. Publish to the update feed and website | Owner says "publish" | cachedrop-website `scripts/publish-release.sh <artifacts>` (website Decision 55) |
+
+`ship-release.sh` checks that origin/main is that version with its notes, makes a clean checkout at `../mac-cleaner-release-x.y.z` (kept: it holds the artifacts), builds the notes, runs `release.sh` with the production updates folder, then repeats the independent checks below and prints the publish command. It uploads nothing. Apple's ticket server sometimes drops a connection, so every stapler call gets three tries. Building never implies publishing.
+
+The sections below are what those commands run.
+
 Version preparation and release building are separate owner-run commands. Neither publishes anything.
 
 ```sh
@@ -32,16 +45,19 @@ Signed builds also require a valid **Developer ID Application** identity for tea
 
 ## Build and verify
 
-Write the version's notes as `docs/releases/x.y.z.html` (content only, in the shape Decision 122 sets; `docs/releases/notes.css` is the shared style), then build the file to sign with `scripts/release-notes.py x.y.z --out .build/release-notes/x.y.z.html` and pass that path as `--release-notes`. Supply a versioned, immutable HTTPS artifact directory explicitly. Production publication will use the public Supabase updates bucket; its actual URL must be configured by the owner. Do not use the private website download URL or GitHub Releases as the enclosure URL. For acceptance, supply a separate test bucket/path and retain the resulting local feed separately. No production upload, website update, feed promotion or deployment occurs here.
+Write the version's notes as `docs/releases/x.y.z.html` (content only, in the shape Decision 122 sets; `docs/releases/notes.css` is the shared style) right after the bump: the app bundles `docs/releases`, Help → What’s New shows the running version's notes, and `scripts/check-release.sh`, which `scripts/check.sh` runs, fails a Release build without notes in that shape for its version (Decision 161). Then build the file to sign with `scripts/release-notes.py x.y.z --out .build/release-notes/x.y.z.html` and pass that path as `--release-notes`. Supply a versioned, immutable HTTPS artifact directory explicitly. Production publication will use the public Supabase updates bucket; its actual URL must be configured by the owner. Do not use the private website download URL or GitHub Releases as the enclosure URL. For acceptance, supply a separate test bucket/path and retain the resulting local feed separately. No production upload, website update, feed promotion or deployment occurs here.
 
 ```sh
 scripts/release.sh \
-  --sparkle-tools "$PWD/.build/sparkle-tools/bin" \
   --artifact-base-url 'https://YOUR-TEST-HOST/isolated-updates/0.10.0/' \
   --release-notes /absolute/path/to/reviewed-0.10.0.html
 ```
 
+release.sh finds the Sparkle tools in `.build/sparkle-tools/bin` of the checkout it runs from, then of the main checkout, so a fresh release worktree needs no copy. `--sparkle-tools DIR` or `CACHEDROP_SPARKLE_TOOLS` picks another folder; when none has the tools, it names the folders it checked.
+
 The command exports HEAD, builds Release, signs every Sparkle helper (Installer, Downloader with its entitlements preserved, Autoupdate, Updater), then the framework and app. It verifies each nested Mach-O's signature, Hardened Runtime, Developer ID team, and absence of development entitlements. It notarizes/staples the app, creates/signs/notarizes/staples `CacheDrop-x.y.z.dmg`, and only then EdDSA-signs the final DMG. Sparkle's generator creates a local full-update-only appcast with embedded reviewed notes. A separate signature verification and metadata check must pass before metadata is saved. No subsequent step changes the signed DMG bytes.
+
+The DMG opens to one fixed Finder window: CacheDrop on the left, an arrow, Applications on the right and "Drag CacheDrop to Applications" (#558). `scripts/make-dmg.sh` builds it before the DMG is signed: Finder writes the window layout into a writable image from `scripts/dmg/layout.json`, so run release.sh while logged in; the first run may ask to let the terminal control Finder (System Settings > Privacy & Security > Automation). The background art is generated, never drawn by hand: after changing `scripts/dmg/layout.json` or `scripts/dmg/background.swift`, run `swift scripts/dmg/background.swift scripts/dmg/layout.json scripts/dmg` and commit both PNGs; the tooling tests check their sizes against the layout.
 
 Outputs in `build/release/`:
 
@@ -67,6 +83,14 @@ python3 scripts/sparkle-release.py verify \
 Use `--keychain-account` on release.sh, or `--account` on sparkle-release.py, if the owner uses a nondefault Sparkle account. Never modify the DMG after signing; a rebuild is a new artifact requiring all checks again. `scripts/release.sh --adhoc` supports local build checks, produces `-adhoc.dmg`, and does not produce a distribution appcast. Automated fixtures and ad-hoc builds do not establish Developer ID/notarization correctness or a real signed A → B update.
 
 Signing order and entitlement handling follow [Sparkle's custom-signing guidance](https://sparkle-project.org/documentation/sandboxing/#code-signing). Feed generation follows [Sparkle's publishing guidance](https://sparkle-project.org/documentation/publishing/).
+
+## License keys
+
+License keys are checked on the Mac against the public key built into the app, with no network call (Decisions 135 and 136; the format is [docs/reference/license-key-format.md](reference/license-key-format.md)). Two things ship in each release, both in `Packages/CacheDropCore/Sources/CacheDropCore/LicenseBuiltIns.swift`:
+
+- **The production public key.** `LicensePublicKey.productionBase64` holds it (the 32-byte raw Ed25519 public key in base64, supplied in #652, 2026-11-02). Every license ever sold is checked against it, so it changes only if the private key is lost or leaked, and then every existing key stops working. Only the public key goes in source; the private key stays with the issuing function's secrets and the owner's password manager. `scripts/check-release.sh` refuses a gated Release app (`LICENSE_GATING` is in the Release Swift conditions since #653) whose binary still holds #594's placeholder text.
+- **The revocation list.** Before building a release, add the license ID of every key refunded, charged back or leaked since the last one to `LicenseRevocations.ids`, one per line as `UUID(uuidString: "5f0c2a8e-3b1d-4c6f-9a7e-2d4b8c1e6f30")!,` with a comment giving the reason and date (no email or name), then commit. The ID is the lower-case UUID the issuing function recorded for the purchase. IDs are never removed. A revoked key keeps working on a Mac until it installs that release; there is no online check.
+- **Turning gating on.** Gating (the trial and its cap, Decision 137) is off until `LICENSE_GATING` is added to the CacheDrop target's Release `SWIFT_ACTIVE_COMPILATION_CONDITIONS`, in the first release after a live test purchase activates the app (#593). Supply the production public key first, or `scripts/check-release.sh` refuses the build.
 
 ## Stage and promote separately
 
