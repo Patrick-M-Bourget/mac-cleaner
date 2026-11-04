@@ -36,7 +36,8 @@ struct CatalogPlanSection: View {
                 // Overview's line, so both say it the same way, plural-correct, with the places in its tooltip (#435).
                 FullDiskAccessNote(places: model.notAccessibleRules.map(\.title)).accessibilityIdentifier("planNotAccessible")
             }
-            ForEach(model.notes, id: \.ruleID) { note in StatusRow(text: note.text, symbol: "info.circle", role: .neutral, identifier: "planNote-" + note.ruleID) }
+            // A rule can have more than one note (each moved Adobe media cache it can't offer, #730).
+            ForEach(Array(model.notes.enumerated()), id: \.offset) { _, note in StatusRow(text: note.text, symbol: "info.circle", role: .neutral, identifier: "planNote-" + note.ruleID) }
             if let message = model.message { StatusRow(text: message, symbol: "info.circle", role: .caution) }
         }
     }
@@ -140,8 +141,10 @@ private struct PlanRuleRows: View {
     var body: some View {
         let items = model.candidates(for: rule), state = model.selectionState(for: [rule])
         if !items.contains(where: { listing?.matches($0) ?? true }) { EmptyView() } else {
-        // A tool-asked rule's line says where its folder came from (#206); what the rule covers moves to the tooltip.
-        let source = items.lazy.compactMap(\.folderSource).first
+        // A tool-asked rule's line says where its folder came from (#206); what the rule covers moves to the tooltip. A rule with
+        // items in more than one place (Adobe's default and moved media cache, #730) names each, joined as fragments (Decision 92).
+        let sources = items.compactMap(\.folderSource).reduce(into: [String]()) { if !$0.contains($1) { $0.append($1) } }
+        let source = sources.isEmpty ? nil : sources.joined(separator: " · ")
         VStack(alignment: .leading, spacing: 0) {
             InspectableItemRow(name: rule.title, detail: source ?? rule.detail,
                                size: SizeFormatter.text(model.estimatedBytes(for: rule), complete: model.sizeComplete(for: rule), upperBound: rule.estimateIsUpperBound,

@@ -514,6 +514,8 @@ public struct Catalog: Sendable {
                     return remnants.map { $0.found(under: base) }
                 }
             }
+            // Adobe's media cache says which items are in its default folder and which in one its settings name (#730).
+            if rule.id == AdobeMediaCache.ruleID { folderSource = AdobeMediaCache.defaultSource }
             // A trailing `/*` offers each folder inside (DeviceSupport versions); a `*` inside the path names a profile.
             let located = reported.map { [($0, String?.none)] } ?? rule.locations.flatMap { location -> [(URL, String?)] in
                 // A pattern as the last component (`models--*`) also offers each matching folder.
@@ -594,7 +596,13 @@ public struct Catalog: Sendable {
             }
             // The default folder offered in place of one the tool didn't name says so (#170).
             if let defaultsNote, !found.isEmpty { notes.append(defaultsNote) }
-            return (found + remnants).map { $0.found(under: base) }
+            // A moved Adobe media cache is scoped to the folder Adobe's settings name, which may be outside the home folder (#730).
+            var moved: [Candidate] = []
+            if rule.id == AdobeMediaCache.ruleID {
+                let (offered, movedNotes) = movedAdobeMediaCaches(rule, home: base, sizer: sizer)
+                moved = offered; notes += movedNotes
+            }
+            return (found + remnants).map { $0.found(under: base) } + moved
         }
         var candidates: [Candidate] = []
         // One rule at a time, in catalog order, so progress can report each as it finishes (#128).

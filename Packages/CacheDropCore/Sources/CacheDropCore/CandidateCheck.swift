@@ -185,6 +185,8 @@ public struct CandidateCheck: Sendable {
             return (candidate.isDirectory ? Self.protectedEntry(in: candidate.url, rule: rule) : nil).map(CheckRefusal.protected) ?? .changed
         }
         if let refusal = catalog.notACacheRefusal(candidate, rule: rule, base: root) { return refusal }
+        // An item from a moved Adobe media cache: still one of Adobe's folders there, still named by its settings, on a local drive (#730).
+        if rule.id == AdobeMediaCache.ruleID, let refusal = AdobeMediaCache.refusal(for: candidate, root: root, home: home) { return refusal }
         let picked = rule.fromPickedFolders
         if picked, let folder = UserFiles.protectedFolder(of: candidate.url, home: home) { return .protected(folder) }
         // A picked folder's file is looked at above the folder too, as the explorer does when it lists it.
