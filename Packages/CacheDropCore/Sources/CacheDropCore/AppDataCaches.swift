@@ -97,7 +97,7 @@ public enum AppDataCaches {
     /// media cache"). A cache moved in Settings › Media Cache is found from Adobe's settings (`AdobeMediaCache`, #730); the rest
     /// of Common (Motion Graphics Templates, LUTs, Team Projects) is never a location.
     static let adobeMediaCache = CleanupRule(
-        id: AdobeMediaCache.ruleID, category: .system, title: "Adobe media cache",
+        id: AdobeMediaCache.ruleID, category: .photoVideo, title: "Adobe media cache",
         detail: "Conformed audio, peak and index files Premiere, After Effects and Media Encoder made from your media.",
         consequence: "Your projects and media are kept, and Adobe apps rebuild these files when you open a project.",
         regen: .cache, action: .delete,
@@ -108,7 +108,7 @@ public enum AppDataCaches {
     /// type support cache and crash reporter's database). Its settings (~/Library/Preferences/Adobe) and projects and
     /// auto-saves (~/Documents/Adobe) are never locations.
     static let premiereProCache = CleanupRule(
-        id: "premiere-pro-cache", category: .system, title: "Premiere Pro cache",
+        id: "premiere-pro-cache", category: .photoVideo, title: "Premiere Pro cache",
         detail: "Files Premiere Pro keeps to start and work faster, per version.",
         consequence: "Your projects, settings and media are kept, and Premiere Pro rebuilds these files as you use it.",
         regen: .cache, action: .delete, locations: ["Library/Caches/Adobe/Premiere Pro/*"], owner: adobeVideoApps,
@@ -153,10 +153,12 @@ public enum AppDataCaches {
     public static func rules(apps: any AppLookup) -> [CleanupRule] {
         [
             jetBrains(apps: apps),
+            // A category is listed where its first rule is, so App caches' first rule here comes before the field categories:
+            // App caches, Audio software, then Photo and video (Decision 164).
+            sandboxedCaches(apps: apps),
+            abletonCache,
             adobeMediaCache,
             premiereProCache,
-            abletonCache,
-            sandboxedCaches(apps: apps),
             vsCode(id: "vscode-cache", name: "Visual Studio Code", nameShort: "Code", bundleID: "com.microsoft.VSCode"),
             vsCode(id: "vscodium-cache", name: "VSCodium", nameShort: "VSCodium", bundleID: "com.vscodium"),
             vsCode(id: "cursor-cache", name: "Cursor", nameShort: "Cursor", bundleID: "com.todesktop.230313mzl4w4u92"),

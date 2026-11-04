@@ -905,6 +905,7 @@ extension CatalogCategory {
         case .files: .files
         case .system: .appCaches
         case .audio: .audioSoftware
+        case .photoVideo: .photoVideo
         case .models: .models
         case .updaters: .appUpdates
         case .logs: .logs
@@ -921,6 +922,7 @@ extension CatalogCategory {
         case .downloads: "Every file in your Downloads folder, to review"
         case .system: "Caches apps rebuild when they need them"
         case .audio: "Caches audio apps rebuild when they need them"
+        case .photoVideo: "Caches photo and video apps rebuild when they need them"
         case .models: "AI models and disk images you can download again"
         case .updaters: "Updates apps downloaded and kept"
         case .logs: "Logs and crash reports apps wrote"
