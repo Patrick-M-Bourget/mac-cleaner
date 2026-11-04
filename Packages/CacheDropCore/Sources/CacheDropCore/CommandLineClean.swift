@@ -45,9 +45,40 @@ public enum CommandLineClean {
         // An unfinished cleanup is reviewed in the app before another starts. A journal that can't be read never lets a run start.
         guard let snapshot = try? CleanupRecoverySnapshot(journal: journal) else { return .refused(Refusal.journal) }
         guard snapshot.interruptedBatches.isEmpty else { return .refused(Refusal.interrupted) }
-        // The license and trial, as the review sheet applies them (Decisions 135, 137); a dry run counts nothing and is never blocked.
+        let approval = CatalogApproval(candidates: report.picked.map(\.candidate), dryRun: dryRun)
+        // The license and trial again, under the lock: this check, not the one before asking, is the final word.
+        let trial: TrialController
+        switch gate(approval, catalog: sources.catalog, licenseStore: licenseStore, trialStore: trialStore, gating: gating, verifier: verifier) {
+        case .refused(let reason): return .refused(reason)
+        case .allowed(let allowed): trial = allowed
+        }
+        let executor = CleanupExecutor(journal: journal, check: sources.check, measure: measure, trash: trash)
+        let result = await executor.execute(approval)
+        trial.record(result, of: approval, catalog: sources.catalog)
+        return .ran(result, notice: trial.notice?.message)
+    }
+
+    /// Why `run` would refuse on the license or trial, or nil when they let it go ahead (#722): `clean` asks only after
+    /// this, so a "y" isn't answered with a refusal that was already known. It takes no lock and reads no journal, so
+    /// `run` checks again under the lock; like `run`, it never writes either item, and a dry run reads neither.
+    @MainActor public static func refusalBeforeAsking(_ report: SmartCleanReport, sources: SmartCleanReport.Sources, dryRun: Bool,
+                                                      licenseStore: any LicenseKeyStore, trialStore: any TrialStore, gating: Bool,
+                                                      verifier: LicenseVerifier = .production) -> String? {
+        let approval = CatalogApproval(candidates: report.picked.map(\.candidate), dryRun: dryRun)
+        if case .refused(let reason) = gate(approval, catalog: sources.catalog, licenseStore: licenseStore, trialStore: trialStore, gating: gating, verifier: verifier) {
+            return reason
+        }
+        return nil
+    }
+
+    private enum Gate { case refused(String), allowed(TrialController) }
+
+    /// The license and trial, as the review sheet applies them (Decisions 135, 137): refused with the reason, or allowed
+    /// with the trial to count the run in. A dry run counts nothing and is never blocked.
+    @MainActor private static func gate(_ approval: CatalogApproval, catalog: Catalog, licenseStore: any LicenseKeyStore, trialStore: any TrialStore,
+                                        gating: Bool, verifier: LicenseVerifier) -> Gate {
         var license = LicenseState.none, trial = TrialController(store: trialStore, gating: false)
-        if gating, !dryRun {
+        if gating, !approval.dryRun {
             let controller = LicenseController(store: licenseStore, verifier: verifier)
             if controller.notice == .unreadable { return .refused(Refusal.licenseUnreadable) }
             license = controller.state
@@ -58,16 +89,12 @@ public enum CommandLineClean {
                 if trial.notice == .unreadable { return .refused(Refusal.trialUnreadable) }
             }
         }
-        let approval = CatalogApproval(candidates: report.picked.map(\.candidate), dryRun: dryRun)
         // A plan bigger than what's left never runs.
-        let allowance = trial.allowance(for: license), size = approval.trialBytes(skipping: [], catalog: sources.catalog)
-        if !allowance.permits(size, dryRun: dryRun) {
+        let allowance = trial.allowance(for: license), size = approval.trialBytes(skipping: [], catalog: catalog)
+        if !allowance.permits(size, dryRun: approval.dryRun) {
             return .refused((allowance.reviewLine(plan: size, dryRun: false) ?? "Free trial used") + ". Enter a license in CacheDrop’s Settings, or buy one at "
                             + LicensePrice.buyURL.absoluteString + ".")
         }
-        let executor = CleanupExecutor(journal: journal, check: sources.check, measure: measure, trash: trash)
-        let result = await executor.execute(approval)
-        trial.record(result, of: approval, catalog: sources.catalog)
-        return .ran(result, notice: trial.notice?.message)
+        return .allowed(trial)
     }
 }

@@ -198,6 +198,48 @@ private let testVerifier = LicenseVerifier(publicKey: LicenseTestKeyPair.verifyi
         #expect(unread.reads == 0 && unread.writes == 0)
     }
 
+    /// #722: `clean` refuses on the license or trial before asking "Clean up … now? [y/N]", with `run`'s own lines, so a
+    /// "y" is never answered by a refusal it could have known. It reads only the license and trial: no lock, no journal,
+    /// no writes, so it works while a cleanup runs elsewhere; `run` checks them again under the lock.
+    @Test @MainActor func theLicenseAndTrialRefusalsAreKnownBeforeAsking() async throws {
+        let (home, sources) = try commandLineFixture()
+        let (folder, journal) = try fixtureJournal()
+        defer { try? FileManager.default.removeItem(at: home); try? FileManager.default.removeItem(at: folder) }
+        let report = SmartCleanReport.run(sources)
+        let other = try CleanupLock.acquire(at: lock(in: folder))
+        #expect(other != nil, "A cleanup runs elsewhere the whole time")
+        func before(_ license: MemoryLicenseKeyStore, _ trial: MemoryTrialStore, dryRun: Bool = false, gating: Bool = true) -> String? {
+            CommandLineClean.refusalBeforeAsking(report, sources: sources, dryRun: dryRun, licenseStore: license, trialStore: trial, gating: gating, verifier: testVerifier)
+        }
+        let unreadableLicense = MemoryLicenseKeyStore(); unreadableLicense.failReads = true
+        #expect(before(unreadableLicense, MemoryTrialStore(0)) == CommandLineClean.Refusal.licenseUnreadable)
+        let unreadableTrial = MemoryTrialStore(0); unreadableTrial.failReads = true
+        #expect(before(MemoryLicenseKeyStore(), unreadableTrial) == CommandLineClean.Refusal.trialUnreadable)
+        let missing = MemoryTrialStore()
+        #expect(before(MemoryLicenseKeyStore(), missing) == CommandLineClean.Refusal.trialMissing)
+        #expect(missing.writes == 0 && missing.used == nil, "Never makes the trial's item")
+        let used = MemoryTrialStore(Trial.freeBytes - 1_000)
+        let over = try #require(before(MemoryLicenseKeyStore(), used))
+        #expect(over.hasPrefix("This cleanup is ") && over.hasSuffix(LicensePrice.buyURL.absoluteString + "."), "The review sheet's line, then where to buy")
+        #expect(used.writes == 0 && used.used == Trial.freeBytes - 1_000)
+
+        // Asked only when the run could go ahead: a plan that fits, an active license, a dry run, no gating.
+        let fresh = MemoryTrialStore(0)
+        #expect(before(MemoryLicenseKeyStore(), fresh) == nil && fresh.writes == 0)
+        #expect(before(MemoryLicenseKeyStore(LicenseTestKeyPair.vector), MemoryTrialStore()) == nil)
+        let unread = MemoryTrialStore(); unread.failReads = true
+        #expect(before(unreadableLicense, unread, dryRun: true) == nil && before(unreadableLicense, unread, gating: false) == nil)
+        #expect(unread.reads == 0)
+        #expect(try journal.records().isEmpty, "Nothing claimed")
+
+        // `run` takes the lock first, so here it says the cleanup elsewhere.
+        let outcome = await CommandLineClean.run(report, sources: sources, dryRun: false, journal: journal, lock: lock(in: folder), trash: TrashNeverUsed(),
+                                                 licenseStore: MemoryLicenseKeyStore(), trialStore: used, gating: true, verifier: testVerifier)
+        guard case .refused(let busy) = outcome else { Issue.record("Ran beside another cleanup"); return }
+        #expect(busy == CommandLineClean.Refusal.busy)
+        withExtendedLifetime(other) {}
+    }
+
     /// An active license needs no trial item, and its runs count nothing toward the trial.
     @Test @MainActor func anActiveLicenseCleansWithoutTheTrial() async throws {
         let (home, sources) = try commandLineFixture()
