@@ -2,6 +2,9 @@ import contextlib
 import importlib.util
 import io
 from pathlib import Path
+import shutil
+import subprocess
+import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -67,6 +70,40 @@ class MergePrTests(unittest.TestCase):
 
     def test_issues_and_expect_none_together_are_refused(self):
         self.assertEqual(self.refused(['692', '45', '--expect-none']), 2)
+
+    def test_after_a_merge_the_decisions_are_put_back_in_order_and_staged(self):
+        # main and the branch each append a Decision; the union merge puts main's after the branch's (#727).
+        with tempfile.TemporaryDirectory() as temp:
+            wt = Path(temp)
+            git = lambda *args: subprocess.run(['git', *args], cwd=wt, check=True, capture_output=True, text=True).stdout
+            (wt / 'scripts').mkdir()
+            (wt / 'docs').mkdir()
+            shutil.copy(ROOT / 'scripts/order-decisions.py', wt / 'scripts')
+            (wt / '.gitattributes').write_text('docs/RESET.md merge=union\n')
+            reset = wt / 'docs/RESET.md'
+            reset.write_text('## Decisions\n1. One.\n')
+            git('init', '-q', '-b', 'main')
+            git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '--allow-empty', '-m', 'empty')
+            git('add', '.')
+            git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-m', 'base')
+            git('checkout', '-q', '-b', 'branch')
+            reset.write_text('## Decisions\n1. One.\n3. Branch.\n')
+            git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-am', 'branch')
+            git('checkout', '-q', 'main')
+            reset.write_text('## Decisions\n1. One.\n2. Main.\n')
+            git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-am', 'main')
+            git('checkout', '-q', 'branch')
+            git('merge', '--no-commit', '--no-ff', 'main')
+            self.assertEqual(reset.read_text(), '## Decisions\n1. One.\n3. Branch.\n2. Main.\n', 'the fixture reproduces the union merge')
+
+            self.assertIn('moved', merge_pr.order_decisions(str(wt)))
+            self.assertEqual(git('show', ':docs/RESET.md'), '## Decisions\n1. One.\n2. Main.\n3. Branch.\n')
+            self.assertEqual(git('status', '--porcelain'), 'M  docs/RESET.md\n')
+
+    def test_without_a_merge_in_progress_the_decisions_are_left_to_the_check(self):
+        with tempfile.TemporaryDirectory() as temp:
+            subprocess.run(['git', 'init', '-q'], cwd=temp, check=True)
+            self.assertEqual(merge_pr.order_decisions(temp), 'no merge in progress')
 
 
 if __name__ == '__main__':
