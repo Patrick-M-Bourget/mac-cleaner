@@ -176,22 +176,8 @@ final class ApplicationsUITests: XCTestCase {
         let state = try configureIsolatedState(app)
         let home = try configureCatalogHome(app)
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
-        func write(_ relative: String, bytes: Int = 20_000) throws {
-            let file = home.appendingPathComponent(relative)
-            try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try Data(repeating: 1, count: bytes).write(to: file)
-        }
-        try write("Splice/sounds/kick.wav")
-        // The test home stands in for the system root: Waves' sample libraries, with Waves Central installed, and Arturia's
-        // resources without Arturia Software Center.
-        try write("Applications/Waves/Data/Instrument Data/Waves Sample Libraries/piano.wav")
-        try write("Library/Arturia/Presets/lead.preset")
-        _ = try addApp("Waves Central", id: "com.wavesaudio.wavescentral", bytes: 10_000, in: home)
-        try write("Library/Application Support/Propellerhead Software/Optional REs/Pangea/data.bin", bytes: 60_000)
+        try addAudioSoftware(in: home)
         let driver = home.appendingPathComponent("Library/Audio/Plug-Ins/HAL/Loopback.driver")
-        try FileManager.default.createDirectory(at: driver.appendingPathComponent("Contents"), withIntermediateDirectories: true)
-        try PropertyListSerialization.data(fromPropertyList: ["CFBundleIdentifier": "com.loop.back"], format: .xml, options: 0)
-            .write(to: driver.appendingPathComponent("Contents/Info.plist"))
         app.launch()
         waitForCatalogScan(app)
         openApplications(app, ["audio software"])

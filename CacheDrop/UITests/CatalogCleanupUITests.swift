@@ -27,6 +27,26 @@ func addApp(_ name: String, id: String, bytes: Int, copyright: String? = nil, in
     return bundle
 }
 
+/// #719's Audio software rows in the fixture home: Splice sounds; Waves' sample libraries with Waves Central installed, and
+/// Arturia's resources without Arturia Software Center (the home stands in for the system root); Reason's Pangea device; and
+/// the Loopback driver, at `Library/Audio/Plug-Ins/HAL/Loopback.driver`.
+func addAudioSoftware(in home: URL) throws {
+    func write(_ relative: String, bytes: Int = 20_000) throws {
+        let file = home.appendingPathComponent(relative)
+        try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data(repeating: 1, count: bytes).write(to: file)
+    }
+    try write("Splice/sounds/kick.wav")
+    try write("Applications/Waves/Data/Instrument Data/Waves Sample Libraries/piano.wav")
+    try write("Library/Arturia/Presets/lead.preset")
+    _ = try addApp("Waves Central", id: "com.wavesaudio.wavescentral", bytes: 10_000, in: home)
+    try write("Library/Application Support/Propellerhead Software/Optional REs/Pangea/data.bin", bytes: 60_000)
+    let driver = home.appendingPathComponent("Library/Audio/Plug-Ins/HAL/Loopback.driver")
+    try FileManager.default.createDirectory(at: driver.appendingPathComponent("Contents"), withIntermediateDirectories: true)
+    try PropertyListSerialization.data(fromPropertyList: ["CFBundleIdentifier": "com.loop.back"], format: .xml, options: 0)
+        .write(to: driver.appendingPathComponent("Contents/Info.plist"))
+}
+
 /// Turns on the Settings dry run for this launch through the DEBUG-only test seam, for journeys that assert nothing changed.
 @MainActor func turnOnDryRun(_ app: XCUIApplication) {
     app.launchEnvironment["CACHEDROP_TEST_DRY_RUN"] = "1"

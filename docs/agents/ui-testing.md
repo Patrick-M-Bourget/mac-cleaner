@@ -24,11 +24,16 @@ Query an element the way the view exposes it. Check the view's modifiers before 
 
 ## Visual comparisons
 
-When checking layout-preserving changes, use `scripts/visual-check.py capture /absolute/path/before`, then repeat with a new `after` directory on the changed branch. **Capture drives the screen: run only when the Mac is free.** The command builds the tests, opts into `VisualCaptureUITests`, and captures only CacheDrop's window. The normal journey suite skips this test.
+When checking layout-preserving changes, run `scripts/visual-check.py capture --scenario NAME [DIR]` before and after the change. **Capture drives the screen: run only when the Mac is free.** The command builds the tests, opts into `VisualCaptureUITests` with the scenario in its environment, and captures only CacheDrop's window. The normal journey suite skips this test. A scenario is a `case` in `VisualCaptureUITests`: the fixtures it adds to the catalog home and the pages it shows, one after another, in light then dark. Add a scenario there and to `SCENARIOS` in the script, never by editing the test for one run:
 
-Both runs need the same Mac, display scale, system accent, text size and accessibility settings. The fixture fixes the catalog, capacity, file dates, language, appearance and 1000×760-point window on the primary display. It waits for the scan, parks the pointer outside the window and captures Overview and Cleanup plan in light and dark. It leaves personal app state untouched.
+- `overview` (the default): Overview, then the Cleanup plan.
+- `audio-software`: #719's Audio software rows (`addAudioSoftware`). `sounds` is Applications with Show sounds open near the top of the page; `drivers` scrolls on to the opened Drivers group. Scroll a page with `reveal(_:in:nearTop:)`, which finds its scroll view through `app.scrollViews`; `window.scrollViews` matched nothing when #719 was captured.
 
-Outputs must be new directories outside the checkout. They contain four PNGs and `manifest.json`; commit neither. The manifest explicitly records window-local masks for the native title bar/corners and live capacity/scan timestamp labels. Inspect these rectangles when assessing a comparison; all other pixels participate.
+Without DIR, the captures go to a fresh folder in the temp directory, and the command prints it. A DIR must be new and outside the checkout; an existing folder is refused.
+
+Both runs need the same Mac, display scale, system accent, text size and accessibility settings. The fixture fixes the catalog, capacity, file dates, language, appearance and 1000×760-point window on the primary display. It waits for the scan, parks the pointer outside the window before each capture and leaves personal app state untouched.
+
+Each output folder holds one PNG per page and appearance (`<page>-light.png`, `<page>-dark.png`) and `manifest.json`; commit neither. The manifest explicitly records window-local masks for the native title bar/corners and live capacity/scan timestamp labels. Inspect these rectangles when assessing a comparison; all other pixels participate. Compare captures of one scenario: two manifests with different pages are refused.
 
 Compare without driving the screen:
 
