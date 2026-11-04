@@ -251,6 +251,15 @@ private func audioItems(_ home: URL) -> [Candidate] {
         + AudioSoftware.uninstallItems(AudioSoftware.optionalDevices(home: home), hosts: AudioSoftware.reasonHosts)
 }
 
+/// #718: a Reason device is known by what its item carries, Reason's hosts, never by where its folder is; a driver isn't one.
+@Test func aReasonDeviceIsKnownByItsHosts() throws {
+    let (home, _, driver, devices) = try withAudioSoftware()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let items = audioItems(home)
+    #expect(Set(items.filter(AudioSoftware.isDevice).compactMap(\.uninstall?.path)) == Set(devices.map(\.path)))
+    #expect(items.contains { $0.uninstall?.path == driver.path && !AudioSoftware.isDevice($0) })
+}
+
 /// #716: uninstalling a driver or one of Reason's devices reads again only its row, as an app's uninstall does, never a full scan.
 @Test func uninstallingADriverOrAReasonDeviceTouchesOnlyItsRow() async throws {
     let (home, synth, driver, devices) = try withAudioSoftware()

@@ -89,8 +89,9 @@ public enum AudioSoftware {
         uninstallItems(drivers(home: home, systemRoot: systemRoot, only: only), hosts: [], exclusions: exclusions)
             + uninstallItems(optionalDevices(home: home, only: only), hosts: reasonHosts, exclusions: exclusions)
     }
-    /// Whether the row `id` is one of Reason's additional devices: read again here, never against the plug-in inventory (#716).
-    static func isDevice(_ id: String) -> Bool { URL(fileURLWithPath: id).deletingLastPathComponent().path.hasSuffix("/" + optionalDevices) }
+    /// Whether `item` uninstalls one of Reason's additional devices: read again here, never against the plug-in inventory (#716).
+    /// Its item says so, waiting for Reason's hosts (#718).
+    static func isDevice(_ item: Candidate) -> Bool { item.uninstall?.plugIn?.hosts == reasonHosts }
 
     /// The items that uninstall `entries` (drivers, Reason devices): each one the user can move to the Trash, as an app is
     /// (Decision 50), its own row's item; `hosts` must be closed first. Nothing for one that needs a password.

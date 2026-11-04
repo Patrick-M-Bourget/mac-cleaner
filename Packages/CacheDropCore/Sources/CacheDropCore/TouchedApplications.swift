@@ -58,7 +58,7 @@ extension CatalogExecutionResult {
             if item.uninstall != nil { touch(item) } else if AppRuleFamily.of(ruleID: item.ruleID) == .removedAppLeftovers, !touchLeftover(item) { return nil }
         }
         // A product is read again against the inventory it was found in; a Reason device, as the full scan reads it (#716).
-        let products = Set(shown.compactMap { $0.uninstall?.plugIn == nil ? nil : $0.uninstall?.path }.filter { !AudioSoftware.isDevice($0) }
+        let products = Set(shown.filter { $0.uninstall?.plugIn != nil && !AudioSoftware.isDevice($0) }.compactMap(\.uninstall?.path)
                            + shown.flatMap(\.sharedBy))
         guard touched.rows.intersection(products).isSubset(of: Set(plugIns?.products.map(\.id) ?? [])) else { return nil }
         return touched
