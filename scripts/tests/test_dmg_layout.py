@@ -61,7 +61,7 @@ class DiskImageLayoutTests(unittest.TestCase):
         self.assertLess(release.index('step "Notarizing the app"'), make)
         self.assertLess(make, release.index('step "Signing the DMG"'))
         self.assertLess(release.index('step "Signing the DMG"'), release.index('step "Notarizing the DMG"'))
-        self.assertLess(release.index('notarize "$dmg"'), release.index('xcrun stapler staple "$dmg"'))
+        self.assertLess(release.index('notarize "$dmg"'), release.index('stapler staple "$dmg"'))
 
 
 if __name__ == '__main__':
