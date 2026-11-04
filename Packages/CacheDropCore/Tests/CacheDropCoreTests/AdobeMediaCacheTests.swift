@@ -117,6 +117,10 @@ private func adobe(_ catalog: Catalog, _ home: URL) -> (candidates: [Candidate],
     let remote = catalog.movedAdobeMediaCaches(rule, home: home, sizer: KnownLocationSizer(), isLocal: { _ in false })
     #expect(remote.candidates.isEmpty)
     #expect(remote.notes.map(\.text) == ["Adobe settings name \(moved.path) as the media cache, which is on a network drive, so it isn’t offered."])
+    // A moved cache in iCloud Drive (a synced Desktop) is explained once and never offered.
+    let synced = catalog.movedAdobeMediaCaches(rule, home: home, sizer: KnownLocationSizer(), isInICloud: { _ in true })
+    #expect(synced.candidates.isEmpty)
+    #expect(synced.notes.map(\.text) == ["Adobe settings name \(moved.path) as the media cache, which is in iCloud Drive, so it isn’t offered."])
     // A drive whose kind can't be read is left out the same way.
     #expect(AdobeMediaCache.place(of: moved, isLocal: { _ in nil }) == .network)
     let item = try #require(adobe(catalog, home).candidates.first)

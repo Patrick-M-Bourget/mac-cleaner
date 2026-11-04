@@ -12,7 +12,7 @@ import Darwin
 /// <version>.plist` holds a `Media Cache` dictionary whose `FolderPath` and `DatabasePath` name the chosen folders, absent until
 /// the user moves the cache, and Adobe makes the same three folders inside the chosen one. After a move Premiere still writes to
 /// the default folder too, so both are offered. Only those three folders are ever offered from a moved location, never the
-/// folder the user chose or anything else in it, so it may be on any local drive; one on a network drive is left out.
+/// folder the user chose or anything else in it, so it may be on any local drive; one on a network drive or in iCloud Drive is left out.
 public enum AdobeMediaCache {
     static let ruleID = "adobe-media-cache"
     /// The default media cache location, under the home folder.
@@ -63,14 +63,19 @@ public enum AdobeMediaCache {
     }
 
     /// Where a moved folder is, as the plan explains it.
-    enum Place: Equatable { case local, network, notConnected, missing }
+    enum Place: Equatable { case local, network, notConnected, missing, iCloud }
 
     /// Whether `folder` is on a local drive; nil when that can't be read.
     static func isLocal(_ folder: URL) -> Bool? {
         (try? folder.resourceValues(forKeys: [.volumeIsLocalKey]))?.volumeIsLocal
     }
 
-    static func place(of folder: URL, isLocal: (URL) -> Bool? = AdobeMediaCache.isLocal) -> Place {
+    /// Whether `folder` syncs with iCloud Drive (a Desktop or Documents folder in iCloud); deleting there would delete it everywhere.
+    static func isInICloud(_ folder: URL) -> Bool {
+        (try? folder.resourceValues(forKeys: [.isUbiquitousItemKey]))?.isUbiquitousItem == true
+    }
+
+    static func place(of folder: URL, isLocal: (URL) -> Bool? = AdobeMediaCache.isLocal, isInICloud: (URL) -> Bool = AdobeMediaCache.isInICloud) -> Place {
         var info = stat()
         guard lstat(folder.path, &info) == 0, info.st_mode & S_IFMT == S_IFDIR else {
             // A folder on a drive that isn't mounted: `/Volumes/<name>` itself is gone.
@@ -79,7 +84,9 @@ public enum AdobeMediaCache {
             return .missing
         }
         // A drive whose kind can't be read is treated as a network drive: left out, never guessed.
-        return isLocal(folder) == true ? .local : .network
+        guard isLocal(folder) == true else { return .network }
+        // CacheDrop never deletes what iCloud stores (SPEC section 2), so a cache there is explained once, not skipped item by item.
+        return isInICloud(folder) ? .iCloud : .local
     }
 
     /// The plan's note for a moved folder nothing is offered from; nil for a local one.
@@ -88,6 +95,7 @@ public enum AdobeMediaCache {
         switch place {
         case .local: return nil
         case .network: return "\(says), which is on a network drive, so it isn’t offered."
+        case .iCloud: return "\(says), which is in iCloud Drive, so it isn’t offered."
         case .notConnected: return "\(says), which is on a drive that isn’t connected, so it isn’t offered."
         case .missing: return "\(says), but there’s no folder there, so it isn’t offered."
         }
@@ -113,13 +121,13 @@ public enum AdobeMediaCache {
 extension Catalog {
     /// The media cache folders in each moved location the settings name, scoped to that location, and a note for each location
     /// nothing is offered from. The rule's default folder is found as its other locations are.
-    func movedAdobeMediaCaches(_ rule: CleanupRule, home: URL, sizer: KnownLocationSizer,
-                               isLocal: (URL) -> Bool? = AdobeMediaCache.isLocal) -> (candidates: [Candidate], notes: [CatalogNote]) {
+    func movedAdobeMediaCaches(_ rule: CleanupRule, home: URL, sizer: KnownLocationSizer, isLocal: (URL) -> Bool? = AdobeMediaCache.isLocal,
+                               isInICloud: (URL) -> Bool = AdobeMediaCache.isInICloud) -> (candidates: [Candidate], notes: [CatalogNote]) {
         let settings = AdobeMediaCache.settings(home: home)
         var notes = settings.unreadable ? [CatalogNote(ruleID: rule.id, text: AdobeMediaCache.unreadableNote)] : []
         var candidates: [Candidate] = []
         for folder in settings.folders {
-            let place = AdobeMediaCache.place(of: folder, isLocal: isLocal)
+            let place = AdobeMediaCache.place(of: folder, isLocal: isLocal, isInICloud: isInICloud)
             if let text = AdobeMediaCache.note(place, shown: Self.tildePath(folder, base: home)) { notes.append(CatalogNote(ruleID: rule.id, text: text)); continue }
             for name in AdobeMediaCache.cacheFolders {
                 let url = folder.appendingPathComponent(name)
