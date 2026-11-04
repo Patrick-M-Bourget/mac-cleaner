@@ -86,19 +86,33 @@ public enum AppDataCaches {
 
     // MARK: Adobe
 
+    /// The Adobe video apps that share the media cache; nothing Adobe keeps for them is touched while one runs.
+    static let adobeVideoApps = RuleOwner(name: "Adobe video apps",
+                                          executables: ["Adobe Premiere*", "After Effects", "Adobe After Effects*", "Adobe Media Encoder*", "Adobe Audition*",
+                                                        "Adobe Character Animator*", "Adobe Prelude*", "dynamiclinkmanager"])
+
     /// Adobe's video apps share one media cache, by default in ~/Library/Application Support/Adobe/Common (Adobe Help,
-    /// "Delete media cache files manually": quit the app, then delete the files there): conformed audio, peak and
-    /// index files in `Media Cache Files`, and the database that links them in `Media Cache`. A cache moved in
-    /// Preferences > Media Cache isn't found; what stays in the default folder is still cache.
+    /// "Delete media cache files manually": quit the app, then delete the files there): conformed audio and index files in
+    /// `Media Cache Files`, the database that links them in `Media Cache`, and peak files in `Peak Files` (Adobe Help, "Manage
+    /// media cache"). A cache moved in Settings › Media Cache is found from Adobe's settings (`AdobeMediaCache`, #730); the rest
+    /// of Common (Motion Graphics Templates, LUTs, Team Projects) is never a location.
     static let adobeMediaCache = CleanupRule(
-        id: "adobe-media-cache", category: .system, title: "Adobe media cache",
+        id: AdobeMediaCache.ruleID, category: .system, title: "Adobe media cache",
         detail: "Conformed audio, peak and index files Premiere, After Effects and Media Encoder made from your media.",
         consequence: "Your projects and media are kept, and Adobe apps rebuild these files when you open a project.",
         regen: .cache, action: .delete,
-        locations: ["Library/Application Support/Adobe/Common/Media Cache Files", "Library/Application Support/Adobe/Common/Media Cache"],
-        owner: RuleOwner(name: "Adobe video apps",
-                         executables: ["Adobe Premiere*", "After Effects", "Adobe After Effects*", "Adobe Media Encoder*", "Adobe Audition*",
-                                       "Adobe Character Animator*", "Adobe Prelude*", "dynamiclinkmanager"]))
+        locations: AdobeMediaCache.cacheFolders.map { AdobeMediaCache.defaultFolder + "/" + $0 },
+        owner: adobeVideoApps)
+
+    /// Premiere Pro's own cache for each version, ~/Library/Caches/Adobe/Premiere Pro/<version> (observed on 26.0, #730: its
+    /// type support cache and crash reporter's database). Its settings (~/Library/Preferences/Adobe) and projects and
+    /// auto-saves (~/Documents/Adobe) are never locations.
+    static let premiereProCache = CleanupRule(
+        id: "premiere-pro-cache", category: .system, title: "Premiere Pro cache",
+        detail: "Files Premiere Pro keeps to start and work faster, per version.",
+        consequence: "Your projects, settings and media are kept, and Premiere Pro rebuilds these files as you use it.",
+        regen: .cache, action: .delete, locations: ["Library/Caches/Adobe/Premiere Pro/*"], owner: adobeVideoApps,
+        itemName: { "Premiere Pro " + $0 })
 
     // MARK: Audio production (#139)
 
@@ -140,6 +154,7 @@ public enum AppDataCaches {
         [
             jetBrains(apps: apps),
             adobeMediaCache,
+            premiereProCache,
             abletonCache,
             sandboxedCaches(apps: apps),
             vsCode(id: "vscode-cache", name: "Visual Studio Code", nameShort: "Code", bundleID: "com.microsoft.VSCode"),
