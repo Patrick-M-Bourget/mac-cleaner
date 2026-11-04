@@ -122,8 +122,8 @@ public enum AppDataCaches {
     /// Disk isn't offered: where After Effects records it isn't documented, and CacheDrop doesn't guess. Real check: #736.
     static let afterEffectsCache = CleanupRule(
         id: "after-effects-cache", category: .photoVideo, title: "After Effects cache",
-        detail: "Frames After Effects saved to preview faster, per version.",
-        consequence: "Your projects, settings and media are kept, and After Effects saves frames again as you preview.",
+        detail: "Files After Effects keeps to preview and work faster, per version.",
+        consequence: "Your projects, settings and media are kept, and After Effects rebuilds these files as you preview.",
         regen: .cache, action: .delete, locations: ["Library/Caches/Adobe/After Effects/*"], owner: adobeVideoApps,
         itemName: { "After Effects " + $0 })
 
