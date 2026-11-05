@@ -1037,9 +1037,18 @@ struct InspectableItemRow<Selection: View>: View {
     /// Shows the item in Finder: its own "Reveal in Finder" link after the size, never a row click (Decision 72).
     var reveal: (() -> Void)? = nil
     var revealIdentifier = ""
+    /// A line under the name of a row with no selection, such as a sound's "<tool> can remove or move it" (#714, #718).
+    var status: StatusRow? = nil
     @ViewBuilder var selection: () -> Selection
     private var summary: String { detail.isEmpty ? size : detail + ", " + size }
     var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            row
+            // In the name's column: past the row's padding, the icon and the gap after it.
+            if let status { status.padding(.leading, CacheDropDesign.Space.md * 2 + CacheDropDesign.Size.itemIcon).padding(.bottom, CacheDropDesign.Space.md) }
+        }.background(inspected ? CacheDropDesign.focus.opacity(CacheDropDesign.Opacity.inspectedItem) : .clear, in: RoundedRectangle(cornerRadius: CacheDropDesign.Radius.row))
+    }
+    private var row: some View {
         HStack(alignment: .center, spacing: CacheDropDesign.Space.md) {
             selection()
             if let inspect {
@@ -1056,7 +1065,6 @@ struct InspectableItemRow<Selection: View>: View {
                     .accessibilityIdentifier(revealIdentifier)
             }
         }.padding(CacheDropDesign.Space.md)
-            .background(inspected ? CacheDropDesign.focus.opacity(CacheDropDesign.Opacity.inspectedItem) : .clear, in: RoundedRectangle(cornerRadius: CacheDropDesign.Radius.row))
     }
     private var content: some View {
         HStack(spacing: CacheDropDesign.Space.md) {
