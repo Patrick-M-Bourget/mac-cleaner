@@ -16,6 +16,8 @@ struct SmartCleanView: View {
     @State private var approvalError: String?
     /// Clean up found nothing it can clean since the scan: the page says so, with Scan again (#321).
     @State private var nothingToClean = false
+    /// Worth a look's open rows, this page's own (Decision 48: each screen keeps its open state).
+    @State private var worthALookOpen: Set<CatalogCategory> = []
     private var model: CatalogCleanupModel { selection.catalog }
 
     var body: some View {
@@ -79,6 +81,7 @@ struct SmartCleanView: View {
             }
             if rows.isEmpty && model.hasScanned && !model.isScanning && !model.settingsUnreadable { NothingToCleanUp(identifier: "smartCleanEmpty") }
             notIncluded
+            worthALook
         }.padding(CacheDropDesign.Space.page).frame(maxWidth: .infinity, alignment: .leading)
     }
 
@@ -109,6 +112,25 @@ struct SmartCleanView: View {
             Text("·").foregroundStyle(.secondary).accessibilityHidden(true)
             Button(SmartCleanSummary.adjust) { openPlan(nil) }.buttonStyle(.link).accessibilityIdentifier("smartCleanAdjust")
         }.font(CacheDropDesign.TypeStyle.caption).accessibilityElement(children: .contain).accessibilityIdentifier("smartCleanNotIncluded")
+    }
+
+    /// Worth a look (#780, Decision 178): a quiet group under the rows, of suggestions never ticked for you, each the row
+    /// Applications draws, its tick shared. Nothing in it, no header. Its items count in Free up X only once ticked.
+    @ViewBuilder private var worthALook: some View {
+        let rows = model.worthALookRows
+        if model.hasScanned, !rows.isEmpty {
+            VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
+                Text(WorthALook.title).font(CacheDropDesign.TypeStyle.section).accessibilityAddTraits(.isHeader)
+                    .accessibilityIdentifier("smartCleanWorthALook")
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(rows) { row in
+                        PlanCategoryRow(model: model, row: row, expanded: Binding(get: { worthALookOpen.contains(row.category) },
+                                                                                 set: { if $0 { worthALookOpen.insert(row.category) } else { worthALookOpen.remove(row.category) } }))
+                        Divider().padding(.vertical, CacheDropDesign.Space.md)
+                    }
+                }.waitingForScan(model.isScanning)
+            }.padding(.top, CacheDropDesign.Space.lg)
+        }
     }
 
     private func openReview() async {

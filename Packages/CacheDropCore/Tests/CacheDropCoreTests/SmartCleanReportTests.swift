@@ -69,12 +69,13 @@ private func snapshot(_ root: URL) -> [String: String] {
 
     let report = SmartCleanReport.run(sources, now: now)
 
-    #expect(Set(report.picked.map(\.candidate.url.lastPathComponent)) == ["_cacache", "Old Setup.dmg", "FooData"])
+    // A receipt-tied leftover is Worth a look's, never picked (#780, Decision 178).
+    #expect(Set(report.picked.map(\.candidate.url.lastPathComponent)) == ["_cacache", "Old Setup.dmg"])
     let text = report.text
     #expect(text.contains("Nothing on disk was changed"))
     #expect(text.contains("~/Downloads/Old Setup.dmg"))
     #expect(text.contains("not opened or changed in 200 days"))
-    #expect(text.contains("tied to Foo by installer receipt com.foocorp.foo.pkg"))
+    #expect(!text.contains("FooData"))
     #expect(text.contains("Comes back on its own when your tools and Xcode need it"))
     #expect(text.contains("Goes to the Trash; Put back works"))
     #expect(!text.contains("New Setup.dmg"))

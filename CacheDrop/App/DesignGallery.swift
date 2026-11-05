@@ -209,6 +209,12 @@ struct DesignGallery: View {
                         Text("Example cache").font(CacheDropDesign.TypeStyle.note)
                         Text("Example build files").font(CacheDropDesign.TypeStyle.note)
                     }
+                    // Smart clean's Worth a look (#780, Decision 178): a section title over the row Applications draws, never ticked for you.
+                    Text(WorthALook.title).font(CacheDropDesign.TypeStyle.section).accessibilityAddTraits(.isHeader)
+                    CategoryRow(category: .leftovers, state: .unchecked, title: CatalogCategory.leftovers.overviewTitle, detail: CatalogCategory.leftovers.overviewDetail,
+                                size: "84 MB", enabled: true, identifier: "galleryWorthALookRow", itemCount: 3, expanded: .constant(false), toggle: {}) {
+                        EmptyView()
+                    } items: { EmptyView() }
                     // Applications (Decision 51): a row that can't be chosen has no checkbox, and says why.
                     CategoryRow(category: .apps, state: nil, title: "Example app", detail: "Example maker", size: "800 MB", enabled: true,
                                 identifier: "galleryReadOnlyRow", itemCount: nil, expanded: .constant(false), toggle: {}) {

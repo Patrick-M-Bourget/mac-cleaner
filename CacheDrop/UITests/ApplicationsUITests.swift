@@ -775,7 +775,7 @@ final class ApplicationsUITests: XCTestCase {
     }
 
     /// #270, #349: a leftover ticked on Applications is reviewed and cleaned there (dry run); Overview calls it "Selected"
-    /// only once its tick differs from the recommended default.
+    /// once its tick differs from the recommended default, which never ticks files from deleted apps (#780).
     @MainActor func testALeftoverIsTickedAndCleanedFromApplications() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
@@ -792,8 +792,9 @@ final class ApplicationsUITests: XCTestCase {
         openApplications(app)
         let category = app.checkBoxes["planCategory-leftovers"]
         XCTAssertTrue(category.waitForExistence(timeout: 10))
-        // Tied to its removed app by its container, so it arrives ticked: the recommended default, not "Selected".
-        XCTAssertEqual(category.value as? Int, 1)
+        // Tied to its removed app by its container, yet never ticked for you (#780): an app's settings are data.
+        XCTAssertEqual(category.value as? Int, 0)
+        tick(category, in: app)
         // #481: the plan's count leaves it out, so its summary says one more is selected on Applications, with a link there.
         app.typeKey("3", modifierFlags: .command)
         let elsewhere = element(app, "liveSelectionSummaryElsewhere")
@@ -804,7 +805,7 @@ final class ApplicationsUITests: XCTestCase {
         app.typeKey("1", modifierFlags: .command)
         let row = app.buttons["overviewCategory-leftovers"]
         XCTAssertTrue(row.waitForExistence(timeout: 5))
-        XCTAssertFalse((row.value as? String ?? "").contains("Selected"), String(describing: row.value))
+        XCTAssertTrue((row.value as? String ?? "").contains("Selected"), String(describing: row.value))
 
         openApplications(app)
         XCTAssertEqual(app.checkBoxes["planCategory-leftovers"].value as? Int, 1, "Its tick is kept")
@@ -836,7 +837,9 @@ final class ApplicationsUITests: XCTestCase {
         let count = app.staticTexts["applicationsSummary"], size = app.staticTexts["applicationsSummaryValue"]
         XCTAssertTrue(size.waitForExistence(timeout: 5))
         func text(_ element: XCUIElement) -> String { element.value as? String ?? element.label }
-        XCTAssertEqual(text(count), "1 item selected", "Recommended leftovers count; other pages' caches do not")
+        XCTAssertEqual(text(count), "0 items selected", "Files from deleted apps are never ticked for you (#780)")
+        tick(app.checkBoxes["planCategory-leftovers"], in: app)
+        XCTAssertEqual(text(count), "1 item selected", "The ticked leftover counts; other pages' caches do not")
         XCTAssertTrue(text(size).hasSuffix(" to Trash"))
         XCTAssertEqual(text(count), text(app.staticTexts["actionStripNote"]))
         XCTAssertLessThan(size.frame.minY, app.buttons["applicationsSort-name"].frame.minY)
@@ -865,7 +868,7 @@ final class ApplicationsUITests: XCTestCase {
         XCTAssertEqual(text(count), "3 items selected")
         search.typeKey("a", modifierFlags: .command); search.typeKey(.delete, modifierFlags: [])
         app.typeKey("2", modifierFlags: .command)
-        revealAndClick(app.checkBoxes["smartCleanCategory-leftovers"], in: app)
+        revealAndClick(app.checkBoxes["planCategory-leftovers"], in: app) // Smart clean's Worth a look (#780)
         openApplications(app, ["apps", "plug-ins"])
         XCTAssertEqual(text(count), "2 items selected", "Another page changes the same selection")
         XCTAssertNotEqual(text(size), selectedSize)

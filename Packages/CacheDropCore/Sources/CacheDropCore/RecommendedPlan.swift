@@ -1,8 +1,9 @@
 import Foundation
 
 /// The plan CacheDrop recommends from the latest scan, Smart clean's (#319, amending Decisions 28 and 31): data that comes
-/// back on its own, a tool's own cleanup of its cache, old downloads (#342) and leftovers tied to a removed app, that
-/// pass the checks now. Everything else is left to the user. Its items start ticked on every page (#349, `CleanupSelections`).
+/// back on its own, a tool's own cleanup of its cache and old downloads (#342), that pass the checks now. Files from deleted
+/// apps are never taken, even when tied to their app (#780, Decision 178: an app's settings are data); Smart clean suggests
+/// them unticked under Worth a look. Everything else is left to the user. Its items start ticked on every page (#349, `CleanupSelections`).
 public struct RecommendedPlan: Sendable {
     /// The scan's candidates the plan takes, in scan order.
     public let candidates: [Candidate]
@@ -41,7 +42,7 @@ public struct RecommendedPlan: Sendable {
     static func recommends(_ candidate: Candidate, rule: CleanupRule, now: Date) -> Bool { basis(candidate, rule: rule, now: now) != nil }
 
     /// Why the plan takes `candidate`, found by `rule`; nil when it doesn't. The Smart clean report words its reason from it.
-    enum Basis { case rebuildsItself, oldDownload, leftover(LeftoverTie) }
+    enum Basis { case rebuildsItself, oldDownload }
     static func basis(_ candidate: Candidate, rule: CleanupRule, now: Date) -> Basis? {
         guard candidate.action == rule.action else { return nil }
         switch rule.action {
@@ -51,8 +52,6 @@ public struct RecommendedPlan: Sendable {
             return rebuildsItself.contains(rule.regen) && !rule.choosesItems && !rule.isDocker ? .rebuildsItself : nil
         case .trash:
             if rule.id == CleanupRule.downloadsID { return isOldDownload(candidate, now: now) ? .oldDownload : nil }
-            // Only a bundle ID or installer receipt ties a leftover to its app; a name-only match is possibly related.
-            if rule.id == RemovedAppLeftovers.ruleID, let tie = candidate.leftover, !tie.isNameOnly { return .leftover(tie) }
             return nil
         case .evict, .guidance:
             return nil

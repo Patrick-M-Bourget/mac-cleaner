@@ -39,8 +39,9 @@ The names CacheDrop shows, what they mean, and where they live in code. Copy fol
 | category | A group on Overview and the plan (Developer caches, Downloads, …) | `CatalogCategory` |
 | rule | One kind of thing CacheDrop can clean, with its action and consequence | `CleanupRule` |
 | item | One thing a rule found on disk | `Candidate` |
-| recommended | Items Smart clean ticks by default | `RecommendedPlan` |
+| recommended | Items Smart clean ticks by default; never files from deleted apps (#780) | `RecommendedPlan` |
 | Old downloads | Smart clean's row for the downloads it takes, those nothing opened or changed in 7 days; its line says so (#342, #779) | `CatalogCategory.smartCleanTitle`, `CatalogCategory.oldDownloadsDetail` |
+| Worth a look | Smart clean's quiet group under its ticked categories: suggestions never ticked for you, starting with Files from deleted apps; shown only when it found something (#780) | `WorthALook` |
 | Weekly reminder | The opt-in weekly notification of what Smart clean had at the last scan | `WeeklyReminderController`, `WeeklyReminderSchedule` |
 | ticked / selection | What will be cleaned; shared by Smart clean, the plan and Applications | `CleanupSelections` |
 | scanned location | A folder CacheDrop scans; Downloads is **Built in** | `ScannedLocation`, `RememberedLocations` |

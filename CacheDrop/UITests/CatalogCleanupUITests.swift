@@ -2732,10 +2732,11 @@ extension CatalogCleanupUITests {
         app.buttons["Cancel"].click()
     }
 
-    /// #319, #342: Smart clean's wider plan. A download not opened or changed in 7 days, under "Old downloads", Homebrew's cache and a leftover an installer receipt
-    /// ties to its removed app all start ticked, each category with the plan's what-it-is line (#779). Unticking the installer leaves the
-    /// rest, which the review groups by consequence. A dry run, so nothing changes and the stand-in `brew` never runs.
-    @MainActor func testSmartCleanTicksAnOldInstallerAHomebrewCacheAndAReceiptTiedLeftover() throws {
+    /// #319, #342: Smart clean's wider plan. A download not opened or changed in 7 days, under "Old downloads", and Homebrew's cache
+    /// start ticked, each category with the plan's what-it-is line (#779). A leftover an installer receipt ties to its removed app is
+    /// under Worth a look, unticked (#780), and joins the run once ticked. Unticking the installer leaves the rest, which the review
+    /// groups by consequence. A dry run, so nothing changes and the stand-in `brew` never runs.
+    @MainActor func testSmartCleanTicksAnOldInstallerAndAHomebrewCacheAndSuggestsAReceiptTiedLeftover() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
         let state = try configureIsolatedState(app)
@@ -2764,10 +2765,15 @@ extension CatalogCleanupUITests {
         app.typeKey("2", modifierFlags: .command)
 
         let downloads = app.checkBoxes["smartCleanCategory-downloads"], developer = app.checkBoxes["smartCleanCategory-developer"]
-        let leftovers = app.checkBoxes["smartCleanCategory-leftovers"]
+        // Worth a look draws the row Applications draws (#780).
+        let leftovers = app.checkBoxes["planCategory-leftovers"]
         XCTAssertTrue(app.descendants(matching: .any)["smartCleanHeader"].waitForExistence(timeout: 10), "Smart clean is open")
         XCTAssertTrue(downloads.waitForExistence(timeout: 30))
-        for category in [downloads, developer, leftovers] { XCTAssertEqual(category.value as? Int, 1, category.identifier) }
+        for category in [downloads, developer] { XCTAssertEqual(category.value as? Int, 1, category.identifier) }
+        XCTAssertFalse(app.checkBoxes["smartCleanCategory-leftovers"].exists, "Files from deleted apps are never ticked for you")
+        XCTAssertTrue(app.descendants(matching: .any)["smartCleanWorthALook"].exists)
+        XCTAssertTrue(leftovers.exists)
+        XCTAssertEqual(leftovers.value as? Int, 0, "Worth a look starts unticked")
         func text(_ line: String) -> XCUIElementQuery { app.staticTexts.matching(NSPredicate(format: "label == %@ OR value == %@", line, line)) }
         XCTAssertEqual(text("Old downloads").count, 1, "Smart clean names its Downloads category by what it takes (#342)")
         for line in ["Downloads you haven’t opened in 7 days", "Package caches and build files that tools rebuild", "Settings and data they left behind"] {
@@ -2787,6 +2793,11 @@ extension CatalogCleanupUITests {
         XCTAssertEqual(developer.frame.minY, developerTop, "Nothing above the categories moved")
         XCTAssertEqual(read(total), totalBefore, "Installers go to the Trash and were never in the total")
         XCTAssertNotEqual(read(count), countBefore, "The unticked installer leaves the count")
+        // Ticked, the leftover joins the count; it goes to the Trash, so Free up stays as it is.
+        let countUnticked = read(count)
+        tick(leftovers, in: app)
+        XCTAssertNotEqual(read(count), countUnticked, "A ticked suggestion is in Smart clean's selection")
+        XCTAssertEqual(read(total), totalBefore)
         app.buttons["smartCleanCleanUp"].click()
 
         XCTAssertTrue(reviewLine(app, "permanentlyRemoved", "developer").waitForExistence(timeout: 10), "The npm cache")

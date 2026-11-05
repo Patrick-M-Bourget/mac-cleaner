@@ -137,13 +137,41 @@ private let leftover = item(RemovedAppLeftovers.ruleID, name: "Synth"), related 
     #expect(selections.chosen(on: .applications, from: found).map(\.ruleID) == [RemovedAppLeftovers.ruleID, RemovedAppLeftovers.possiblyRelatedRuleID])
 }
 
-/// #349: a leftover tied to its removed app is in Smart clean, ticked, and its tick is the Applications page's too.
-@Test func aLeftoverInSmartCleanSharesItsTickWithApplications() {
+/// #780, Decision 178: files from deleted apps are Smart clean's Worth a look, never ticked for you; a tick on either page is
+/// Applications' too, and Smart clean's Clean up takes it only once ticked, possibly related items included.
+@Test func worthALookIsUntickedUntilTickedAndSharesItsTickWithApplications() {
     var selections = CleanupSelections()
-    selections.noteChoices(among: scan + [leftover], recommended: recommended + [leftover])
-    #expect(selections.chosen(on: .applications, from: scan + [leftover]) == [leftover])
+    let found = scan + [leftover, related]
+    selections.noteChoices(among: found, recommended: recommended)
+    #expect(!selections.isTicked(leftover) && !selections.isTicked(related))
+    #expect(selections.smartClean(catalog: catalog, found: found) { _ in nil }.map(\.ruleID) == ["npm-cache", "app-logs", "xcode-derived-data"])
+
+    selections.set([leftover, related], ticked: true)
+    #expect(selections.chosen(on: .applications, from: found) == [leftover, related])
+    #expect(selections.smartClean(catalog: catalog, found: found) { _ in nil }.map(\.ruleID)
+            == ["npm-cache", "app-logs", "xcode-derived-data", RemovedAppLeftovers.ruleID, RemovedAppLeftovers.possiblyRelatedRuleID])
     selections.set([leftover], ticked: false)
-    #expect(selections.chosen(on: .applications, from: scan + [leftover]).isEmpty)
+    #expect(selections.chosen(on: .applications, from: found) == [related])
+}
+
+/// #307: a tick under Worth a look changes Smart clean's choices, so its open review sheet knows.
+@Test func aWorthALookTickMovesSmartCleansRevision() {
+    var selections = CleanupSelections()
+    let found = scan + [leftover]
+    selections.noteChoices(among: found, recommended: recommended)
+    let before = selections.revision(of: .smartClean)
+    selections.set([leftover], ticked: true)
+    selections.noteChoices(among: found, recommended: recommended)
+    #expect(selections.revision(of: .smartClean) != before)
+}
+
+/// #780: Worth a look holds Files from deleted apps, and only when something was found; nothing found means no group.
+@Test func worthALookListsFilesFromDeletedAppsOnlyWhenFound() {
+    let catalog = Catalog(rules: fixtureRules + RemovedAppLeftovers.rules)
+    #expect(WorthALook.title == "Worth a look")
+    #expect(WorthALook.rows(in: CatalogOverview(catalog: catalog, candidates: scan + [leftover, related])).map(\.category) == [.leftovers])
+    #expect(WorthALook.rows(in: CatalogOverview(catalog: catalog, candidates: scan)).isEmpty)
+    #expect(WorthALook.offers(leftover) && WorthALook.offers(related) && !WorthALook.offers(installer))
 }
 
 /// #270: quitting with only leftovers ticked still has choices to lose.
@@ -207,10 +235,12 @@ private func revisions(_ selections: CleanupSelections) -> [UInt64] { CleanupSel
 }
 
 /// #333: Applications' choices changing moves only its revision.
+/// An app's uninstall is Applications' alone; files from deleted apps are Smart clean's Worth a look too (#780).
 @Test func aScanThatDropsAnApplicationsChoiceMovesOnlyItsRevision() {
     var selections = CleanupSelections()
-    selections.set([installer, leftover], ticked: true)
-    selections.noteChoices(among: scan + [leftover], recommended: [npm, logs])
+    let app = item(AppRuleFamily.uninstallRules[0].id, name: "Synth.app")
+    selections.set([installer, app], ticked: true)
+    selections.noteChoices(among: scan + [app], recommended: [npm, logs])
     let smart = selections.revision(of: .smartClean), apps = selections.revision(of: .applications), plan = selections.revision(of: .plan)
     selections.keepOnly(scan, recommended: [npm, logs])
     #expect(selections.revision(of: .applications) != apps)
