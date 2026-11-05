@@ -29,7 +29,7 @@ When checking layout-preserving changes, run `scripts/visual-check.py capture --
 
 - `overview` (the default): Overview, then the Cleanup plan.
 - `audio-software`: #719's Audio software rows (`addAudioSoftware`). `sounds` is Applications with Show sounds open near the top of the page; `drivers` scrolls on to the opened Drivers group. Scroll a page with `reveal(_:in:nearTop:)`, which finds its scroll view through `app.scrollViews`; `window.scrollViews` matched nothing when #719 was captured.
-- `photo-video`: #733's Photo and video rows: Adobe's media cache, default and moved (#730), and Premiere Pro's and After Effects' caches (#400) (`addAdobeCaches`), and Final Cut Pro's libraries (#399, `addFinalCutLibraries`). `overview` is Overview with its Photo and video row; `smart-clean` is Smart clean with Photo and video's Choose items open; `plan` is the Cleanup plan opened from Overview's row, Photo and video open at the top; `plan-final-cut` scrolls on to Final Cut Pro's render files.
+- `photo-video`: #733's Photo and video rows: Adobe's media cache, default and moved (#730), and Premiere Pro's and After Effects' caches (#400) (`addAdobeCaches`), and Final Cut Pro's libraries (#399, `addFinalCutLibraries`). `overview` is Overview with its Photo and video row; `smart-clean` is Smart clean with Photo and video's Choose items open; `plan-photo-video` is the Cleanup plan opened from Overview's row, Photo and video open at the top; `plan-final-cut` scrolls on to Final Cut Pro's render files.
 
 Without DIR, the captures go to a fresh folder in the temp directory, and the command prints it. A DIR must be new and outside the checkout; an existing folder is refused.
 
