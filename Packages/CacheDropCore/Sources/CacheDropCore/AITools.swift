@@ -31,7 +31,7 @@ public enum AITools {
     /// where it builds and keeps scratch checkouts. Guidance only: work there may exist nowhere else.
     static let agentWorkspaces = CleanupRule(
         id: "agent-workspaces", category: .managed, title: "AI agent workspaces",
-        detail: "Checkouts and build scratch AI coding agents keep in their own folders. Review them before removing any; work there may not be pushed.",
+        detail: "Checkouts and build files AI coding agents keep in their own folders · unpushed work may be lost",
         consequence: "Guidance only: CacheDrop shows the size and where to manage it, and never changes it.",
         regen: .userFile, action: .guidance,
         locations: [".codex/worktrees", "Library/Caches/Codex", "/private/tmp/claude-\(getuid())"], owner: nil,
