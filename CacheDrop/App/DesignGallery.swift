@@ -16,6 +16,7 @@ struct DesignGallery: View {
     @State private var categoryRowExpanded = false
     @State private var applicationsSectionExpanded = true
     @State private var makerGroupExpanded = true
+    @State private var onboardingExpanded = true
     var body: some View {
         VStack(spacing: 0) {
             HStack {
@@ -37,6 +38,9 @@ struct DesignGallery: View {
                         Image(systemName: "chevron.right").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
                         QuietLink(title: "Logic Pro Projects archived from the old studio drive", current: true) {}
                     }.font(CacheDropDesign.TypeStyle.note)
+                    // Onboarding's two steps (#783), each at its real sheet size: Welcome, then one sheet that scans and shows what it found.
+                    DisclosureGroup("Onboarding · Synthetic examples", isExpanded: $onboardingExpanded) { OnboardingGalleryExamples() }
+                        .accessibilityIdentifier("galleryOnboarding")
                     Button { shellExamplesExpanded.toggle() } label: {
                         Label("Synthetic shell and appearance examples", systemImage: shellExamplesExpanded ? "chevron.down" : "chevron.right")
                     }.buttonStyle(.plain).accessibilityValue(shellExamplesExpanded ? "Expanded" : "Collapsed").accessibilityIdentifier("galleryShellExamples")
@@ -263,6 +267,42 @@ struct DesignGallery: View {
         .cacheDropButtonRule()
         .environment(\.cacheDropOpaqueChrome, opaque)
         .preferredColorScheme(appearance == .automatic ? nil : appearance == .dark ? .dark : .light)
+    }
+}
+/// Onboarding's steps (#783) with synthetic data: Welcome, Scanning with 4 of 10 categories read, Ready and Nothing found.
+private struct OnboardingGalleryExamples: View {
+    @State private var sharing = false
+    private static let categories: [CatalogCategory] = [.developer, .browser, .system, .downloads, .audio, .photoVideo, .models, .updaters, .logs, .leftovers]
+    private static let found: [(CatalogCategory, Int64)] = [(.developer, 3_900_000_000), (.browser, 1_600_000_000), (.system, 800_000_000),
+                                                             (.downloads, 300_000_000), (.logs, 200_000_000)]
+    var body: some View {
+        VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
+            example("Welcome", "welcome") {
+                OnboardingWelcomeStep(categories: Self.categories, onStart: {}, onClose: {})
+            }
+            example("Scanning · 4 of 10 categories read", "scanning") {
+                step(.scanning(found: 2_700_000_000, finished: Set(Self.categories.prefix(4))))
+            }
+            example("Ready", "ready") {
+                step(.ready(found: Self.found.reduce(0) { $0 + $1.1 },
+                            breakdown: StorageBreakdown(used: 380_000_000_000, total: 500_000_000_000,
+                                                        categories: Self.found.map { ($0.0, .measured($0.1)) }, trash: .holds(0)),
+                            top: Self.found.prefix(3).map { .init(category: $0.0, estimate: .measured($0.1)) }))
+            }
+            example("Nothing found", "nothingFound") { step(.nothingFound) }
+        }.padding(.top, CacheDropDesign.Space.md)
+    }
+    private func step(_ phase: OnboardingScanStep.Phase) -> some View {
+        OnboardingScanStep(categories: Self.categories, phase: phase, sharesSetupProgress: $sharing, onStartSmartClean: {}, onViewOverview: {}, onClose: {})
+    }
+    /// A sheet on the gallery's page, outlined so its real size reads true in a window shot.
+    private func example(_ title: String, _ name: String, @ViewBuilder sheet: () -> some View) -> some View {
+        VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
+            Text(title).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+            sheet().clipShape(RoundedRectangle(cornerRadius: CacheDropDesign.Radius.surface)).overlay {
+                RoundedRectangle(cornerRadius: CacheDropDesign.Radius.surface).strokeBorder(CacheDropDesign.separator, lineWidth: CacheDropDesign.Stroke.fine)
+            }
+        }.accessibilityElement(children: .contain).accessibilityIdentifier("onboardingGallery-" + name)
     }
 }
 /// Inert presentation examples reuse the live capacity components; no reads or timers.
