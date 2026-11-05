@@ -67,7 +67,7 @@ import SwiftUI
     /// Every page's revision, for watching whether any page's choices changed.
     var selectionRevisions: [UInt64] { CleanupSelections.Source.allCases.map(selections.revision(of:)) }
     /// Ticks newly recommended items and notes each page's choices after a change; the revision moves only if they differ.
-    private func noteChoices() { selections.noteChoices(among: candidates, recommended: recommendedCandidates, held: heldCandidates) }
+    private func noteChoices() { selections.noteChoices(among: candidates, recommended: recommendedCandidates, held: heldCandidates, suggested: worthALookAppItems) }
     /// What something held at the scan, or whose owner runs now (#374): listed unticked, never ticked for you.
     private var heldCandidates: [Candidate] { candidates.filter { $0.hold != nil } + recommendedPlan.held }
     private(set) var isRunning = false
@@ -367,6 +367,17 @@ import SwiftUI
     /// Smart clean's Worth a look (#780, Decision 178): the files from deleted apps the recommended plan doesn't take; never
     /// ticked for you.
     var worthALookCandidates: [Candidate] { WorthALook.candidates(in: discovered, plan: recommendedPlan) }
+    /// Worth a look's Apps you haven't opened in 6 months (#781, Decision 188): one app bundle per app, never ticked for you.
+    var worthALookApps: [Candidate] { WorthALook.unopenedApps(in: uninstallable, now: Date(), check: ownerRunning) }
+    /// What ticking those apps takes, as on Applications: Smart clean's once ticked.
+    var worthALookAppItems: [Candidate] { WorthALook.items(of: worthALookApps, in: uninstallable) }
+    /// Worth a look's apps row's checkbox: never ticks every app at once; it opens the apps, or clears what's ticked (#781).
+    func oneByOneSelection(_ items: [Candidate]) -> CategorySelection { CategorySelection(oneByOne: items, selected: selectedIDs) }
+    /// An Applications row's size: its items, shared ones counted on no row, so a page counts them once (#288, Decisions 51 and 52).
+    func uninstallSize(ofRow id: String) -> SizeEstimate? {
+        let items = uninstallItems(ofRow: id)
+        return items.isEmpty ? nil : SizeEstimate(sum: items.filter(\.sharedBy.isEmpty).map(SizeEstimate.init))
+    }
     /// The Applications page's Leftovers row; nil when none were found.
     var leftoversRow: CatalogOverview.Row? { offeredOverview.rows.first { $0.category == .leftovers } }
     /// The items to uninstall an Applications row with, by its id (`AppUninstall.Target.path`): an installed app's (#177), or
@@ -703,7 +714,7 @@ import SwiftUI
     #endif
     /// Drops chosen items that are no longer offered, and says so. The revision moves only when a page's choices changed (#307).
     private func keepOnlyCurrentChoices() {
-        if selections.keepOnly(candidates, recommended: recommendedCandidates, held: heldCandidates) { message = "Some items changed or are no longer on this Mac and were removed from your plan." }
+        if selections.keepOnly(candidates, recommended: recommendedCandidates, held: heldCandidates, suggested: worthALookAppItems) { message = "Some items changed or are no longer on this Mac and were removed from your plan." }
     }
 
     /// Lists a picked folder's large and old files from its finished scan, and its projects' build folders. Read-only; nothing is chosen.
@@ -738,11 +749,11 @@ import SwiftUI
     var recommendedCandidates: [Candidate] { recommendedPlan.candidates }
     /// What Smart clean would take but something holds (#374): in use at the scan, or its owner running. Listed unticked.
     var recommendedHeld: [Candidate] { recommendedPlan.held }
-    private var recommendedPlan: RecommendedPlan {
+    private var recommendedPlan: RecommendedPlan { RecommendedPlan(catalog: catalog, candidates: discovered, check: ownerRunning) }
+    /// What a running owner holds, as the last scan sees it (#374).
+    private var ownerRunning: (Candidate) -> CheckRefusal? {
         let running = runningOwners, names = ownerNames
-        return RecommendedPlan(catalog: catalog, candidates: discovered) { item in
-            names[item.id]?.first { running.contains($0) }.map(CheckRefusal.ownerRunning)
-        }
+        return { item in names[item.id]?.first { running.contains($0) }.map(CheckRefusal.ownerRunning) }
     }
     /// "Up to" when part of the plan is copies that share disk blocks (SPEC section 6).
     /// The items' total size; "Up to" when part of it is copies that share disk blocks (SPEC section 6).
@@ -753,7 +764,7 @@ import SwiftUI
     /// those ticked under Worth a look (#780).
     var smartCleanCandidates: [Candidate] {
         let plan = recommendedPlan
-        return (plan.candidates + plan.held + WorthALook.candidates(in: discovered, plan: plan)).filter(selections.isTicked)
+        return (plan.candidates + plan.held + WorthALook.candidates(in: discovered, plan: plan) + worthALookAppItems).filter(selections.isTicked)
     }
     /// Smart clean's selection checked now: the recommended plan with the full checks, minus what was unticked, plus what the
     /// page listed that the checks now refuse, for the review to explain. Nil when nothing could be checked or the scan changed meanwhile.
@@ -762,9 +773,9 @@ import SwiftUI
     func smartCleanCheckedNow() async -> (items: [Candidate], check: CandidateCheck)? {
         guard canEdit, let check = await ReviewSignposts.interval("Check setup", { await currentCheck()?.snapshotted() }) else { return nil }
         // What the page listed stays in when the check now refuses it, so the review says why it will be skipped (#310).
-        let catalog = catalog, found = discovered, selections = selections, listed = smartCleanCandidates
+        let catalog = catalog, found = discovered, apps = worthALookAppItems, selections = selections, listed = smartCleanCandidates
         let items = await ReviewSignposts.interval("Smart clean items") {
-            await Task.detached { selections.smartClean(catalog: catalog, found: found, listed: listed, check: check.check) }.value
+            await Task.detached { selections.smartClean(catalog: catalog, found: found, apps: apps, listed: listed, check: check.check) }.value
         }
         guard canEdit, discovered == found else { return nil }
         return (items, check)

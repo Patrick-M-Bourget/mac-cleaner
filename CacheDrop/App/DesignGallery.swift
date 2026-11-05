@@ -213,6 +213,12 @@ struct DesignGallery: View {
                                 size: "84 MB", enabled: true, identifier: "galleryWorthALookRow", itemCount: 3, expanded: .constant(false), toggle: {}) {
                         EmptyView()
                     } items: { EmptyView() }
+                    // Its apps not opened in 6 months (#781, Decision 188): the Apps badge, Choose apps, each app's row with when it was last opened.
+                    CategoryRow(category: .apps, state: .unchecked, title: WorthALook.appsTitle, detail: "", size: "1.4 GB", enabled: true,
+                                identifier: "galleryWorthALookApps", itemCount: 1, chooseNoun: "apps", expanded: .constant(true), toggle: {}) { EmptyView() } items: {
+                        CategoryRow(category: .apps, state: .unchecked, title: "Example app", detail: WorthALook.lastOpenedText(Date(timeIntervalSince1970: 1_773_000_000)),
+                                    size: "1.4 GB", enabled: true, identifier: "galleryWorthALookApp", itemCount: nil, expanded: .constant(false), toggle: {}) { EmptyView() } items: { EmptyView() }
+                    }
                     // Applications (Decision 51): a row that can't be chosen has no checkbox, and says why.
                     CategoryRow(category: .apps, state: nil, title: "Example app", detail: "Example maker", size: "800 MB", enabled: true,
                                 identifier: "galleryReadOnlyRow", itemCount: nil, expanded: .constant(false), toggle: {}) {
