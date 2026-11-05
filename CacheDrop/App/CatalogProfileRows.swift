@@ -25,7 +25,7 @@ struct CatalogProfileRows: View {
                 // Clicking the row ticks the group, as its checkbox does; Finder is its own Reveal link (#367, Decision 72).
                 InspectableItemRow(name: profile, detail: detail(items),
                                    size: SizeFormatter.text(SizeEstimate(sum: items.map(SizeEstimate.init)), upperBound: rule.estimateIsUpperBound),
-                                   symbol: rule.groupsByProject ? "folder" : items.contains { $0.appName != nil } ? "app" : "person.crop.circle", inspected: false,
+                                   symbol: rule.groupSymbol(namesApp: items.contains { $0.appName != nil }), inspected: false,
                                    inspect: rule.itemRowClick == .tick ? { if model.canEdit { ticked.wrappedValue.toggle() } } : nil, detailLineLimit: 1,
                                    actionLabel: "Select " + profile, reveal: { Finder.reveal(items.map(\.url)) },
                                    revealIdentifier: "planProfileReveal-\(rule.id)-\(profile)") {
