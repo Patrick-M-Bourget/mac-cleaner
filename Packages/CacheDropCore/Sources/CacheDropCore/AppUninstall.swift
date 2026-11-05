@@ -16,7 +16,7 @@ public enum AppUninstall {
         detail: "Settings, caches and data tied to the app for sure.",
         consequence: consequence, regen: .userFile, action: .trash, locations: [], owner: nil, protectedDepth: AppCaches.liveWorkDepth, family: .appUninstall)
     static let possiblyRelatedRule = CleanupRule(id: possiblyRelatedRuleID, category: .apps, title: "Possibly related",
-        detail: "Folders named like the app or its maker. Nothing ties them to it for sure, so check each one.",
+        detail: "Folders named like the app or its maker · nothing ties them to it for sure",
         consequence: consequence, regen: .userFile, action: .trash, locations: [], owner: nil, protectedDepth: AppCaches.liveWorkDepth,
         itemByItem: true, family: .appUninstall)
     public static let rules: [CleanupRule] = [appRule, filesRule, possiblyRelatedRule]

@@ -38,7 +38,7 @@ extension BuiltInCatalog {
     /// The rule may act inside the app's `.bundle` folder; sparse bundles and every other protected kind stay protected.
     static let appVMImages = CleanupRule(
         id: "app-vm-images", category: .models, title: "Unpacked VM disk images",
-        detail: "Disk images an app unpacked from a compressed copy it keeps beside them. Check when each was last used.",
+        detail: "Disk images an app unpacked from a compressed copy it keeps beside them",
         consequence: "The compressed copy stays, and the app unpacks or downloads the image again when it needs it.",
         regen: .model, action: .trash, locations: ["Library/Application Support/Claude/vm_bundles/*"],
         owner: RuleOwner(name: "Claude", bundleIDs: ["com.anthropic.claudefordesktop"]),
