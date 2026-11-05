@@ -96,7 +96,7 @@ private func git(_ arguments: [String], in folder: URL) throws -> String {
     process.environment = ["PATH": "/usr/bin:/bin", "HOME": folder.path, "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null",
                            "DEVELOPER_DIR": ProcessInfo.processInfo.environment["DEVELOPER_DIR"] ?? ""].filter { !$0.value.isEmpty }
     process.standardOutput = pipe; process.standardError = pipe
-    try process.run(); process.waitUntilExit()
+    try process.runToEnd()
     let output = String(decoding: pipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
     if process.terminationStatus != 0 { Issue.record("git \(arguments.joined(separator: " ")) failed: \(output)") }
     return output

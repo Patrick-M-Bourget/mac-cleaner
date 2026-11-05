@@ -151,7 +151,7 @@ func aCacheHoldingOneOfOurOwnFoldersIsProtected(name: String) throws {
     process.executableURL = URL(fileURLWithPath: "/bin/sh")
     process.arguments = [script.path]
     try process.run()
-    defer { process.terminate() }
+    defer { process.stop() }
     Thread.sleep(forTimeInterval: 0.2)
     #expect(checker.isRunning(owner) == true)
 }

@@ -127,7 +127,7 @@ private func makeApp(_ url: URL, id: String, bytes: Int, copyright: String? = ni
     func hdiutil(_ arguments: [String]) throws -> Int32 {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/hdiutil"); process.arguments = arguments + ["-quiet"]
-        try process.run(); process.waitUntilExit()
+        try process.runToEnd()
         return process.terminationStatus
     }
     try #require(try hdiutil(["create", "-size", "2m", "-fs", "APFS", "-volname", "CacheDropTestImage", image.path]) == 0)

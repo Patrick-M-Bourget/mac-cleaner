@@ -10,6 +10,7 @@ Query an element the way the view exposes it. Check the view's modifiers before 
 - **`.accessibilityElement(children: .combine)` merges its children into one element.** Its child texts can't be queried, and its `label` may be empty. Assert on a known identifier inside a non-combined view, or search the window (`app.staticTexts.matching(...)`). Example: Smart clean's `smartCleanHeader`.
 - **An identifier on a plain container spreads to its children.** A query for it matches several elements, and reading `frame` or `value` fails with "Multiple matching elements". Give the container `.accessibilityElement(children: .contain)` before its identifier (`explorerInspector`), or query `.firstMatch` when any one will do.
 - **A `StatusRow` or `SelectionSummary` text carries its words in `value` or `label`.** Read both: `element.value as? String ?? element.label`.
+- **A plan item is `planItem-<rule ID>-<name>`** (its Reveal link `planItemReveal-<rule ID>-<name>`), so same-named items of two rules stay apart (#744). A subscript query allows 128 characters; match a longer identifier with a predicate, as `overviewLocation:` does.
 - **Off-screen rows may not exist.** Use `revealAndClick` and the existing wait helpers (`waitForCatalogScan`, `waitForScannedFolder`) rather than bare `exists`.
 
 ## Fixtures

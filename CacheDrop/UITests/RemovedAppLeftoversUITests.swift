@@ -32,7 +32,7 @@ final class RemovedAppLeftoversUITests: XCTestCase {
         // Applications' summary card (#525) puts these rows below the window, and lazy rows exist only once on screen.
         reveal(category, in: app, nearTop: true)
         XCTAssertTrue(app.checkBoxes["planProfile-removed-app-leftovers-Synth"].waitForExistence(timeout: 5), "Grouped per app")
-        let possible = app.checkBoxes["planItem-Gone"]
+        let possible = app.checkBoxes["planItem-removed-app-possibly-related-Gone"]
         XCTAssertTrue(possible.exists)
         XCTAssertFalse(app.descendants(matching: .any).matching(NSPredicate(format: "identifier CONTAINS 'com.here.editor' OR identifier CONTAINS 'PACE'")).firstMatch.exists)
 
@@ -71,10 +71,10 @@ final class RemovedAppLeftoversUITests: XCTestCase {
         XCTAssertTrue(app.checkBoxes["planCategory-leftovers"].waitForExistence(timeout: 10))
         expandDisclosures(in: app)
         reveal(app.checkBoxes["planCategory-leftovers"], in: app, nearTop: true) // Below the summary card (#525).
-        let item = app.checkBoxes["planItem-Gone"], group = app.checkBoxes["planProfile-removed-app-leftovers-Synth"]
+        let item = app.checkBoxes["planItem-removed-app-possibly-related-Gone"], group = app.checkBoxes["planProfile-removed-app-leftovers-Synth"]
         XCTAssertTrue(item.waitForExistence(timeout: 5))
         XCTAssertEqual(item.value as? Int, 0, "A possibly related item is never recommended")
-        XCTAssertTrue(app.descendants(matching: .any)["planItemReveal-Gone"].exists, "Reveal in Finder is beside it")
+        XCTAssertTrue(app.descendants(matching: .any)["planItemReveal-removed-app-possibly-related-Gone"].exists, "Reveal in Finder is beside it")
         XCTAssertFalse(app.buttons["Select Possibly related"].exists, "The rule's row is inert")
         XCTAssertFalse(app.links["planRuleReveal-removed-app-possibly-related"].exists, "and no Finder link")
         // Synth's confirmed file is recommended, so it may arrive ticked (#349); untick it, by clicking its row (#367), to clean
@@ -118,7 +118,7 @@ final class RemovedAppLeftoversUITests: XCTestCase {
         XCTAssertTrue(category.isEnabled)
 
         revealAndClick(category, in: app)
-        let item = app.checkBoxes["planItem-com.gone.synth.plist"]
+        let item = app.checkBoxes["planItem-removed-app-possibly-related-com.gone.synth.plist"]
         XCTAssertTrue(item.waitForExistence(timeout: 5), "The category's checkbox lists its items")
         XCTAssertEqual(item.value as? Int, 0, "and never ticks a possibly related item")
         XCTAssertEqual(category.value as? Int, 0)
