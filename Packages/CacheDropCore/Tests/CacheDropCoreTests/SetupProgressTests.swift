@@ -65,6 +65,24 @@ private func reporter(_ store: MemorySetupProgressStore, _ transport: RecordingT
     #expect(await progress.isSharing)
 }
 
+// Decision 174: ticked on onboarding's Ready, after the first scan finished, it records that scan too, after first launch.
+@Test func setupProgressTickedAfterTheFirstScanRecordsFirstLaunchThenFirstScanCompleted() async {
+    let store = MemorySetupProgressStore(), transport = RecordingTransport()
+    let progress = reporter(store, transport)
+    await progress.record(.firstScanCompleted) // Finished before the opt-in: not kept on its own.
+    await progress.setSharing(true, firstScanCompleted: true)
+    #expect(await transport.events == [.firstLaunch, .firstScanCompleted])
+    await progress.record(.firstScanCompleted)
+    #expect(await transport.events == [.firstLaunch, .firstScanCompleted], "Still at most once per install ID")
+}
+
+@Test func setupProgressTickedBeforeAnyScanFinishedRecordsOnlyFirstLaunch() async {
+    let store = MemorySetupProgressStore(), transport = RecordingTransport()
+    let progress = reporter(store, transport)
+    await progress.setSharing(true, firstScanCompleted: false)
+    #expect(await transport.events == [.firstLaunch])
+}
+
 @Test func setupProgressKeepsAnEventThatCouldNotGoAndSendsItLater() async {
     let store = MemorySetupProgressStore(), transport = RecordingTransport()
     await transport.answer(.retryLater)
