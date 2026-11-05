@@ -440,7 +440,7 @@ struct CleanupActionBar<Finish: View, Idle: View>: View {
     @ViewBuilder var idle: () -> Idle
     var body: some View {
         if selection.showsRun(for: source) && selection.workspaceRunning {
-            CleanupStopStrip(selection: selection)
+            CleanupStopStrip(stopRequested: selection.workspaceStopRequested, stop: { selection.cancelWorkspace() })
         } else if selection.showsRun(for: source) {
             ActionStrip(message: selection.requiresRecoveryReview ? recoveryNote : nil) {
                 if let viewHistory { Button("View history", action: viewHistory) }
@@ -457,12 +457,13 @@ struct CleanupActionBar<Finish: View, Idle: View>: View {
         source == .plan ? "Review the interrupted cleanup before making another plan." : "Review the interrupted cleanup before cleaning again."
     }
 }
-/// The running cleanup's one action.
+/// The running cleanup's one action. It takes the plan's state, not the plan, so the Design gallery draws it inert.
 struct CleanupStopStrip: View {
-    let selection: CleanupPlan
+    let stopRequested: Bool
+    let stop: () -> Void
     var body: some View {
         ActionStrip(message: "Stopping won’t undo what’s done. A tool stopped midway may have removed part of its cache.", showsBackgroundWork: false, wrapsNote: true) {
-            Button(selection.workspaceStopRequested ? "Stop requested" : "Stop cleanup") { selection.cancelWorkspace() }.disabled(selection.workspaceStopRequested)
+            Button(stopRequested ? "Stop requested" : "Stop cleanup", action: stop).disabled(stopRequested)
         }
     }
 }

@@ -20,8 +20,8 @@ struct DesignGallery: View {
     @State private var onboardingExpanded = true
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
-                Text("CacheDrop · Component gallery").font(.headline).accessibilityIdentifier("designGalleryTitle")
+            HStack(spacing: CacheDropDesign.Space.sm) {
+                Text("CacheDrop · Component gallery").font(CacheDropDesign.TypeStyle.section).accessibilityIdentifier("designGalleryTitle")
                 Spacer()
                 Toggle("Opaque chrome", isOn: $opaque).accessibilityIdentifier("galleryOpaqueChrome")
                 AppearancePicker(choice: $appearance).labelsHidden().fixedSize()
@@ -40,26 +40,23 @@ struct DesignGallery: View {
                         QuietLink(title: "Logic Pro Projects archived from the old studio drive", current: true) {}
                     }.font(CacheDropDesign.TypeStyle.note)
                     // Onboarding's two steps (#783), each at its real sheet size: Welcome, then one sheet that scans and shows what it found.
-                    DisclosureGroup("Onboarding · Synthetic examples", isExpanded: $onboardingExpanded) { OnboardingGalleryExamples() }
+                    ActionDisclosureGroup("Onboarding · Synthetic examples", isExpanded: $onboardingExpanded) { OnboardingGalleryExamples() }
                         .accessibilityIdentifier("galleryOnboarding")
-                    Button { shellExamplesExpanded.toggle() } label: {
-                        Label("Synthetic shell and appearance examples", systemImage: shellExamplesExpanded ? "chevron.down" : "chevron.right")
-                    }.buttonStyle(.plain).accessibilityValue(shellExamplesExpanded ? "Expanded" : "Collapsed").accessibilityIdentifier("galleryShellExamples")
-                    if shellExamplesExpanded {
+                    ActionDisclosureGroup(isExpanded: $shellExamplesExpanded, identifier: "galleryShellExamples") {
                         ShellAppearanceGalleryExamples()
                         // #777, Decision 182: sidebar rows carry no count badge, selected or not.
                         VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
-                            Text("Synthetic sidebar rows · Inert examples").font(.headline)
+                            Text("Synthetic sidebar rows · Inert examples").font(CacheDropDesign.TypeStyle.section)
                             CacheDropSidebarRow(title: "Cleanup plan", symbol: "checklist", selected: false, accent: CacheDropDesign.teal) {}
                             CacheDropSidebarRow(title: "Cleanup plan", symbol: "checklist", selected: true, accent: CacheDropDesign.teal) {}
-                        }.frame(width: 166).background { ChromeSurface(role: .sidebar) }
-                    }
-                    DisclosureGroup("Synthetic History activity examples", isExpanded: $historyExamplesExpanded) {
+                        }.frame(width: CacheDropDesign.Size.sidebarWidth).background { ChromeSurface(role: .sidebar) }
+                    } label: { Text("Synthetic shell and appearance examples") }
+                    ActionDisclosureGroup("Synthetic History activity examples", isExpanded: $historyExamplesExpanded) {
                         HistoryActivityGalleryExamples()
                     }
-                    DisclosureGroup("Synthetic Storage trends examples", isExpanded: $growthExamplesExpanded) { StorageTrendsGalleryExamples() }
-                    DisclosureGroup("Synthetic storage map examples", isExpanded: $mapExamplesExpanded) { StorageMapGalleryExamples() }
-                    DisclosureGroup("Synthetic storage alert settings", isExpanded: $alertExamplesExpanded) {
+                    ActionDisclosureGroup("Synthetic Storage trends examples", isExpanded: $growthExamplesExpanded) { StorageTrendsGalleryExamples() }
+                    ActionDisclosureGroup("Synthetic storage map examples", isExpanded: $mapExamplesExpanded) { StorageMapGalleryExamples() }
+                    ActionDisclosureGroup("Synthetic storage alert settings", isExpanded: $alertExamplesExpanded) {
                         // #778, Decision 183: a Settings group is the Form's own header and one footer; a toggle's detail is its caption.
                         Form {
                             Section {
@@ -83,26 +80,34 @@ struct DesignGallery: View {
                         AlertPermissionDetails(authorization: .denied, checked: true, settingsFeedback: "System Settings could not be opened.", openSettings: {})
                     }
                     // Help → What’s New (#553, Decision 161): the notes, and a development build without its version's notes.
-                    Text("Synthetic What’s New · Inert examples").font(.headline)
+                    Text("Synthetic What’s New · Inert examples").font(CacheDropDesign.TypeStyle.section)
                     WhatsNewContent(notes: .success(ReleaseNotes(version: "9.9.9", summary: "An example summary sentence about this version.",
                                                                  changes: ["An example change that wraps onto a second line because it is long enough to.", "A second example change."])),
                                     version: "9.9.9").frame(width: CacheDropDesign.Size.sheetNarrow).background(CacheDropDesign.reading)
                     WhatsNewContent(notes: .failure(ReleaseNotesError.notBundled), version: "9.9.9")
                         .frame(width: CacheDropDesign.Size.sheetNarrow).background(CacheDropDesign.reading)
                     CapacityGalleryExamples()
-                    Text("Synthetic Saved data entry · Inert example").font(.headline)
+                    Text("Synthetic Saved data entry · Inert example").font(CacheDropDesign.TypeStyle.section)
                     SavedDataEntry(action: {})
-                    Text("Synthetic Protected items entry · Inert example").font(.headline)
+                    Text("Synthetic Protected items entry · Inert example").font(CacheDropDesign.TypeStyle.section)
                     ProtectedItemsEntry(action: {})
-                    Text("Synthetic Saved data controls · Inert enabled example").font(.headline)
+                    Text("Synthetic Saved data controls · Inert enabled example").font(CacheDropDesign.TypeStyle.section)
                     SavedDataMaintenanceControls(clear: {}, reset: {})
                     StatusRow(text: "Reset waits until the interrupted cleanup is reviewed.", symbol: "exclamationmark.triangle", role: .caution)
                     StatusRow(text: "Downloads · Access unavailable", role: .caution, action: StatusAction(title: "Choose again…") {})
                     StatusRow(text: "Synth is open, so its caches will be skipped · 1.2 GB", symbol: "exclamationmark.circle", role: .caution,
                               action: StatusAction(title: "Quitting…", isDisabled: true) {})
-                    Text("Synthetic unavailable controls · Cleanup or maintenance in progress").font(.headline)
+                    // #772: every quiet status line is a StatusRow; several links join with "·", and a line can name what it sums up.
+                    Text("Status lines · One StatusRow").font(CacheDropDesign.TypeStyle.section)
+                    StatusRow(text: "Trash holds 4.2 GB · 1.2 GB from CacheDrop", symbol: "trash", identifier: "galleryTrashLine",
+                              actions: [StatusAction(title: "Empty from Trash…") {}, StatusAction(title: "Empty Trash…") {}])
+                    StatusRow(text: "2 locations need Full Disk Access", symbol: "lock.shield", detail: "Example cache, Example mail downloads",
+                              action: StatusAction(title: "Learn more") {})
+                    StatusRow(text: "Downloads · Access unavailable", role: .caution, action: StatusAction(title: "Locations") {})
+                    SettingsUnreadableNotice.line(scanning: false) {}
+                    Text("Synthetic unavailable controls · Cleanup or maintenance in progress").font(CacheDropDesign.TypeStyle.section)
                     SavedDataMaintenanceControls(enabled: false, clear: {}, reset: {})
-                    Text("Full Disk Access · Inert example").font(.headline)
+                    Text("Full Disk Access · Inert example").font(CacheDropDesign.TypeStyle.section)
                     SettingsRow(title: "Full Disk Access", detail: "Optional access to more protected folders") {
                         StatusRow(text: "Not granted", symbol: "lock.shield")
                         Button("Learn more") {}.buttonStyle(.link).accessibilityIdentifier("galleryAccessExample")
@@ -127,16 +132,19 @@ struct DesignGallery: View {
                     }
                     // Built in (#342): always included, so its checkbox can't change, and no Forget.
                     LocationScopeRow(name: "Downloads", path: "/Example/Downloads", status: "Built in · Not scanned", included: .constant(true), enabled: true, fixed: true) { EmptyView() }
-                    LocationScopeRow(name: "Projects", path: "/Example/Projects", status: "Not scanned", included: $selected, enabled: true) { Menu("More") { Button("Forget location") {} } }
+                    LocationScopeRow(name: "Projects", path: "/Example/Projects", status: "Not scanned", included: $selected, enabled: true) {
+                        Menu("More") { Button("Forget location") {} }.menuStyle(.borderlessButton).fixedSize()
+                    }
                     LocationScopeRow(name: "Downloads B", path: "/Example/Downloads/Long project folder/Downloads B", status: "Location unavailable · Reconnect it, then scan again", overlap: "Overlaps another remembered location · Shared contents are counted once.", included: $selected, enabled: true) {
-                        HStack {
-                            Button("Choose again…") {}
-                            Button("Scan again") {}
-                            Menu("More") { Button("Forget location") {} }
+                        // A row's actions are links, as on Locations (Decision 65 rule 3).
+                        HStack(spacing: CacheDropDesign.Space.sm) {
+                            Button("Choose again…") {}.buttonStyle(.link)
+                            Button("Scan again") {}.buttonStyle(.link)
+                            Menu("More") { Button("Forget location") {} }.menuStyle(.borderlessButton).fixedSize()
                         }
-                    }.frame(maxWidth: 520)
+                    }.frame(maxWidth: CacheDropDesign.Size.sheetNarrow)
                     LocationScopeRow(name: "Omitted Downloads", path: "/Example/Downloads/Omitted", status: "Omitted from the next scan", included: .constant(false), enabled: false) {
-                        Menu("More") { Button("Forget location") {} }
+                        Menu("More") { Button("Forget location") {} }.menuStyle(.borderlessButton).fixedSize()
                     }
                     RecommendationGroup {
                         StorageReviewRow(category: .downloads, title: "Downloads", detail: "Example files", value: "128 MB", meaning: "On disk", actionTitle: "Review files", action: {})
@@ -173,12 +181,12 @@ struct DesignGallery: View {
                         }
                     }
                     // #311: one button rule, one example of each kind.
-                    Text("Buttons · One rule").font(.headline)
+                    Text("Buttons · One rule").font(CacheDropDesign.TypeStyle.section)
                     ButtonRuleGalleryExamples()
-                    Text("Search and Sort · Under the description, in the list’s header").font(.headline)
+                    Text("Search and Sort · In the page header, in the list’s header").font(CacheDropDesign.TypeStyle.section)
                     ListHeaderGalleryExamples()
                     // #321: one empty state, saying what's true with at most one action that leads where the user can act.
-                    Text("Empty states · One way forward").font(.headline)
+                    Text("Empty states · One way forward").font(CacheDropDesign.TypeStyle.section)
                     EmptyState(title: "No scans yet", detail: "Scan again tomorrow to see trends",
                                symbol: "chart.line.uptrend.xyaxis", action: EmptyStateAction("Scan again") {}, identifier: "galleryEmptyAction")
                     NothingToCleanUp(identifier: "galleryNothingToCleanUp", action: EmptyStateAction("Explore storage") {})
@@ -192,23 +200,23 @@ struct DesignGallery: View {
                         Toggle("Include Example cache", isOn: $selected).labelsHidden().accessibilityIdentifier("galleryItemSelection")
                     }
                     // #308: nothing known yet, skeleton rows in each page's layout; a rescan dims the rows already shown.
-                    Text("Waiting for a scan · Skeleton rows").font(.headline)
+                    Text("Waiting for a scan · Skeleton rows").font(CacheDropDesign.TypeStyle.section)
                     SkeletonRows(.category, count: 2, identifier: "gallerySkeletonCategory")
                     SkeletonRows(.review, count: 2, identifier: "gallerySkeletonReview")
                     SkeletonRows(.line, count: 2, identifier: "gallerySkeletonLine")
-                    Text("Waiting for a scan · Rows from the last scan").font(.headline)
+                    Text("Waiting for a scan · Rows from the last scan").font(CacheDropDesign.TypeStyle.section)
                     CategoryRow(category: .browser, state: .unchecked, title: "Browser caches · Example during a rescan", detail: "Dimmed, and can’t be clicked until the scan ends.",
                                 size: "640 MB", enabled: false, identifier: "galleryWaitingRow", itemCount: nil, expanded: .constant(false), toggle: {}) {
                         EmptyView()
                     } items: { EmptyView() }.waitingForScan(true)
-                    Text("Busy action · Checks running after a click").font(.headline)
-                    HStack {
+                    Text("Busy action · Checks running after a click").font(CacheDropDesign.TypeStyle.section)
+                    HStack(spacing: CacheDropDesign.Space.sm) {
                         BusyAction(busy: true) { Button("Clean up") {}.buttonStyle(.borderedProminent).accessibilityIdentifier("galleryBusyAction") }
                         BusyAction(busy: false) { Button("Clean up") {}.buttonStyle(.borderedProminent).accessibilityIdentifier("galleryIdleAction") }
                         ReviewCleanupButton(enabled: false, focusRequest: 0, tooltip: CacheDropDesign.waitForScanHelp, action: {}).fixedSize()
                     }.controlSize(.large)
                     // Decision 126: the review sheet opens at the click and shows its checks running (#565).
-                    Text("Review sheet · Checks running").font(.headline)
+                    Text("Review sheet · Checks running").font(CacheDropDesign.TypeStyle.section)
                     ReviewChecksRunning(cancel: {}, identifier: "galleryReview")
                     CapacityMeter(available: nil, total: nil)
                     CapacityMeter(available: 40_000_000_000, total: 512_000_000_000, compact: true)
@@ -230,6 +238,11 @@ struct DesignGallery: View {
                     CategoryRow(category: .leftovers, state: .unchecked, title: CatalogCategory.leftovers.overviewTitle, detail: CatalogCategory.leftovers.overviewDetail,
                                 size: "84 MB", enabled: true, identifier: "galleryWorthALookRow", itemCount: 3, expanded: .constant(false), toggle: {}) {
                         EmptyView()
+                    } items: { EmptyView() }
+                    // A row whose owner is open (#138): its line in the row's notice, its link at the row-link size.
+                    CategoryRow(category: .developer, state: .checked, title: "Example build files", detail: "Example tool caches", size: "640 MB", enabled: true,
+                                identifier: "galleryRunningRow", itemCount: nil, expanded: .constant(false), toggle: {}) {
+                        StatusRow(text: "Example app is open", symbol: "exclamationmark.circle", role: .caution, action: StatusAction(title: "Quit Example app") {})
                     } items: { EmptyView() }
                     // Applications (Decision 51): a row that can't be chosen has no checkbox, and says why.
                     CategoryRow(category: .apps, state: nil, title: "Example app", detail: "Example maker", size: "800 MB", enabled: true,
@@ -301,6 +314,8 @@ struct DesignGallery: View {
             ActionStrip(message: "Developer gallery · Actions are inert examples") { ReviewCleanupButton(enabled: false, focusRequest: 0, action: {}) }
                 .environment(\.cacheDropBackgroundWork, BackgroundWorkStatus(line: .init(parts: [.init(id: "galleryFolderScan", text: "Scanning Downloads"), .init(id: "galleryPhase", text: "Reading files…"), .init(id: "galleryCount", text: "1,240 files read")], runsFolderScan: true), stop: {}, returnToScan: {}))
             ActionStrip(message: "Developer gallery · Actions are inert examples") { ReviewCleanupButton(enabled: false, focusRequest: 0, action: {}) }
+            // A cleanup running: its note may wrap, and Stop cleanup is the bar's one action.
+            CleanupStopStrip(stopRequested: false, stop: {})
         }
         .accessibilityElement(children: .contain).accessibilityIdentifier("designGallery")
         .cacheDropButtonRule()
@@ -362,7 +377,7 @@ private struct CapacityGalleryExamples: View {
     }
     private func example(_ name: String, available: Int64? = 40_000_000_000, total: Int64? = 512_000_000_000, observation: String, status: String = "", refreshing: Bool = false, retry: Bool = false) -> some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
-            Text("Synthetic capacity " + name + " · Inert example").font(.headline)
+            Text("Synthetic capacity " + name + " · Inert example").font(CacheDropDesign.TypeStyle.section)
             VolumeSummary(available: available, total: total, observation: observation, status: status,
                           refreshTitle: retry ? "Try again" : "Refresh capacity", refreshing: refreshing, refresh: {})
         }.accessibilityElement(children: .contain).accessibilityIdentifier("capacityGallery-" + name)
@@ -397,14 +412,15 @@ private struct ButtonRuleGalleryExamples: View {
         }
     }
 }
-/// A page's search under its description, then a list's sortable column header (#352): click a column to sort by it, again to flip it.
+/// A page's search on its header's right, then a list's sortable column header (#352): click a column to sort by it, again to flip it.
 private struct ListHeaderGalleryExamples: View {
     @State private var search = ""
     @State private var sort = ListSort()
     var body: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
-            PageHeader(title: "Example page", subtitle: "Search under the description; sort by clicking a column of the list’s header.")
-            PageSearchField(label: "Search the example list", prompt: "Name or maker", text: $search, identifier: "gallerySearch")
+            // A page's search sits on the title's right (Applications, Explore storage).
+            PageHeader(title: "Example page", subtitle: "Search on the right; sort by clicking a column of the list’s header",
+                       search: PageSearchField(label: "Search the example list", prompt: "Name or maker", text: $search, identifier: "gallerySearch"))
             // The plan's and Applications' preset (#765): Name over the rows' titles, Size over their sizes.
             ColumnHeader.categoryRows(sort: $sort, identifier: "gallerySort")
             ForEach(sort.ordered(Self.rows, name: \.name, bytes: \.bytes), id: \.name) { row in
@@ -420,7 +436,7 @@ private struct ListHeaderGalleryExamples: View {
 private struct ShellAppearanceGalleryExamples: View {
     var body: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
-            Text("Synthetic appearance controls · Inert examples").font(.headline)
+            Text("Synthetic appearance controls · Inert examples").font(CacheDropDesign.TypeStyle.section)
             ForEach(Array([AppearancePreferenceController.Notice?.none, .invalidSavedValue, .unreadable, .saveFailed].enumerated()), id: \.offset) { index, notice in
                 VStack(alignment: .leading, spacing: CacheDropDesign.Space.xs) {
                     Text("Appearance notice example " + String(index)).font(CacheDropDesign.TypeStyle.caption)

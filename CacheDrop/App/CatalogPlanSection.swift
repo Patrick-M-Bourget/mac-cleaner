@@ -48,11 +48,13 @@ struct CatalogPlanSection: View {
 struct SettingsUnreadableNotice: View {
     let model: CatalogCleanupModel
     var body: some View {
-        if model.settingsUnreadable {
-            StatusRow(text: CatalogCleanupModel.settingsUnreadableText, symbol: "exclamationmark.triangle", role: .caution, identifier: "settingsUnreadable",
-                      action: StatusAction(title: "Scan again", identifier: "settingsUnreadableTryAgain") { Task { await model.rescan() } })
-                .disabled(model.isScanning)
-        }
+        if model.settingsUnreadable { Self.line(scanning: model.isScanning) { Task { await model.rescan() } } }
+    }
+    /// The line itself, which the Design gallery draws inert.
+    static func line(scanning: Bool, scanAgain: @escaping () -> Void) -> some View {
+        StatusRow(text: CatalogCleanupModel.settingsUnreadableText, symbol: "exclamationmark.triangle", role: .caution, identifier: "settingsUnreadable",
+                  action: StatusAction(title: "Scan again", identifier: "settingsUnreadableTryAgain", action: scanAgain))
+            .disabled(scanning)
     }
 }
 
