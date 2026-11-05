@@ -57,9 +57,10 @@ enum LibrarySearch {
     /// The packages with each extension, never entering one. Skips `~/Library` (apps' own data), hidden folders and apps.
     /// Each root is searched on its own thread, all within the sizer's time budget; a root whose walk hasn't returned by
     /// then, such as a hung share, is abandoned and named in `notSearched` (#244). Network volumes are skipped.
-    /// `complete` is false when the time budget ran out before every root was searched.
+    /// `complete` is false when the time budget ran out before every root was searched. Without `sizesLibraries` each
+    /// library's size is unknown, for a caller that sizes only folders inside it (#399).
     static func find(extensions: Set<String>, home: URL, systemRoot: URL, sizer: KnownLocationSizer,
-                     volumes access: LibraryVolumes = .system) -> (found: [String: [FoundLibrary]], complete: Bool, notSearched: [String]) {
+                     volumes access: LibraryVolumes = .system, sizesLibraries: Bool = true) -> (found: [String: [FoundLibrary]], complete: Bool, notSearched: [String]) {
         let deadline = ProcessInfo.processInfo.systemUptime + sizer.timeBudget
         let volumes = systemRoot.appendingPathComponent("Volumes")
         var roots = [home]
@@ -68,7 +69,8 @@ enum LibrarySearch {
             if access.isLocal(url) { roots.append(url) }
         }
         let searches = roots.map { root in
-            RootSearch(root: root, isHome: root == home, extensions: extensions, volumes: volumes, deadline: deadline, sizer: sizer, access: access)
+            RootSearch(root: root, isHome: root == home, extensions: extensions, volumes: volumes, deadline: deadline, sizer: sizer, access: access,
+                       sizes: sizesLibraries)
         }
         // A walk checks the deadline itself every 1024 entries; the grace lets one that is slow but moving return what it found.
         let abandonAt = DispatchTime.now() + sizer.timeBudget + min(1, sizer.timeBudget / 4)
@@ -95,7 +97,8 @@ enum LibrarySearch {
         private var result: (found: [FoundLibrary], complete: Bool)?
         private var abandoned = false
 
-        init(root: URL, isHome: Bool, extensions: Set<String>, volumes: URL, deadline: TimeInterval, sizer: KnownLocationSizer, access: LibraryVolumes) {
+        init(root: URL, isHome: Bool, extensions: Set<String>, volumes: URL, deadline: TimeInterval, sizer: KnownLocationSizer, access: LibraryVolumes,
+             sizes: Bool) {
             self.root = root
             Thread.detachNewThread { [self] in
                 var found: [FoundLibrary] = [], complete = true, entries = 0, info = stat()
@@ -110,7 +113,7 @@ enum LibrarySearch {
                         let name = url.lastPathComponent, ext = url.pathExtension.lowercased()
                         if name.hasPrefix(".") || ext == "app" || (isHome && entry.pointee.fts_level == 1 && name == "Library") { return .skip }
                         if extensions.contains(ext) {
-                            found.append(FoundLibrary(url: url, volume: LibrarySearch.volume(of: url, under: volumes), size: Catalog.estimate(sizer.size(url))))
+                            found.append(FoundLibrary(url: url, volume: LibrarySearch.volume(of: url, under: volumes), size: sizes ? Catalog.estimate(sizer.size(url)) : .unknown))
                             return .skip
                         }
                         return Int(entry.pointee.fts_level) >= maxDepth ? .skip : .continue
