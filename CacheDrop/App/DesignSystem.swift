@@ -1345,7 +1345,7 @@ struct BusyAction<Content: View>: View {
 }
 
 /// What Overview, Smart clean and the plan show when a finished scan found nothing to clean (#308), as the one empty
-/// state (#321). Overview and the plan lead on to Explore storage; Smart clean has its "Not included" links instead.
+/// state (#321). Overview and the plan lead on to Explore storage; Smart clean has its caption's Adjust in Cleanup plan link instead.
 struct NothingToCleanUp: View {
     var identifier = "nothingToCleanUp"
     var compact = false

@@ -572,12 +572,14 @@ final class CatalogCleanupUITests: XCTestCase {
         waitForOverview(app)
         waitForCatalogScan(app)
         app.typeKey("2", modifierFlags: .command)
-        expandDisclosures(in: app)
-        XCTAssertTrue(app.checkBoxes["smartCleanLine-yarn-cache|"].waitForExistence(timeout: 5), "The free rule keeps its original identifier")
-        let held = app.checkBoxes["smartCleanLine-npm-cache||held-1"]
-        XCTAssertTrue(held.waitForExistence(timeout: 5), "Held numbering starts at one beside free items")
-        XCTAssertEqual(held.value as? Int, 0)
-        XCTAssertFalse(app.checkBoxes["smartCleanLine-npm-cache||held-2"].exists)
+        // #779: Smart clean has no item lines; the held npm cache stays unticked in its category and says why under it.
+        let developer = app.checkBoxes["smartCleanCategory-developer"]
+        XCTAssertTrue(developer.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["smartCleanHeld-developer-1"].waitForExistence(timeout: 5), "Held numbering starts at one")
+        XCTAssertFalse(app.staticTexts["smartCleanHeld-developer-2"].exists)
+        // A held item is ticked on its own, never with its category (#374, CategorySelection), so Yarn alone reads as all ticked,
+        // as on the plan; the line under the row says what stays.
+        XCTAssertEqual(developer.value as? Int, 1)
         app.typeKey("1", modifierFlags: .command)
         let row = app.buttons["overviewCategory-developer"]
         XCTAssertTrue(row.waitForExistence(timeout: 10))
@@ -2165,9 +2167,9 @@ final class TrashSpaceUITests: XCTestCase {
 }
 
 extension CatalogCleanupUITests {
-    /// #229: "Choose items · N" counts the lines Smart clean lists, not the items behind them. Yarn's two cache folders
-    /// are one line, so the developer category's three items show as two lines.
-    @MainActor func testSmartCleanChooseItemsCountsItsLines() throws {
+    /// #779: Smart clean is a summary. Each category row says what the category is, as the plan does, with no "Choose items"
+    /// and no Name/Size header; the caption names what's left out and links to the plan.
+    @MainActor func testSmartCleanRowsSayWhatEachCategoryIsWithNoChooseItems() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
         let state = try configureIsolatedState(app)
@@ -2179,16 +2181,19 @@ extension CatalogCleanupUITests {
         waitForCatalogScan(app)
         app.typeKey("2", modifierFlags: .command)
         XCTAssertTrue(app.checkBoxes["smartCleanCategory-developer"].waitForExistence(timeout: 10))
-        let choose = app.disclosureTriangles.matching(NSPredicate(format: "label BEGINSWITH 'Choose items'")).firstMatch
-        XCTAssertTrue(choose.waitForExistence(timeout: 5))
-        XCTAssertEqual(choose.label, "Choose items · 2")
-        openDisclosure(choose, in: app)
-        XCTAssertTrue(app.checkBoxes["smartCleanLine-yarn-cache|"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.checkBoxes["smartCleanLine-npm-cache|"].exists)
+        let detail = "Package caches and build files that tools rebuild"
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label == %@ OR value == %@", detail, detail)).firstMatch.exists, "The plan's what-it-is line")
+        XCTAssertFalse(app.disclosureTriangles.matching(NSPredicate(format: "label BEGINSWITH 'Choose items'")).firstMatch.exists)
+        XCTAssertFalse(app.buttons["smartCleanSort-size"].exists, "No Name/Size header")
+        XCTAssertFalse(app.buttons["smartCleanSort-name"].exists)
+        let caption = "Not included: newer downloads, models, iCloud copies"
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label == %@ OR value == %@", caption, caption)).firstMatch.exists)
+        XCTAssertTrue(app.links["smartCleanAdjust"].exists)
+        XCTAssertEqual(app.links["smartCleanAdjust"].label, "Adjust in Cleanup plan")
     }
 
-    /// #137, #349: Smart clean, opened from Overview's link, lists what it recommends, all ticked and each untickable.
-    /// Its Clean up opens the review; a new installer stays out (#319). The Cleanup plan keeps its own selection.
+    /// #137, #349: Smart clean, opened from Overview's link, lists what it recommends, all ticked. Adjust in Cleanup plan
+    /// opens the plan with the same ticks (#779). Its Clean up opens the review; a new installer stays out (#319).
     @MainActor func testSmartCleanReviewsOnlyRebuildableItemsAndKeepsThePlanSelection() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
@@ -2218,21 +2223,19 @@ extension CatalogCleanupUITests {
         XCTAssertTrue(developer.waitForExistence(timeout: 10))
         XCTAssertEqual(developer.value as? Int, 1)
         XCTAssertFalse(app.checkBoxes["smartCleanCategory-downloads"].exists)
-        XCTAssertTrue(app.descendants(matching: .any)["smartCleanNotIncluded-downloads"].exists)
-        // #219: the plan's category row; it starts collapsed and "Choose items" opens it.
-        let yarn = app.checkBoxes["smartCleanLine-yarn-cache|"]
-        XCTAssertFalse(yarn.exists)
-        openDisclosure(app.disclosureTriangles.matching(NSPredicate(format: "label BEGINSWITH 'Choose items'")).firstMatch, in: app)
+        // #779: no "Choose items" here; the caption's link opens the plan with the same ticks, where Yarn is unticked.
+        XCTAssertFalse(app.disclosureTriangles.matching(NSPredicate(format: "label BEGINSWITH 'Choose items'")).firstMatch.exists)
+        revealAndClick(app.links["smartCleanAdjust"], in: app)
+        expandDisclosures(in: app)
+        let yarn = app.checkBoxes["planRule-yarn-cache"]
         XCTAssertTrue(yarn.waitForExistence(timeout: 5))
-        XCTAssertEqual(app.checkBoxes["smartCleanLine-npm-cache|"].value as? Int, 1)
+        XCTAssertEqual(yarn.value as? Int, 1, "The plan shows Smart clean's ticks")
+        XCTAssertEqual(app.checkBoxes["planRule-npm-cache"].value as? Int, 1)
         revealAndClick(yarn, in: app)
         XCTAssertEqual(yarn.value as? Int, 0)
-        // It stays open after leaving Smart clean and coming back.
-        app.typeKey("1", modifierFlags: .command)
-        XCTAssertTrue(app.staticTexts["overviewTitle"].waitForExistence(timeout: 10))
         app.typeKey("2", modifierFlags: .command)
-        XCTAssertTrue(yarn.waitForExistence(timeout: 10))
-        XCTAssertEqual(yarn.value as? Int, 0)
+        XCTAssertTrue(developer.waitForExistence(timeout: 10))
+        XCTAssertFalse([0, 1].contains(developer.value as? Int), "Yarn unticked in the plan reads as mixed here")
         app.buttons["smartCleanCleanUp"].click()
 
         // The review lists only the npm cache.
@@ -2257,8 +2260,8 @@ extension CatalogCleanupUITests {
     }
 
     /// #343, #344: what CacheDrop found ends at the right tip of the used space and each segment's label names it (the
-    /// tooltip carries the same text; this journey reads the label). #370: Smart clean shows the Cleanup plan's summary
-    /// card, "Ready to clean", not Overview's volume card, and its title is just "Smart clean".
+    /// tooltip carries the same text; this journey reads the label). #370, #779: Smart clean shows the Cleanup plan's summary
+    /// card titled "Free up", not Overview's volume card, and its bottom bar's Clean up names the same figure.
     @MainActor func testStorageBarsPutWhatWasFoundAtTheTipAndSmartCleanShowsThePlansSummaryCard() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
@@ -2278,17 +2281,20 @@ extension CatalogCleanupUITests {
         app.typeKey("2", modifierFlags: .command)
         let header = app.descendants(matching: .any)["smartCleanHeader"]
         XCTAssertTrue(header.waitForExistence(timeout: 10))
-        // The header combines its texts into one element, so the window is searched: only the card says "Ready to clean".
-        XCTAssertEqual(app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'ready to clean' OR value CONTAINS 'ready to clean'")).count, 0,
-                       "The card says it, so the title doesn't repeat it")
+        // The header combines its texts into one element, so the window is searched: only the card says "Free up".
+        XCTAssertEqual(app.staticTexts.matching(NSPredicate(format: "label CONTAINS[c] 'free up' OR value CONTAINS[c] 'free up'")).count, 1,
+                       "The card says it once")
         let detail = app.staticTexts["smartCleanSummary"]
         XCTAssertTrue(detail.waitForExistence(timeout: 10))
         let selected = NSPredicate(format: "value MATCHES %@ OR label MATCHES %@", "[1-9][0-9]* items? selected", "[1-9][0-9]* items? selected")
         XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: selected, object: detail)], timeout: 10), .completed, detail.debugDescription)
-        XCTAssertTrue(app.staticTexts["Ready to clean"].exists)
+        XCTAssertTrue(app.staticTexts["Free up"].exists)
+        XCTAssertFalse(app.staticTexts["Ready to clean"].exists, "The plan's card title stays on the plan")
         let value = app.staticTexts["smartCleanSummaryValue"]
         XCTAssertTrue(value.exists)
-        XCTAssertNotEqual(value.value as? String ?? value.label, "—", "The ticked caches release space")
+        let figure = value.value as? String ?? value.label
+        XCTAssertNotEqual(figure, "—", "The ticked caches release space")
+        XCTAssertEqual(app.buttons["smartCleanCleanUp"].label, "Clean up " + figure)
         XCTAssertFalse(app.descendants(matching: .any)["meterSegments"].exists, "No storage bar on Smart clean")
         XCTAssertFalse(app.staticTexts["startupCapacityAmount"].exists, "Overview's volume card stays on Overview")
     }
@@ -2405,10 +2411,14 @@ extension CatalogCleanupUITests {
             XCTAssertEqual(smart.value as? Int, 1, "The native checkbox ticks the category again")
             revealAndClick(app.staticTexts[title].firstMatch, in: app)
             XCTAssertEqual(smart.value as? Int, 0, "The row's title unticks it")
-            openDisclosure(app.disclosureTriangles.matching(NSPredicate(format: "label BEGINSWITH 'Choose items'")).firstMatch, in: app)
-            let yarn = app.checkBoxes["smartCleanLine-yarn-cache|"]
+            // Smart clean lists no items (#779): tick Yarn alone in the plan, which shares the selection.
+            revealAndClick(app.links["smartCleanAdjust"], in: app)
+            expandDisclosures(in: app)
+            let yarn = app.checkBoxes["planRule-yarn-cache"]
             XCTAssertTrue(yarn.waitForExistence(timeout: 5))
             revealAndClick(yarn, in: app)
+            app.typeKey("2", modifierFlags: .command)
+            XCTAssertTrue(smart.waitForExistence(timeout: 5))
             XCTAssertFalse([0, 1].contains(smart.value as? Int), "One of two ticked reads as mixed: \(String(describing: smart.value))")
             XCTAssertEqual(badge.label, "Cleanup plan, 2 categories selected", "Partial selection still counts the category once")
             revealAndClick(app.staticTexts[title].firstMatch, in: app)
@@ -2453,7 +2463,7 @@ extension CatalogCleanupUITests {
     }
 
     /// #349: one selection. What is unticked in Smart clean is unticked in the plan, the plan adds to it and cleans it, and
-    /// the untick outlives the run's rescan. A dry run, so every fixture file stays.
+    /// the untick outlives the run's rescan, while a recommended item found again arrives ticked. A dry run, so every fixture file stays.
     @MainActor func testSmartCleansTicksCarryIntoThePlanWhichAddsMoreAndCleans() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
@@ -2466,14 +2476,12 @@ extension CatalogCleanupUITests {
         waitForOverview(app)
         waitForCatalogScan(app)
 
-        // Smart clean: untick Yarn.
+        // Smart clean: untick the developer category, npm and Yarn.
         app.typeKey("2", modifierFlags: .command)
-        XCTAssertTrue(app.checkBoxes["smartCleanCategory-developer"].waitForExistence(timeout: 10))
-        let yarnInSmartClean = app.checkBoxes["smartCleanLine-yarn-cache|"]
-        openDisclosure(app.disclosureTriangles.matching(NSPredicate(format: "label BEGINSWITH 'Choose items'")).firstMatch, in: app)
-        XCTAssertTrue(yarnInSmartClean.waitForExistence(timeout: 5))
-        revealAndClick(yarnInSmartClean, in: app)
-        XCTAssertEqual(yarnInSmartClean.value as? Int, 0)
+        let developerInSmartClean = app.checkBoxes["smartCleanCategory-developer"]
+        XCTAssertTrue(developerInSmartClean.waitForExistence(timeout: 10))
+        revealAndClick(developerInSmartClean, in: app)
+        XCTAssertEqual(developerInSmartClean.value as? Int, 0)
 
         // Overview says the category no longer matches the recommended default, and opens it in the plan.
         app.typeKey("1", modifierFlags: .command)
@@ -2484,9 +2492,11 @@ extension CatalogCleanupUITests {
         let yarn = app.checkBoxes["planRule-yarn-cache"], npm = app.checkBoxes["planRule-npm-cache"]
         XCTAssertTrue(yarn.waitForExistence(timeout: 5))
         XCTAssertEqual(yarn.value as? Int, 0, "Unticked in Smart clean, unticked here")
-        XCTAssertEqual(npm.value as? Int, 1, "Ticked in Smart clean, ticked here")
+        XCTAssertEqual(npm.value as? Int, 0)
+        revealAndClick(npm, in: app)
+        XCTAssertEqual(npm.value as? Int, 1)
 
-        // The plan adds the installer, which Smart clean never takes, and cleans both.
+        // The plan adds the installer, which Smart clean never takes, and cleans it with npm.
         let installer = app.checkBoxes["planCategory-downloads"]
         XCTAssertEqual(installer.value as? Int, 0)
         revealAndClick(installer, in: app)
@@ -2500,13 +2510,13 @@ extension CatalogCleanupUITests {
             XCTAssertTrue(FileManager.default.fileExists(atPath: home.appendingPathComponent(kept).path), kept)
         }
 
-        // The run's rescan keeps Yarn unticked in Smart clean.
+        // The run's rescan keeps Yarn unticked: the npm cache, found again, is ticked as recommended, so the category is mixed.
         app.typeKey("2", modifierFlags: .command)
-        XCTAssertTrue(yarnInSmartClean.waitForExistence(timeout: 30))
-        let npmInSmartClean = app.checkBoxes["smartCleanLine-npm-cache|"]
-        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == 1"), object: npmInSmartClean)], timeout: 30),
-                       .completed, "The npm cache, found again, is ticked as recommended")
-        XCTAssertEqual(yarnInSmartClean.value as? Int, 0, "The untick outlives the rescan")
+        XCTAssertTrue(developerInSmartClean.waitForExistence(timeout: 30))
+        let mixed = NSPredicate(format: "NOT (value IN %@)", [0, 1])
+        // Only Smart clean is checked here: opening the plan after its own run starts a new plan at the recommended default (#270).
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: mixed, object: developerInSmartClean)], timeout: 30),
+                       .completed, "npm ticked again, Yarn still unticked: \(String(describing: developerInSmartClean.value))")
     }
 
     /// #310: unreadable Protected items settings read as one error line with Try again, on Overview and on the page the user
@@ -2718,7 +2728,7 @@ extension CatalogCleanupUITests {
     }
 
     /// #319, #342: Smart clean's wider plan. A download not opened or changed in 7 days, under "Old downloads", Homebrew's cache and a leftover an installer receipt
-    /// ties to its removed app all start ticked, each category with its consequence line. Unticking the installer leaves the
+    /// ties to its removed app all start ticked, each category with the plan's what-it-is line (#779). Unticking the installer leaves the
     /// rest, which the review groups by consequence. A dry run, so nothing changes and the stand-in `brew` never runs.
     @MainActor func testSmartCleanTicksAnOldInstallerAHomebrewCacheAndAReceiptTiedLeftover() throws {
         continueAfterFailure = false
@@ -2755,9 +2765,11 @@ extension CatalogCleanupUITests {
         for category in [downloads, developer, leftovers] { XCTAssertEqual(category.value as? Int, 1, category.identifier) }
         func text(_ line: String) -> XCUIElementQuery { app.staticTexts.matching(NSPredicate(format: "label == %@ OR value == %@", line, line)) }
         XCTAssertEqual(text("Old downloads").count, 1, "Smart clean names its Downloads category by what it takes (#342)")
-        XCTAssertEqual(text("Goes to the Trash; Put back works").count, 2, "Installers and leftovers")
-        XCTAssertEqual(text("Comes back on its own when your tools and Xcode need it; some tools clean their own").count, 1)
-        // #350, #370: "Ready to clean" counts only what is released, so unticking the Trash-bound installers leaves its
+        for line in ["Downloads you haven’t opened in 7 days", "Package caches and build files that tools rebuild", "Settings and data they left behind"] {
+            XCTAssertEqual(text(line).count, 1, line)
+        }
+        XCTAssertEqual(text("Goes to the Trash; Put back works").count, 0, "Consequences are the review sheet's (#779)")
+        // #350, #370, #779: "Free up" counts only what is released, so unticking the Trash-bound installers leaves its
         // total as it is; the item count drops by the installer.
         let total = app.staticTexts["smartCleanSummaryValue"], count = app.staticTexts["smartCleanSummary"]
         let read = { (element: XCUIElement) in element.value as? String ?? element.label }
@@ -3198,7 +3210,8 @@ extension CatalogCleanupUITests {
         }
     }
 
-    @MainActor func testSmartCleanSortsCategoriesAndLinesAndKeepsEachPagesChoice() throws {
+    /// #779: Smart clean has no Name/Size header; its categories go largest first, whatever the plan's sort.
+    @MainActor func testSmartCleanListsCategoriesLargestFirstWhateverThePlansSort() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
         let state = try configureIsolatedState(app), home = try configureCatalogHome(app)
@@ -3206,37 +3219,19 @@ extension CatalogCleanupUITests {
         try addSortingFixture(in: home)
         app.launch(); waitForCatalogScan(app)
         app.typeKey("2", modifierFlags: .command)
-        let name = app.buttons["smartCleanSort-name"], size = app.buttons["smartCleanSort-size"]
-        XCTAssertTrue(size.waitForExistence(timeout: 5))
-        XCTAssertEqual(size.value as? String, "Largest first")
-        expandDisclosures(in: app)
         let developer = app.checkBoxes["smartCleanCategory-developer"], downloads = app.checkBoxes["smartCleanCategory-downloads"]
-        let npm = app.checkBoxes["smartCleanLine-npm-cache|"], yarn = app.checkBoxes["smartCleanLine-yarn-cache|"]
-        XCTAssertTrue(npm.exists && yarn.exists)
-        XCTAssertLessThan(downloads.frame.minY, developer.frame.minY)
-        XCTAssertLessThan(yarn.frame.minY, npm.frame.minY)
-        revealAndClick(npm, in: app)
-        for (button, developerFirst, npmFirst) in [(name, true, true), (name, false, false), (size, false, false), (size, true, true)] {
-            revealAndClick(button, in: app)
-            XCTAssertEqual(developer.frame.minY < downloads.frame.minY, developerFirst)
-            XCTAssertEqual(npm.frame.minY < yarn.frame.minY, npmFirst)
-            XCTAssertEqual(npm.value as? Int, 0, "Sorting preserves an untick")
-            XCTAssertEqual(yarn.value as? Int, 1)
-        }
+        XCTAssertTrue(downloads.waitForExistence(timeout: 10) && developer.exists)
+        XCTAssertFalse(app.buttons["smartCleanSort-size"].exists, "No sort header on Smart clean")
+        XCTAssertFalse(app.buttons["smartCleanSort-name"].exists)
+        XCTAssertLessThan(downloads.frame.minY, developer.frame.minY, "Largest first")
         app.typeKey("3", modifierFlags: .command)
-        XCTAssertEqual(app.buttons["planSort-size"].value as? String, "Largest first", "Each page starts with its own default")
-        app.buttons["planSort-name"].click()
-        expandDisclosures(in: app)
-        XCTAssertEqual(app.checkBoxes["planRule-npm-cache"].value as? Int, 0, "The selection is shared across pages")
+        let planName = app.buttons["planSort-name"]
+        XCTAssertTrue(planName.waitForExistence(timeout: 5))
+        planName.click()
+        XCTAssertEqual(planName.value as? String, "A to Z")
         app.typeKey("2", modifierFlags: .command)
-        XCTAssertEqual(size.value as? String, "Smallest first", "Navigation preserves Smart clean's choice")
-        app.typeKey("3", modifierFlags: .command)
-        XCTAssertEqual(app.buttons["planSort-name"].value as? String, "A to Z", "Navigation preserves the plan's separate choice")
-        app.terminate(); app.launch(); waitForCatalogScan(app)
-        app.typeKey("2", modifierFlags: .command)
-        XCTAssertEqual(size.value as? String, "Largest first")
-        app.typeKey("3", modifierFlags: .command)
-        XCTAssertEqual(app.buttons["planSort-size"].value as? String, "Largest first", "A new launch resets both sorts")
+        XCTAssertTrue(developer.waitForExistence(timeout: 5))
+        XCTAssertLessThan(downloads.frame.minY, developer.frame.minY, "The plan's sort stays on the plan")
     }
 
     @MainActor func testCleanupPlanSortsRulesAndItemsWithinTheirCategoriesWithoutChangingTicks() throws {

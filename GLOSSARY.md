@@ -40,6 +40,7 @@ The names CacheDrop shows, what they mean, and where they live in code. Copy fol
 | rule | One kind of thing CacheDrop can clean, with its action and consequence | `CleanupRule` |
 | item | One thing a rule found on disk | `Candidate` |
 | recommended | Items Smart clean ticks by default | `RecommendedPlan` |
+| Old downloads | Smart clean's row for the downloads it takes, those nothing opened or changed in 7 days; its line says so (#342, #779) | `CatalogCategory.smartCleanTitle`, `CatalogCategory.oldDownloadsDetail` |
 | Weekly reminder | The opt-in weekly notification of what Smart clean had at the last scan | `WeeklyReminderController`, `WeeklyReminderSchedule` |
 | ticked / selection | What will be cleaned; shared by Smart clean, the plan and Applications | `CleanupSelections` |
 | scanned location | A folder CacheDrop scans; Downloads is **Built in** | `ScannedLocation`, `RememberedLocations` |
@@ -90,6 +91,7 @@ The names CacheDrop shows, what they mean, and where they live in code. Copy fol
 | Scan again | Any action that scans | `CatalogCleanupModel`, `ExploreStorage` |
 | Dry run | Runs the whole flow; nothing changes | `dryRun` |
 | Measured freed space, Freed | Free space measured around each item, not the estimate; History rows note it **Freed** | `MeasuredFreedSpace`, `CleanupHistoryRun.headline` |
+| Free up | Smart clean's card title over what its ticked items release; its button reads **Clean up X** with the same X; the Cleanup plan's card says **Ready to clean** (Decision 173) | `SmartCleanSummary` |
 | Up to, About | A size that's an upper bound or an estimate | `SizeEstimate` |
 | Unknown | A size CacheDrop couldn't read, never shown as zero or empty | `SizeEstimate.unknown`, `SizeFormatter` |
 | Needs Full Disk Access | Something macOS keeps from CacheDrop without Full Disk Access | `GuidanceSize.notAccessible`, `CatalogOverview.Row.needsAccess` |
