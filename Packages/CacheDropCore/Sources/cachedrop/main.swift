@@ -4,7 +4,8 @@ import CacheDropCore
 
 // `cachedrop` (#626, #627). `scan` prints Overview's categories and `plan` what Smart clean would clean, read-only, as text
 // or with --json. `clean` runs that plan through the app's own executor, checks and journal (`CommandLineClean`), after a
-// confirmation unless --yes; --dry-run runs the whole flow and changes nothing.
+// confirmation unless --yes, asked only when the license and trial allow the run (#722); --dry-run runs the whole flow
+// and changes nothing.
 
 let usage = """
 Usage: cachedrop <command> [--json]
@@ -59,7 +60,18 @@ do {
             if json { print(try CommandLineReport.json(CommandLineReport.Clean(nothingToCleanIn: sources.home, dryRun: dryRun))) }
             fail("Smart clean has nothing to clean now. Nothing was changed.", code: 0)
         }
+        // The app's license and trial (Decisions 135, 138): gated in builds with LICENSE_GATING, as the Release app is.
+        // Without it, as in Debug, nothing reads or writes the Keychain. Either way the stores only update the app's items.
+        #if LICENSE_GATING
+        let gating = true
+        #else
+        let gating = false
+        #endif
+        let licenseStore = KeychainLicenseKeyStore(createsItem: false), trialStore = KeychainTrialStore(createsItem: false)
         if start == .ask {
+            // Asked only when the license and trial would let the run go ahead (#722); `run` checks them again.
+            if let reason = CommandLineClean.refusalBeforeAsking(report, sources: sources, dryRun: dryRun, licenseStore: licenseStore,
+                                                                 trialStore: trialStore, gating: gating) { fail(reason, code: 1) }
             // The question and the plan go to standard error, so --json output stays only JSON.
             FileHandle.standardError.write(Data((plan.text.components(separatedBy: "\n").dropLast().joined(separator: "\n")
                                                 + "\nClean up \(plan.total.text) now? [y/N] ").utf8))
@@ -70,15 +82,8 @@ do {
         let journal: SQLiteCleanupJournal, lock: URL
         do { journal = try LocalStateLocation.cleanupJournal(); lock = try LocalStateLocation.root(create: true).appendingPathComponent(LocalStateLocation.cleanupLockName) }
         catch { fail(CommandLineClean.Refusal.journal, code: 1) }
-        // The app's license and trial (Decisions 135, 138): gated in builds with LICENSE_GATING, as the Release app is.
-        // Without it, as in Debug, nothing reads or writes the Keychain. Either way the stores only update the app's items.
-        #if LICENSE_GATING
-        let gating = true
-        #else
-        let gating = false
-        #endif
         switch await CommandLineClean.run(report, sources: sources, dryRun: dryRun, journal: journal, lock: lock, trash: FinderTrash(),
-                                          licenseStore: KeychainLicenseKeyStore(createsItem: false), trialStore: KeychainTrialStore(createsItem: false), gating: gating) {
+                                          licenseStore: licenseStore, trialStore: trialStore, gating: gating) {
         case .refused(let reason): fail(reason, code: 1)
         case .ran(let result, let notice):
             let shown = CommandLineReport.Clean(result, home: sources.home)
