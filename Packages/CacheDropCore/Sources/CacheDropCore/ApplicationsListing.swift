@@ -30,3 +30,34 @@ public struct ApplicationsListing: Sendable, Equatable {
         sort.ordered(items.filter { matches(name: name($0), maker: maker($0)) }, name: name, bytes: bytes)
     }
 }
+
+/// What one Applications section shows (Decision 176).
+public enum ApplicationsSectionContent: Sendable, Equatable {
+    /// Nothing is listed yet and its list is being read: skeleton rows (#270).
+    case loading
+    /// Its list couldn't be read: its own line says why, with Scan again where it can help (Decision 62).
+    case unreadable
+    /// It found nothing: one row reading Empty, muted, in its size column, as Overview's empty categories (Decision 76).
+    case empty
+    /// It lists something, but nothing the search matches.
+    case noMatches
+    /// Its rows, behind its disclosure; during a rescan they stay, dimmed (#308).
+    case rows
+}
+
+extension ApplicationsListing {
+    /// What a section shows, from how many entries it lists and how many of those the search shows. A list that couldn't be
+    /// read is said even while a scan runs, never as empty or a skeleton (Decision 62); Empty is true whatever the search.
+    public func section(listed: Int, shown: Int, loading: Bool, unreadable: Bool = false) -> ApplicationsSectionContent {
+        if listed > 0 { return shown > 0 ? .rows : .noMatches }
+        if unreadable { return .unreadable }
+        return loading ? .loading : .empty
+    }
+
+    /// What one of Audio software's four groups shows once the section lists something (Decision 176): Empty when it found
+    /// nothing, as a section does; nil, left out, when a search has no match in it, an empty group included.
+    public func group(listed: Int, shown: Int, unreadable: Bool = false) -> ApplicationsSectionContent? {
+        if isSearching, shown == 0 { return nil }
+        return section(listed: listed, shown: shown, loading: false, unreadable: unreadable)
+    }
+}

@@ -16,6 +16,8 @@ struct SmartCleanView: View {
     @State private var approvalError: String?
     /// Clean up found nothing it can clean since the scan: the page says so, with Scan again (#321).
     @State private var nothingToClean = false
+    /// Worth a look's open rows, this page's own (Decision 48: each screen keeps its open state).
+    @State private var worthALookOpen: Set<CatalogCategory> = []
     private var model: CatalogCleanupModel { selection.catalog }
 
     var body: some View {
@@ -27,10 +29,10 @@ struct SmartCleanView: View {
                 }.background(CacheDropDesign.reading)
             }
             CleanupActionBar(selection: selection, source: .smartClean, viewHistory: viewHistory, reviewRecovery: reviewRecovery) {
-                Button("Done") { selection.dismissResult() }.buttonStyle(.borderedProminent).accessibilityIdentifier("smartCleanDone")
+                Button("Done") { selection.dismissResult() }.accessibilityIdentifier("smartCleanDone")
             } idle: {
                 BusyAction(busy: selection.isCheckingReview) {
-                    Button(summary.cleanUpTitle) { Task { await openReview() } }.buttonStyle(.borderedProminent).controlSize(.large)
+                    Button(summary.cleanUpTitle) { Task { await openReview() } }.buttonStyle(.borderedProminent)
                         .disabled(!selection.canReviewSmartClean).accessibilityIdentifier("smartCleanCleanUp")
                 }.help(model.isScanning ? CacheDropDesign.waitForScanHelp : "")
             }
@@ -78,6 +80,7 @@ struct SmartCleanView: View {
                 }.waitingForScan(model.isScanning)
             }
             if rows.isEmpty && model.hasScanned && !model.isScanning && !model.settingsUnreadable { NothingToCleanUp(identifier: "smartCleanEmpty") }
+            worthALook
             notIncluded
         }.padding(CacheDropDesign.Space.page).frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -109,6 +112,45 @@ struct SmartCleanView: View {
             Text("·").foregroundStyle(.secondary).accessibilityHidden(true)
             Button(SmartCleanSummary.adjust) { openPlan(nil) }.buttonStyle(.link).accessibilityIdentifier("smartCleanAdjust")
         }.font(CacheDropDesign.TypeStyle.caption).accessibilityElement(children: .contain).accessibilityIdentifier("smartCleanNotIncluded")
+    }
+
+    /// Worth a look (#780, Decision 178): a quiet group under the rows, above the caption, of the files from deleted apps the
+    /// recommended plan doesn't take, never ticked for you, their ticks shared with Applications. Nothing in it, no header.
+    @ViewBuilder private var worthALook: some View {
+        let items = model.worthALookCandidates
+        let rows = WorthALook.rows(items, catalog: model.catalog)
+        if model.hasScanned, !rows.isEmpty {
+            VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
+                Text(WorthALook.title).font(CacheDropDesign.TypeStyle.section).accessibilityAddTraits(.isHeader)
+                    .accessibilityIdentifier("smartCleanWorthALook")
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(rows) { row in
+                        suggestion(row, items: items)
+                        Divider().padding(.vertical, CacheDropDesign.Space.md)
+                    }
+                }.waitingForScan(model.isScanning)
+            }.padding(.top, CacheDropDesign.Space.lg)
+        }
+    }
+
+    /// A Worth a look row: the category row Applications draws (Decision 48), holding only what the plan doesn't take, so
+    /// nothing shows twice. Its items, under Choose items, are ticked one by one where they must be (Decision 49).
+    private func suggestion(_ row: CatalogOverview.Row, items: [Candidate]) -> some View {
+        let found = items.filter { candidate in row.rules.contains { $0.id == candidate.ruleID } }
+        let selection = model.categorySelection(row.rules, items: found)
+        let expanded = Binding(get: { worthALookOpen.contains(row.category) },
+                               set: { if $0 { worthALookOpen.insert(row.category) } else { worthALookOpen.remove(row.category) } })
+        return CategoryRow(category: row.category.storageCategory, state: selection.state, title: row.category.overviewTitle,
+                           detail: row.category.overviewDetail, size: row.valueText, enabled: model.canEdit, identifier: "smartCleanSuggestion-" + row.id,
+                           itemCount: found.count, expanded: expanded,
+                           // Nothing may be ticked together: the row opens its items to tick each on its own.
+                           toggle: { if model.toggle(selection) { expanded.wrappedValue = true } }) {
+            EmptyView()
+        } items: {
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(row.rules) { rule in CatalogItemRows(model: model, rule: rule, only: Set(found.map(\.id))) }
+            }
+        }
     }
 
     private func openReview() async {

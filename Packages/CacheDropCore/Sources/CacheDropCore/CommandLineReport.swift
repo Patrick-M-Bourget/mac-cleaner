@@ -42,7 +42,7 @@ public enum CommandLineReport {
         public let scannedAt: Date
         /// "granted", "notGranted" or "unknown".
         public let fullDiskAccess: String
-        /// Overview's "Recommended for review": cleanable space, not counting what would go to the Trash.
+        /// Overview's "Can be cleaned" (#764): cleanable space, not counting what would go to the Trash.
         public let recommended: Size
         public let toTrash: Size
         public let categories: [Category]
@@ -64,7 +64,7 @@ public enum CommandLineReport {
         }
 
         public var text: String {
-            var lines = ["CacheDrop scan of \(home)", "Recommended for review: \(recommended.text)"]
+            var lines = ["CacheDrop scan of \(home)", "Can be cleaned: \(recommended.text)"]
             if toTrash.bytes.map({ $0 > 0 }) == true { lines.append("Doesn’t include \(toTrash.text) that would go to the Trash") }
             lines.append("")
             let width = categories.map(\.title.count).max() ?? 0

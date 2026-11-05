@@ -15,6 +15,7 @@ struct DesignGallery: View {
     @State private var alertExamplesExpanded = false
     @State private var categoryRowExpanded = false
     @State private var applicationsSectionExpanded = true
+    @State private var audioSectionExpanded = true
     @State private var makerGroupExpanded = true
     @State private var onboardingExpanded = true
     var body: some View {
@@ -206,6 +207,12 @@ struct DesignGallery: View {
                         Text("Example cache").font(CacheDropDesign.TypeStyle.note)
                         Text("Example build files").font(CacheDropDesign.TypeStyle.note)
                     }
+                    // Smart clean's Worth a look (#780, Decision 178): a section title over the row Applications draws, holding the files from deleted apps Smart clean doesn't tick.
+                    Text(WorthALook.title).font(CacheDropDesign.TypeStyle.section).accessibilityAddTraits(.isHeader)
+                    CategoryRow(category: .leftovers, state: .unchecked, title: CatalogCategory.leftovers.overviewTitle, detail: CatalogCategory.leftovers.overviewDetail,
+                                size: "84 MB", enabled: true, identifier: "galleryWorthALookRow", itemCount: 3, expanded: .constant(false), toggle: {}) {
+                        EmptyView()
+                    } items: { EmptyView() }
                     // Applications (Decision 51): a row that can't be chosen has no checkbox, and says why.
                     CategoryRow(category: .apps, state: nil, title: "Example app", detail: "Example maker", size: "800 MB", enabled: true,
                                 identifier: "galleryReadOnlyRow", itemCount: nil, expanded: .constant(false), toggle: {}) {
@@ -222,17 +229,34 @@ struct DesignGallery: View {
                         CategoryRow(category: .apps, state: nil, title: "Example app in a section", detail: "Example maker", size: "800 MB", enabled: true,
                                     identifier: "galleryApplicationsSectionRow", itemCount: nil, expanded: .constant(false), toggle: {}) { EmptyView() } items: { EmptyView() }
                     }
-                    // Audio software's groups and makers (Decisions 151, 153): category rows with no checkbox inside the section.
-                    CategoryRow(category: .audioSoftware, state: nil, title: "Example maker", detail: "", size: "2.4 GB", enabled: true,
-                                identifier: "galleryMakerGroup", itemCount: 2, chooseNoun: "plug-ins", expanded: $makerGroupExpanded, toggle: {}) { EmptyView() } items: {
-                        CategoryRow(category: .audioSoftware, state: .unchecked, title: "Example plug-in", detail: "Example maker", size: "1.9 GB", enabled: true,
-                                    identifier: "galleryMakerGroupProduct", itemCount: nil, expanded: .constant(false), toggle: {}) { EmptyView() } items: { EmptyView() }
-                        CategoryRow(category: .audioSoftware, state: .unchecked, title: "Another example plug-in", detail: "Example maker", size: "500 MB", enabled: true,
-                                    identifier: "galleryMakerGroupProduct2", itemCount: nil, expanded: .constant(false), toggle: {}) { EmptyView() } items: { EmptyView() }
+                    // A section that found nothing is one row, Empty muted in its size column, as on Overview (Decision 176).
+                    CategoryRow(category: .leftovers, state: nil, title: "Example empty section", detail: "Settings and data they left behind", size: "Empty", enabled: true,
+                                identifier: "galleryEmptySection", itemCount: nil, mutedSize: true, expanded: .constant(false), toggle: {}) { EmptyView() } items: { EmptyView() }
+                    // Audio software opens straight to its groups, behind "Show groups · N"; its groups and makers are category rows with
+                    // no checkbox and no badge, their titles on the rows' text column (Decisions 151, 153, 175).
+                    CategoryRow(category: .audioSoftware, state: nil, title: "Example audio section", detail: "DAWs and apps, plug-ins, sounds and drivers", size: "8.7 GB",
+                                enabled: true, identifier: "galleryAudioSection", itemCount: 3, chooseVerb: "Show", chooseNoun: "groups",
+                                expanded: $audioSectionExpanded, toggle: {}) { EmptyView() } items: {
+                        VStack(alignment: .leading, spacing: 0) {
+                            CategoryRow(category: .audioSoftware, state: nil, title: "Example maker", detail: "", size: "2.4 GB", enabled: true,
+                                        identifier: "galleryMakerGroup", itemCount: 2, chooseNoun: "plug-ins", showsBadge: false, expanded: $makerGroupExpanded, toggle: {}) { EmptyView() } items: {
+                                CategoryRow(category: .audioSoftware, state: .unchecked, title: "Example plug-in", detail: "Example maker", size: "1.9 GB", enabled: true,
+                                            identifier: "galleryMakerGroupProduct", itemCount: nil, expanded: .constant(false), toggle: {}) { EmptyView() } items: { EmptyView() }
+                                CategoryRow(category: .audioSoftware, state: .unchecked, title: "Another example plug-in", detail: "Example maker", size: "500 MB", enabled: true,
+                                            identifier: "galleryMakerGroupProduct2", itemCount: nil, expanded: .constant(false), toggle: {}) { EmptyView() } items: { EmptyView() }
+                            }
+                            Divider().padding(.vertical, CacheDropDesign.Space.md)
+                            // A group where nothing can be ticked says Show (Decision 154).
+                            CategoryRow(category: .audioSoftware, state: nil, title: "Example read-only group", detail: "", size: "6.3 GB", enabled: true,
+                                        identifier: "galleryShowGroup", itemCount: 3, chooseVerb: "Show", chooseNoun: "sounds", showsBadge: false,
+                                        expanded: .constant(false), toggle: {}) { EmptyView() } items: { EmptyView() }
+                            Divider().padding(.vertical, CacheDropDesign.Space.md)
+                            // A group that found nothing reads Empty, with no disclosure (Decision 176).
+                            CategoryRow(category: .audioSoftware, state: nil, title: "Example empty group", detail: "", size: "Empty", enabled: true,
+                                        identifier: "galleryEmptyGroup", itemCount: nil, showsBadge: false, mutedSize: true,
+                                        expanded: .constant(false), toggle: {}) { EmptyView() } items: { EmptyView() }
+                        }
                     }
-                    // A group where nothing can be ticked says Show (Decision 154).
-                    CategoryRow(category: .audioSoftware, state: nil, title: "Example read-only group", detail: "", size: "6.3 GB", enabled: true,
-                                identifier: "galleryShowGroup", itemCount: 3, chooseVerb: "Show", chooseNoun: "sounds", expanded: .constant(false), toggle: {}) { EmptyView() } items: { EmptyView() }
                     // A read-only sound row; its vendor's installed manager can remove or move it (Decision 157).
                     InspectableItemRow(name: "Example sample library", detail: "Example maker", size: "4.1 GB", symbol: "waveform", inspected: false, inspect: nil,
                                        reveal: {}, revealIdentifier: "gallerySoundReveal",
@@ -309,13 +333,13 @@ private struct OnboardingGalleryExamples: View {
 private struct CapacityGalleryExamples: View {
     var body: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
-            example("checking", available: nil, total: nil, observation: "Checking free space…", status: "Checking capacity…", refreshing: true)
+            example("checking", available: nil, total: nil, observation: "Checking free space…", status: "Checking free space…", refreshing: true)
             example("refreshing", observation: "Updated 10:00 AM", status: "Refreshing…", refreshing: true)
             example("important", observation: "Updated 10:00 AM")
             example("fallback", observation: "Updated 10:00 AM")
             example("partial", total: nil, observation: "Updated 10:00 AM")
-            example("stale", observation: "Last updated 10:00 AM", status: "Couldn’t refresh capacity", retry: true)
-            example("unavailable", available: nil, total: nil, observation: "Free space unavailable", status: "Couldn’t refresh capacity", retry: true)
+            example("stale", observation: "Last updated 10:00 AM", status: "Couldn’t refresh free space", retry: true)
+            example("unavailable", available: nil, total: nil, observation: "Free space unknown", status: "Couldn’t refresh free space", retry: true)
         }
     }
     private func example(_ name: String, available: Int64? = 40_000_000_000, total: Int64? = 512_000_000_000, observation: String, status: String = "", refreshing: Bool = false, retry: Bool = false) -> some View {
@@ -345,6 +369,10 @@ private struct ButtonRuleGalleryExamples: View {
             }.frame(maxWidth: CacheDropDesign.Size.sheetNarrow)
             Text("Bottom bar · Large capsules").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
             ActionStrip(message: "Example note") { Button("Scan again") {}; Button("Review plan") {}.buttonStyle(.borderedProminent) }
+            // #782, Decision 177: while a run's items wait in the Trash, Results leads with Empty from Trash…; its line keeps Open Trash.
+            Text("Results · Items still in the Trash").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+            TrashLine(text: nil, identifier: "galleryResultsTrash")
+            ActionStrip(message: nil) { Button("View history") {}; Button("Start a new plan") {}; Button("Empty from Trash…") {}.buttonStyle(.borderedProminent) }
         }
     }
 }
@@ -356,9 +384,11 @@ private struct ListHeaderGalleryExamples: View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
             PageHeader(title: "Example page", subtitle: "Search under the description; sort by clicking a column of the list’s header.")
             PageSearchField(label: "Search the example list", prompt: "Name or maker", text: $search, identifier: "gallerySearch")
-            ColumnHeader(nameTitle: "Name", sizeTitle: "On disk", sort: $sort, identifier: "gallerySort")
+            // The plan's and Applications' preset (#765): Name over the rows' titles, Size over their sizes.
+            ColumnHeader.categoryRows(sort: $sort, identifier: "gallerySort")
             ForEach(sort.ordered(Self.rows, name: \.name, bytes: \.bytes), id: \.name) { row in
-                HStack { Text(row.name); Spacer(); Text(SizeFormatter.text(row.bytes)) }.font(CacheDropDesign.TypeStyle.note)
+                CategoryRow(category: .downloads, state: .unchecked, title: row.name, detail: "", size: SizeFormatter.text(row.bytes), enabled: true,
+                            identifier: "gallerySortRow-" + row.name, itemCount: nil, expanded: .constant(false), toggle: {}) { EmptyView() } items: { EmptyView() }
             }
         }
     }

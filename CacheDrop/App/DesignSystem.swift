@@ -321,6 +321,14 @@ struct ColumnHeader: View {
         }
     }
 }
+extension ColumnHeader {
+    /// The header over a list of `CategoryRow`s (#765): **Name** over the rows' titles, past their checkbox and badge, and
+    /// **Size** flush with their size column. The Cleanup plan and Applications share it.
+    static func categoryRows(sort: Binding<ListSort>, identifier: String) -> ColumnHeader {
+        ColumnHeader(nameTitle: "Name", sizeTitle: "Size", sort: sort, identifier: identifier,
+                     insets: EdgeInsets(top: 0, leading: CacheDropDesign.Size.categoryContentIndent, bottom: 0, trailing: 0))
+    }
+}
 /// One sortable label (#352, Decision 77): clicking the active one flips its direction, clicking the other switches to it,
 /// and a chevron sits on the active one. Identified `<identifier>-name` or `<identifier>-size`.
 struct SortButton: View {
@@ -670,12 +678,12 @@ struct CapacityMeter: View {
     }
     private var validTotal: Int64? { Self.validTotal(available: available, total: total) }
     private var capacityText: SidebarCapacityText { SidebarCapacityText(available: available, total: total) }
-    /// The full wording ("312 GB available of 1 TB"), for labels, tooltips and the non-compact value.
+    /// The full wording ("312 GB free of 1 TB"), for labels, tooltips and the non-compact value.
     private var amountText: String { capacityText.description }
     var body: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
             if compact {
-                // One line, "312 GB free of 1 TB"; "available" is in the label and tooltip (#353).
+                // One line, "312 GB free of 1 TB", the label and tooltip in full (#353, #764).
                 Text(capacityText.line).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
                     .lineLimit(1).minimumScaleFactor(CacheDropDesign.Scale.oneLineCaption).truncationMode(.tail)
                     .help(amountText).accessibilityLabel(amountText).accessibilityIdentifier("sidebarCapacityAmount")
@@ -747,7 +755,7 @@ struct VolumeSummary: View {
                         .accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: CacheDropDesign.Space.xs) {
                         Text(name).font(CacheDropDesign.TypeStyle.section)
-                        Text("Startup volume · " + (total.map { SizeFormatter.text($0) } ?? "Total capacity unavailable")).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                        Text(total.map { SizeFormatter.text($0) + " disk" } ?? "Disk size unknown").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
                     }.frame(height: CacheDropDesign.Size.deviceIcon)
                     Spacer(minLength: CacheDropDesign.Space.sm)
                     VStack(alignment: .trailing, spacing: CacheDropDesign.Space.xs) {
@@ -756,7 +764,7 @@ struct VolumeSummary: View {
                             Text("free").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
                         } else {
                             Text(CacheDropDesign.noValue).font(CacheDropDesign.TypeStyle.value)
-                            Text(refreshing ? "Checking capacity…" : "Free space unknown").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                            Text(refreshing ? "Checking free space…" : "Free space unknown").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
                         }
                     }
                 }
@@ -871,6 +879,10 @@ struct CategorySelectionHeader<Below: View>: View {
     let enabled: Bool
     var identifier: String? = nil
     var icon: NSImage? = nil
+    /// False keeps the badge's place empty: a row inside a section that already shows the badge (Decision 175).
+    var showsBadge = true
+    /// A size that is a state ("Empty"), muted as Overview shows it (Decision 176).
+    var mutedSize = false
     let action: () -> Void
     @ViewBuilder var below: () -> Below
     /// A parent's `.disabled` (a scan dimming the rows), which the native checkbox follows too.
@@ -891,7 +903,8 @@ struct CategorySelectionHeader<Below: View>: View {
             // Without a checkbox, the badge keeps its place, so titles line up with the rows that have one.
             Group {
                 if let icon { Image(nsImage: icon).resizable().interpolation(.high).frame(width: CacheDropDesign.Size.badge, height: CacheDropDesign.Size.badge).accessibilityHidden(true) }
-                else { CategoryBadge(category: category) }
+                else if showsBadge { CategoryBadge(category: category) }
+                else { Color.clear.frame(width: CacheDropDesign.Size.badge, height: CacheDropDesign.Size.badge).accessibilityHidden(true) }
             }.padding(.leading, state == nil ? CacheDropDesign.Size.checkbox + CacheDropDesign.Space.md : 0)
             VStack(alignment: .leading, spacing: CacheDropDesign.Space.xs) {
                 Text(title).font(CacheDropDesign.TypeStyle.section)
@@ -901,7 +914,8 @@ struct CategorySelectionHeader<Below: View>: View {
                 }
                 below()
             }.frame(maxWidth: .infinity, alignment: .leading)
-            Text(size).font(CacheDropDesign.TypeStyle.note).monospacedDigit().fixedSize()
+            Text(size).font(mutedSize ? CacheDropDesign.TypeStyle.caption : CacheDropDesign.TypeStyle.note).monospacedDigit().fixedSize()
+                .foregroundStyle(mutedSize ? .secondary : .primary)
         }.contentShape(Rectangle()).onTapGesture { if state != nil && enabled && environmentEnabled { action() } }
     }
 }
@@ -933,6 +947,10 @@ struct CategoryRow<Notice: View, Items: View>: View {
     var chooseNoun = "items"
     /// An app's own icon, in the badge's place (Applications).
     var icon: NSImage? = nil
+    /// False leaves the badge's place empty, so the title stays on the rows' text column (Audio software's groups, Decision 175).
+    var showsBadge = true
+    /// "Empty" in the size column, muted, for a section that found nothing (Decision 176).
+    var mutedSize = false
     @Binding var expanded: Bool
     let toggle: () -> Void
     @ViewBuilder var notice: () -> Notice
@@ -942,7 +960,7 @@ struct CategoryRow<Notice: View, Items: View>: View {
             // With no detail (an app with no maker), the notice takes the detail's place, right under the title, rather than
             // below the badge (#298).
             CategorySelectionHeader(category: category, state: state, title: title, detail: detail, size: size, enabled: enabled,
-                                    identifier: identifier, icon: icon, action: toggle) {
+                                    identifier: identifier, icon: icon, showsBadge: showsBadge, mutedSize: mutedSize, action: toggle) {
                 if detail.isEmpty { notice().font(CacheDropDesign.TypeStyle.rowLink) }
             }
             // Its status lines keep their own text style; their links take the row's link size (#718).

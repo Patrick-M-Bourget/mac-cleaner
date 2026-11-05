@@ -18,7 +18,7 @@ public struct CleanupSelections: Sendable, Equatable {
     }
 
     /// The ticked candidate ids of every page, in one set; the plan and Applications each show and review only their own,
-    /// told apart by each id's rule (`chosen(on:from:)`), and Smart clean its recommended ones (`smartClean`).
+    /// told apart by each id's rule (`chosen(on:from:)`), and Smart clean its recommended ones and Worth a look's (`smartClean`).
     public private(set) var ticked: Set<String> = []
     /// Ids the user unticked: a scan never ticks them again, even when recommended.
     private var unticked: Set<String> = []
@@ -47,14 +47,17 @@ public struct CleanupSelections: Sendable, Equatable {
     /// unticked, then moves each page's revision only when its own choices differ from the ones it last moved for.
     /// A `held` item (#374) is never ticked for you: one ticked for you before it was held is unticked until it is free again.
     public mutating func noteChoices(among found: [Candidate], recommended: [Candidate], held: [Candidate] = []) {
-        let held = Set(held.map(\.id))
+        // Worth a look's ticks are Smart clean's choices too (#780): files from deleted apps the plan doesn't take.
+        let held = Set(held.map(\.id)), planned = Set(recommended.map(\.id))
         ticked.subtract(seeded.intersection(held)); seeded.subtract(held)
         let recommended = Set(recommended.map(\.id)).subtracting(held)
         let tickedForYou = recommended.subtracting(unticked)
         ticked.formUnion(tickedForYou); seeded.formUnion(tickedForYou)
         let ids = ticked.intersection(found.map(\.id))
         for page in Source.allCases {
-            let now = page == .smartClean ? recommended.intersection(ticked) : ids.filter { Source.page(ofID: $0) == page }
+            // Smart clean's choices: its ticked recommended items, and what's ticked under Worth a look (#780).
+            let now = page == .smartClean ? recommended.intersection(ticked).union(ids.filter { WorthALook.offers(id: $0, notIn: planned) })
+                : ids.filter { Source.page(ofID: $0) == page }
             guard now != revisedFor[page, default: []] else { continue }
             revisedFor[page] = now; revisions[page, default: 0] &+= 1
         }
@@ -74,14 +77,16 @@ public struct CleanupSelections: Sendable, Equatable {
     /// finished): moves all three pages' revisions anyway.
     public mutating func revise() { for page in Source.allCases { revisions[page, default: 0] &+= 1 } }
 
-    /// What Smart clean's Clean up takes: the ticked items of the recommended plan with `check` run now (`RecommendedPlan`).
+    /// What Smart clean's Clean up takes: the ticked items of the recommended plan with `check` run now (`RecommendedPlan`),
+    /// and those ticked under Worth a look (#780, `WorthALook`).
     /// An item the page `listed` that `check` now refuses stays in, so the review says it will be skipped and why (#310);
     /// the run's own check refuses it again. A held item (#374) ticked by hand is taken the same way.
     public func smartClean(catalog: Catalog, found: [Candidate], listed: [Candidate] = [], check: (Candidate) -> CheckRefusal?) -> [Candidate] {
         let shown = Set(listed.map(\.id))
         let plan = RecommendedPlan(catalog: catalog, candidates: found) { _ in nil }
         let offered = Set((plan.candidates + plan.held).map(\.id))
-        return found.filter { offered.contains($0.id) && isTicked($0) && (shown.contains($0.id) || check($0) == nil) }
+        let suggested = Set(WorthALook.candidates(in: found, plan: plan).map(\.id))
+        return found.filter { (offered.contains($0.id) || suggested.contains($0.id)) && isTicked($0) && (shown.contains($0.id) || check($0) == nil) }
     }
 
     /// The ticked items among `found` that `page` shows (the plan or Applications).
