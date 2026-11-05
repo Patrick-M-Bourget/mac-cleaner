@@ -134,7 +134,7 @@ struct ApplicationsView: View {
             // Every ticked item is counted, those the search hides too (#295).
             CleanupActionBar(selection: selection, source: .applications, viewHistory: viewHistory, reviewRecovery: reviewRecovery,
                              idleNote: catalog.applicationsSelected.isEmpty ? nil : CacheDropDesign.items(catalog.applicationsSelected.count) + " selected") {
-                Button("Done") { selection.dismissResult() }.buttonStyle(.borderedProminent)
+                Button("Done") { selection.dismissResult() }
             } idle: {
                 BusyAction(busy: selection.isCheckingReview) {
                     ReviewCleanupButton(enabled: selection.canReviewApplications && !selection.isCheckingReview, focusRequest: reviewFocusRequest,
@@ -257,8 +257,7 @@ struct ApplicationsView: View {
 
     /// The list's quiet table header, one sort for every section (#295, #352): "Name" over the names, "Size" over the sizes.
     private var columnHeader: some View {
-        ColumnHeader(nameTitle: "Name", sizeTitle: "Size", sort: Bindable(model).listing.sort, identifier: "applicationsSort",
-                     insets: EdgeInsets(top: 0, leading: CacheDropDesign.Size.categoryContentIndent, bottom: 0, trailing: 0))
+        ColumnHeader.categoryRows(sort: Bindable(model).listing.sort, identifier: "applicationsSort")
     }
     private var searchText: String { model.listing.search.trimmingCharacters(in: .whitespaces) }
     /// A search that matches nothing in any section, once the lists are read (#468).

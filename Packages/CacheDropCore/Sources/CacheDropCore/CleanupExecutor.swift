@@ -91,6 +91,12 @@ public struct CatalogExecutionResult: Sendable {
     public var movedToTrashBytes: Int64 {
         records.filter { $0.state == .succeeded && $0.cleanupAction == .trash }.reduce(0) { $0 + ($1.allocatedBytes ?? $1.logicalBytes) }
     }
+    /// Whether Results' bottom bar leads with Empty from Trash… (#782, Decision 177): this run moved items to the Trash and
+    /// CacheDrop's own items are still there (`cacheDropBytesInTrash`, nil until the Trash is read). A first clean should
+    /// free space for real, and Trash moves free nothing until it's emptied. Otherwise the bar is as before.
+    public func leadsWithEmptyFromTrash(cacheDropBytesInTrash: Int64?) -> Bool {
+        !dryRun && movedToTrashBytes > 0 && (cacheDropBytesInTrash ?? 0) > 0
+    }
 }
 
 extension CleanupRecord {

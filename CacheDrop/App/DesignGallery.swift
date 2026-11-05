@@ -210,6 +210,12 @@ struct DesignGallery: View {
                         Text("Example cache").font(CacheDropDesign.TypeStyle.note)
                         Text("Example build files").font(CacheDropDesign.TypeStyle.note)
                     }
+                    // Smart clean's Worth a look (#780, Decision 178): a section title over the row Applications draws, holding the files from deleted apps Smart clean doesn't tick.
+                    Text(WorthALook.title).font(CacheDropDesign.TypeStyle.section).accessibilityAddTraits(.isHeader)
+                    CategoryRow(category: .leftovers, state: .unchecked, title: CatalogCategory.leftovers.overviewTitle, detail: CatalogCategory.leftovers.overviewDetail,
+                                size: "84 MB", enabled: true, identifier: "galleryWorthALookRow", itemCount: 3, expanded: .constant(false), toggle: {}) {
+                        EmptyView()
+                    } items: { EmptyView() }
                     // Applications (Decision 51): a row that can't be chosen has no checkbox, and says why.
                     CategoryRow(category: .apps, state: nil, title: "Example app", detail: "Example maker", size: "800 MB", enabled: true,
                                 identifier: "galleryReadOnlyRow", itemCount: nil, expanded: .constant(false), toggle: {}) {
@@ -327,13 +333,13 @@ private struct OnboardingGalleryExamples: View {
 private struct CapacityGalleryExamples: View {
     var body: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
-            example("checking", available: nil, total: nil, observation: "Checking free space…", status: "Checking capacity…", refreshing: true)
+            example("checking", available: nil, total: nil, observation: "Checking free space…", status: "Checking free space…", refreshing: true)
             example("refreshing", observation: "Updated 10:00 AM", status: "Refreshing…", refreshing: true)
             example("important", observation: "Updated 10:00 AM")
             example("fallback", observation: "Updated 10:00 AM")
             example("partial", total: nil, observation: "Updated 10:00 AM")
-            example("stale", observation: "Last updated 10:00 AM", status: "Couldn’t refresh capacity", retry: true)
-            example("unavailable", available: nil, total: nil, observation: "Free space unavailable", status: "Couldn’t refresh capacity", retry: true)
+            example("stale", observation: "Last updated 10:00 AM", status: "Couldn’t refresh free space", retry: true)
+            example("unavailable", available: nil, total: nil, observation: "Free space unknown", status: "Couldn’t refresh free space", retry: true)
         }
     }
     private func example(_ name: String, available: Int64? = 40_000_000_000, total: Int64? = 512_000_000_000, observation: String, status: String = "", refreshing: Bool = false, retry: Bool = false) -> some View {
@@ -363,6 +369,10 @@ private struct ButtonRuleGalleryExamples: View {
             }.frame(maxWidth: CacheDropDesign.Size.sheetNarrow)
             Text("Bottom bar · Large capsules").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
             ActionStrip(message: "Example note") { Button("Scan again") {}; Button("Review plan") {}.buttonStyle(.borderedProminent) }
+            // #782, Decision 177: while a run's items wait in the Trash, Results leads with Empty from Trash…; its line keeps Open Trash.
+            Text("Results · Items still in the Trash").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+            TrashLine(text: nil, identifier: "galleryResultsTrash")
+            ActionStrip(message: nil) { Button("View history") {}; Button("Start a new plan") {}; Button("Empty from Trash…") {}.buttonStyle(.borderedProminent) }
         }
     }
 }
@@ -374,9 +384,11 @@ private struct ListHeaderGalleryExamples: View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
             PageHeader(title: "Example page", subtitle: "Search under the description; sort by clicking a column of the list’s header.")
             PageSearchField(label: "Search the example list", prompt: "Name or maker", text: $search, identifier: "gallerySearch")
-            ColumnHeader(nameTitle: "Name", sizeTitle: "On disk", sort: $sort, identifier: "gallerySort")
+            // The plan's and Applications' preset (#765): Name over the rows' titles, Size over their sizes.
+            ColumnHeader.categoryRows(sort: $sort, identifier: "gallerySort")
             ForEach(sort.ordered(Self.rows, name: \.name, bytes: \.bytes), id: \.name) { row in
-                HStack { Text(row.name); Spacer(); Text(SizeFormatter.text(row.bytes)) }.font(CacheDropDesign.TypeStyle.note)
+                CategoryRow(category: .downloads, state: .unchecked, title: row.name, detail: "", size: SizeFormatter.text(row.bytes), enabled: true,
+                            identifier: "gallerySortRow-" + row.name, itemCount: nil, expanded: .constant(false), toggle: {}) { EmptyView() } items: { EmptyView() }
             }
         }
     }

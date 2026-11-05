@@ -321,6 +321,14 @@ struct ColumnHeader: View {
         }
     }
 }
+extension ColumnHeader {
+    /// The header over a list of `CategoryRow`s (#765): **Name** over the rows' titles, past their checkbox and badge, and
+    /// **Size** flush with their size column. The Cleanup plan and Applications share it.
+    static func categoryRows(sort: Binding<ListSort>, identifier: String) -> ColumnHeader {
+        ColumnHeader(nameTitle: "Name", sizeTitle: "Size", sort: sort, identifier: identifier,
+                     insets: EdgeInsets(top: 0, leading: CacheDropDesign.Size.categoryContentIndent, bottom: 0, trailing: 0))
+    }
+}
 /// One sortable label (#352, Decision 77): clicking the active one flips its direction, clicking the other switches to it,
 /// and a chevron sits on the active one. Identified `<identifier>-name` or `<identifier>-size`.
 struct SortButton: View {
@@ -670,12 +678,12 @@ struct CapacityMeter: View {
     }
     private var validTotal: Int64? { Self.validTotal(available: available, total: total) }
     private var capacityText: SidebarCapacityText { SidebarCapacityText(available: available, total: total) }
-    /// The full wording ("312 GB available of 1 TB"), for labels, tooltips and the non-compact value.
+    /// The full wording ("312 GB free of 1 TB"), for labels, tooltips and the non-compact value.
     private var amountText: String { capacityText.description }
     var body: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
             if compact {
-                // One line, "312 GB free of 1 TB"; "available" is in the label and tooltip (#353).
+                // One line, "312 GB free of 1 TB", the label and tooltip in full (#353, #764).
                 Text(capacityText.line).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
                     .lineLimit(1).minimumScaleFactor(CacheDropDesign.Scale.oneLineCaption).truncationMode(.tail)
                     .help(amountText).accessibilityLabel(amountText).accessibilityIdentifier("sidebarCapacityAmount")
@@ -747,7 +755,7 @@ struct VolumeSummary: View {
                         .accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: CacheDropDesign.Space.xs) {
                         Text(name).font(CacheDropDesign.TypeStyle.section)
-                        Text("Startup volume · " + (total.map { SizeFormatter.text($0) } ?? "Total capacity unavailable")).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                        Text(total.map { SizeFormatter.text($0) + " disk" } ?? "Disk size unknown").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
                     }.frame(height: CacheDropDesign.Size.deviceIcon)
                     Spacer(minLength: CacheDropDesign.Space.sm)
                     VStack(alignment: .trailing, spacing: CacheDropDesign.Space.xs) {
@@ -756,7 +764,7 @@ struct VolumeSummary: View {
                             Text("free").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
                         } else {
                             Text(CacheDropDesign.noValue).font(CacheDropDesign.TypeStyle.value)
-                            Text(refreshing ? "Checking capacity…" : "Free space unknown").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                            Text(refreshing ? "Checking free space…" : "Free space unknown").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
                         }
                     }
                 }

@@ -332,6 +332,9 @@ final class CatalogCleanupUITests: XCTestCase {
         let total = app.staticTexts["overviewRecommendedTotal"]
         XCTAssertTrue((total.value as? String)?.hasPrefix("Up to ") == true, total.debugDescription)
         XCTAssertFalse(app.staticTexts["overviewEmpty"].exists)
+        // #764: the total is everything cleanable, under the storage bar's name for it.
+        XCTAssertTrue(app.staticTexts["Can be cleaned"].firstMatch.exists)
+        XCTAssertFalse(app.staticTexts["Recommended for review"].exists)
 
         XCTAssertTrue(progress.waitForNonExistence(timeout: 60))
         let downloads = app.buttons["overviewCategory-downloads"]
@@ -2089,9 +2092,9 @@ final class TrashSpaceUITests: XCTestCase {
         XCTAssertEqual(lineText(), before, "The Trash holds what it held before the run")
     }
 
-    /// #359, Decision 68: an installer a run moved to the (fixture) Trash is deleted from it from Results: Empty from Trash…,
-    /// the review sheet, Empty. Only that item goes; History shows "Emptied from the Trash · 1 item" and the item has no
-    /// Put back. Debug test runs trash into, and empty from, the fixture home's `.Trash`, never the real one.
+    /// #359, Decision 68: an installer a run moved to the (fixture) Trash is deleted from it from Results: the bottom bar's
+    /// prominent Empty from Trash… (#782), the review sheet, Empty. Only that item goes; History shows "Emptied from the Trash
+    /// · 1 item" and the item has no Put back. Debug test runs trash into, and empty from, the fixture home's `.Trash`, never the real one.
     /// The run also deletes the npm cache, so Results and History set the measured figure against an estimate without
     /// the installer's size (#587).
     @MainActor func testEmptyFromTrashDeletesWhatARunMovedThereAndHistoryRecordsIt() throws {
@@ -2130,14 +2133,17 @@ final class TrashSpaceUITests: XCTestCase {
         let estimateLine = app.staticTexts["resultsEstimate"]
         XCTAssertEqual(estimateLine.value as? String ?? estimateLine.label,
                        "Estimated before cleanup: " + deletedSize + " · measured from the change in free space around each item")
-        // #588: the summary's In the Trash figure says how much once; the line under it is just "Empty from Trash… · Open Trash".
-        let empty = app.descendants(matching: .any)["resultsTrashEmpty"]
+        // #588: the summary's In the Trash figure says how much once; the line under it is just its link, Open Trash (#782).
+        // #782: Empty from Trash… leads the bottom bar while the run's items are in the Trash, Start a new plan beside it.
+        let empty = app.buttons["resultsEmptyFromTrash"]
         XCTAssertTrue(empty.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["Start a new plan"].exists)
         XCTAssertTrue(app.descendants(matching: .any)["resultsTrashOpen"].exists)
+        XCTAssertFalse(app.descendants(matching: .any)["resultsTrashEmpty"].exists, "The line keeps only Open Trash")
         XCTAssertFalse(app.staticTexts["resultsTrash"].exists, "No size or sentence before the links")
         XCTAssertTrue(app.staticTexts["In the Trash · Freed when you empty it"].exists)
         XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'is in the Trash' OR value CONTAINS 'is in the Trash'")).firstMatch.exists)
-        revealAndClick(empty, in: app)
+        empty.click()
 
         XCTAssertTrue(app.staticTexts["Empty from the Trash"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Deleted permanently. They can’t be put back."].exists)
@@ -2150,7 +2156,9 @@ final class TrashSpaceUITests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: mine.path), "Emptying deletes only what CacheDrop moved there")
         done.click()
         XCTAssertFalse(app.descendants(matching: .any)["putBack-Setup.dmg"].exists, "An emptied item can't be put back")
-        XCTAssertFalse(empty.exists, "Nothing of CacheDrop's is left to empty")
+        XCTAssertFalse(empty.exists, "Nothing of CacheDrop's is left to empty: the bar is as before")
+        XCTAssertFalse(app.descendants(matching: .any)["resultsTrashOpen"].exists)
+        XCTAssertTrue(app.buttons["Start a new plan"].exists)
 
         app.typeKey("5", modifierFlags: .command)
         func run(_ title: String) -> XCUIElement {
@@ -2218,7 +2226,7 @@ extension CatalogCleanupUITests {
         app.typeKey("1", modifierFlags: .command)
         let link = app.links["overviewSmartClean"]
         XCTAssertTrue(link.waitForExistence(timeout: 10))
-        XCTAssertEqual(link.label, "Smart clean ›")
+        XCTAssertEqual(link.label, "Smart clean", "No link carries › (#764)")
         revealAndClick(link, in: app)
 
         // All ticked; the new installer is not in it, and Yarn can be unticked.
@@ -2766,6 +2774,8 @@ extension CatalogCleanupUITests {
         XCTAssertTrue(app.descendants(matching: .any)["smartCleanHeader"].waitForExistence(timeout: 10), "Smart clean is open")
         XCTAssertTrue(downloads.waitForExistence(timeout: 30))
         for category in [downloads, developer, leftovers] { XCTAssertEqual(category.value as? Int, 1, category.identifier) }
+        // #780: the receipt-tied leftover is recommended, so nothing is left for Worth a look.
+        XCTAssertFalse(app.descendants(matching: .any)["smartCleanWorthALook"].exists)
         func text(_ line: String) -> XCUIElementQuery { app.staticTexts.matching(NSPredicate(format: "label == %@ OR value == %@", line, line)) }
         XCTAssertEqual(text("Old downloads").count, 1, "Smart clean names its Downloads category by what it takes (#342)")
         for line in ["Downloads you haven’t opened in 7 days", "Package caches and build files that tools rebuild", "Settings and data they left behind"] {
@@ -2798,6 +2808,49 @@ extension CatalogCleanupUITests {
         for kept in [installer, leftover, home.appendingPathComponent("Library/Caches/Homebrew/entry")] {
             XCTAssertTrue(FileManager.default.fileExists(atPath: kept.path), kept.path)
         }
+    }
+
+    /// #780, Decision 178: a possibly related file, which Smart clean never ticks, is under Worth a look, above the caption,
+    /// unticked and in no other row. Ticked one by one there, it joins Smart clean's count and its review.
+    @MainActor func testSmartCleanListsAPossiblyRelatedFileUnderWorthALook() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        turnOnDryRun(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        try "com.here.editor\n".write(to: home.appendingPathComponent(".cachedrop-test-installed-apps"), atomically: true, encoding: .utf8)
+        // Named by a removed app's ID, but nothing shows it was an app's: possibly related only (#251).
+        let file = home.appendingPathComponent("Library/Preferences/com.gone.synth.plist")
+        try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data(repeating: 4, count: 60_000).write(to: file)
+        app.launch()
+        waitForCatalogScan(app)
+        app.typeKey("2", modifierFlags: .command)
+
+        let header = app.descendants(matching: .any)["smartCleanWorthALook"]
+        XCTAssertTrue(header.waitForExistence(timeout: 10))
+        let row = app.checkBoxes["smartCleanSuggestion-leftovers"]
+        XCTAssertTrue(row.exists)
+        XCTAssertEqual(row.value as? Int, 0, "Never ticked for you")
+        XCTAssertFalse(app.checkBoxes["smartCleanCategory-leftovers"].exists, "Nothing is shown twice")
+        XCTAssertLessThan(header.frame.minY, app.descendants(matching: .any)["smartCleanNotIncluded"].frame.minY, "The caption stays last")
+
+        let count = app.staticTexts["smartCleanSummary"]
+        let read = { (element: XCUIElement) in element.value as? String ?? element.label }
+        let before = read(count)
+        // Nothing in it may be ticked together, so its checkbox opens its items.
+        revealAndClick(row, in: app)
+        let item = app.checkBoxes["planItem-removed-app-possibly-related-com.gone.synth.plist"]
+        XCTAssertTrue(item.waitForExistence(timeout: 5))
+        XCTAssertEqual(item.value as? Int, 0)
+        revealAndClick(item, in: app)
+        XCTAssertEqual(item.value as? Int, 1)
+        XCTAssertNotEqual(read(count), before, "Ticked, it is in Smart clean's selection")
+        app.buttons["smartCleanCleanUp"].click()
+        XCTAssertTrue(reviewLine(app, "movedToTrash", "leftovers").waitForExistence(timeout: 10), "The review includes it")
+        app.buttons["Cancel"].click()
+        XCTAssertTrue(FileManager.default.fileExists(atPath: file.path))
     }
 
     /// #306, #375: a Smart clean run rescans by itself. While that scan runs, with its progress in the bar, the page keeps
@@ -3247,6 +3300,8 @@ extension CatalogCleanupUITests {
         app.typeKey("3", modifierFlags: .command)
         let name = app.buttons["planSort-name"], size = app.buttons["planSort-size"]
         XCTAssertTrue(size.waitForExistence(timeout: 5))
+        // #765: Name sits over the categories' titles, past their checkboxes, as on Applications.
+        XCTAssertGreaterThan(name.frame.minX, app.checkBoxes["planCategory-downloads"].frame.maxX, "Name isn't over the checkboxes")
         expandDisclosures(in: app)
         let npm = app.checkBoxes["planRule-npm-cache"], yarn = app.checkBoxes["planRule-yarn-cache"]
         let alpha = app.checkBoxes["planItem-downloads-Alpha.dmg"], zulu = app.checkBoxes["planItem-downloads-Zulu.dmg"]

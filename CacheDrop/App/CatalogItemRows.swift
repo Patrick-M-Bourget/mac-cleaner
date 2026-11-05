@@ -15,8 +15,10 @@ struct CatalogItemRows: View {
     var sort: ListSort? = nil
     /// Only the items something holds (#374), under a rule row that otherwise lists none.
     var onlyHeld = false
+    /// Only these items, by id: Smart clean's Worth a look lists what the recommended plan doesn't take (#780).
+    var only: Set<String>? = nil
     var body: some View {
-        let found = model.candidates(for: rule).filter { (app.map($0.isUninstalled(with:)) ?? true) && (!onlyHeld || $0.hold != nil) }
+        let found = model.candidates(for: rule).filter { (app.map($0.isUninstalled(with:)) ?? true) && (!onlyHeld || $0.hold != nil) && (only?.contains($0.id) ?? true) }
         let items = listing.map { $0.sort.ordered(found.filter($0.matches), name: \.displayName, bytes: \.estimatedBytes) }
             ?? sort.map { $0.ordered(found.sorted { $0.url.path < $1.url.path }, name: \.displayName, bytes: { SizeEstimate($0).sortBytes }) }
             ?? found.sorted { $0.displayName.localizedStandardCompare($1.displayName) == .orderedAscending }

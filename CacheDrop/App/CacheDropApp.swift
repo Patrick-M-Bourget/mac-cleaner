@@ -464,7 +464,7 @@ private struct WorkspaceView: View {
         let shown = overviewShowsAllCategories ? rows : Array(rows.prefix(CatalogOverview.leadingRowCount))
         return VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
                 HStack(alignment: .firstTextBaseline) {
-                    Text("Recommended for review").font(CacheDropDesign.TypeStyle.section)
+                    Text("Can be cleaned").font(CacheDropDesign.TypeStyle.section)
                     Spacer(minLength: CacheDropDesign.Space.md)
                     // Nothing known yet: the size is "—" and the rows are skeletons (#308).
                     // What would go to the Trash isn't counted; the tooltip says so rather than a line under the list (#425).
@@ -474,7 +474,7 @@ private struct WorkspaceView: View {
                     // The recommended plan lives on its own page (#141): one quiet link to it. Its size is on that page, so
                     // the header shows one figure (#425).
                     if summary != nil, !catalog.recommendedCandidates.isEmpty {
-                        Button("Smart clean ›") { navigate(.smartClean) }
+                        Button("Smart clean") { navigate(.smartClean) }
                             .buttonStyle(.link).font(CacheDropDesign.TypeStyle.caption).accessibilityIdentifier("overviewSmartClean")
                     }
                 }

@@ -207,10 +207,12 @@ private func revisions(_ selections: CleanupSelections) -> [UInt64] { CleanupSel
 }
 
 /// #333: Applications' choices changing moves only its revision.
+/// An app's uninstall is Applications' alone; a leftover Smart clean doesn't recommend is its Worth a look's too (#780).
 @Test func aScanThatDropsAnApplicationsChoiceMovesOnlyItsRevision() {
     var selections = CleanupSelections()
-    selections.set([installer, leftover], ticked: true)
-    selections.noteChoices(among: scan + [leftover], recommended: [npm, logs])
+    let app = item(AppRuleFamily.uninstallRules[0].id, name: "Synth.app")
+    selections.set([installer, app], ticked: true)
+    selections.noteChoices(among: scan + [app], recommended: [npm, logs])
     let smart = selections.revision(of: .smartClean), apps = selections.revision(of: .applications), plan = selections.revision(of: .plan)
     selections.keepOnly(scan, recommended: [npm, logs])
     #expect(selections.revision(of: .applications) != apps)
