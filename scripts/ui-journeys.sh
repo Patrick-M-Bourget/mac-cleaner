@@ -11,6 +11,7 @@
 # A journey asked for (each named test, or every test in the UI sources for --all) that reports no passed, failed or
 # skipped line, as when the runner restarts mid-run, is named ("No result: Class/test") and rerun once on the same
 # build. The last line and exit status then cover both runs: a failure, or a journey still without a result, is non-zero.
+# When no journey reports at all, the runner likely didn't start: that is said, nothing is rerun, and the exit is non-zero.
 # The run drives the screen: use it only when nobody is using this Mac.
 set -uo pipefail
 cd "$(dirname "$0")/.."
@@ -21,7 +22,7 @@ for arg in "$@"; do
   case "$arg" in
     --no-build) build=0 ;;
     --all) all=1 ;;
-    -h|--help) sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) tests+=("$arg") ;;
   esac
 done
@@ -100,6 +101,14 @@ missing=()
 while read -r test; do missing+=("$test"); done < <(unreported "$log" "${requested[@]}")
 if [ "${#missing[@]}" -eq 0 ]; then
   echo "xcodebuild exit $status; full log: $log"
+  exit $status
+fi
+
+# No journey reported at all: the runner most likely never started (as with "Timed out while enabling automation mode").
+# A rerun would only repeat that.
+if [ "${#missing[@]}" -eq "${#requested[@]}" ]; then
+  [ "$status" -ne 0 ] || status=1
+  echo "xcodebuild exit $status; no journey reported, so the runner likely didn't start; full log: $log"
   exit $status
 fi
 

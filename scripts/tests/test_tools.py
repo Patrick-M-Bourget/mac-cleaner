@@ -348,3 +348,17 @@ sys.exit(code)
         self.assertNotIn('testCaseDidFinish', result.stdout)
         self.assertEqual(runs[1].count('-only-testing'), 1)
         self.assertIn('-only-testing:CacheDropUITests/AUITests/testFour', runs[1])
+
+    def test_no_journey_reporting_means_the_runner_never_started_and_nothing_is_rerun(self):
+        (self.runs / '1').write_text('Timed out while enabling automation mode.\nEXIT 65\n')
+        result, runs = self.journeys('testOne', 'testThree')
+        self.assertEqual(result.returncode, 65, result.stdout)
+        self.assertEqual(len(runs), 1, 'no rerun when nothing reported')
+        self.assertIn('runner likely didn', result.stdout.splitlines()[-1])
+        self.assertNotIn('No result:', result.stdout)
+
+    def test_no_journey_reporting_with_a_zero_exit_still_fails(self):
+        (self.runs / '1').write_text('EXIT 0\n')
+        result, runs = self.journeys('--all')
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertEqual(len(runs), 1)
