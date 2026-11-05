@@ -99,11 +99,7 @@ final class VisualCaptureUITests: XCTestCase {
             app.typeKey("2", modifierFlags: .command)
             let category = app.checkBoxes["smartCleanCategory-photo-video"]
             XCTAssertTrue(category.waitForExistence(timeout: 10), "Smart clean lists Photo and video")
-            reveal(category, in: app, nearTop: true)
-            let below = app.disclosureTriangles.matching(NSPredicate(format: "label BEGINSWITH 'Choose items · '")).allElementsBoundByIndex
-                .filter { $0.frame.minY > category.frame.minY }.min { $0.frame.minY < $1.frame.minY }
-            XCTAssertNotNil(below, "Photo and video has Choose items")
-            if let below { openDisclosure(below, in: app) }
+            openChooseItems(below: category, in: app)
             reveal(category, in: app, nearTop: true)
         case "plan":
             // Overview's row opens the Cleanup plan with Photo and video open (#733).
@@ -114,11 +110,23 @@ final class VisualCaptureUITests: XCTestCase {
             XCTAssertTrue(app.checkBoxes["planRule-adobe-media-cache"].waitForExistence(timeout: 5), "Photo and video is open")
             reveal(category, in: app, nearTop: true)
         case "plan-final-cut":
+            // Photo and video's rules were gone by this page in the first capture (#742), so open its Choose items again if closed.
             let render = app.checkBoxes["planRule-final-cut-render-files"]
-            XCTAssertTrue(render.waitForExistence(timeout: 5), "Photo and video lists Final Cut Pro's render files")
+            if !render.waitForExistence(timeout: 2) { openChooseItems(below: app.checkBoxes["planCategory-photo-video"], in: app) }
+            XCTAssertTrue(render.waitForExistence(timeout: 10), "Photo and video lists Final Cut Pro's render files")
             reveal(render, in: app, nearTop: true)
         default:
             break
         }
+    }
+
+    /// Opens the "Choose items" disclosure right below a category's row, the first one under it on the page.
+    @MainActor private func openChooseItems(below category: XCUIElement, in app: XCUIApplication) {
+        XCTAssertTrue(category.waitForExistence(timeout: 10), "\(category) is listed")
+        reveal(category, in: app, nearTop: true)
+        let below = app.disclosureTriangles.matching(NSPredicate(format: "label BEGINSWITH 'Choose items · '")).allElementsBoundByIndex
+            .filter { $0.frame.minY > category.frame.minY }.min { $0.frame.minY < $1.frame.minY }
+        XCTAssertNotNil(below, "\(category) has Choose items")
+        if let below { openDisclosure(below, in: app) }
     }
 }
