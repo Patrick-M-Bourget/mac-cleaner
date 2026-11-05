@@ -850,6 +850,15 @@ private struct WorkspaceView: View {
                 Button("Scan again", action: scanAgain).disabled(!canScanAgain).help(scanAgainHelp)
                     .accessibilityIdentifier("growthScanAgain")
             }
+        } else if destination == .locations {
+            // Its actions sit in the bar, as on Overview and Storage trends, Scan again last (#776, Decision 181).
+            ActionStrip(message: nil) {
+                Button("Add folder…", action: chooseFolderForScan).disabled(explorer.isScanning || selection.workspaceRunning)
+                    .accessibilityIdentifier("locationsAddFolder")
+                Button("Scan again") { scanLocations(locationsModel.included) }
+                    .disabled(locationsModel.included.isEmpty || explorer.isScanning || selection.workspaceRunning)
+                    .accessibilityIdentifier("locationsScanAgain")
+            }
         } else {
             ActionStrip()
         }
@@ -932,11 +941,6 @@ private struct WorkspaceView: View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
             PageHeader(title: "Locations", subtitle: "Folders CacheDrop scans at launch and when you scan again.")
             ScanHistoryRecordingNotice()
-            HStack {
-                Button("Add folder…", action: chooseFolderForScan).disabled(explorer.isScanning || selection.workspaceRunning)
-                Button("Scan again") { scanLocations(locationsModel.included) }
-                    .disabled(locationsModel.included.isEmpty || explorer.isScanning || selection.workspaceRunning)
-            }
             if locationsModel.scopes.isEmpty { EmptyState(title: "No locations yet", detail: "Add a folder to scan it now and each time CacheDrop opens.", symbol: "folder.badge.plus") }
             ForEach(locationsModel.scopes) { scope in
                 LocationScopeRow(name: URL(fileURLWithPath: scope.path).lastPathComponent, path: scope.path,

@@ -270,6 +270,14 @@ final class LaunchSmokeUITests: XCTestCase {
         XCTAssertTrue(app.links["manageLocalRecords"].exists)
         XCTAssertTrue(app.links["openProtectedItems"].exists)
         XCTAssertFalse(app.staticTexts["fullDiskAccessStatus"].exists)
+        // #776: Add folder… and Scan again sit in the bottom bar, Scan again last.
+        let bar = actionStrip(app)
+        let addFolder = bar.buttons["locationsAddFolder"], scanAgain = bar.buttons["locationsScanAgain"]
+        XCTAssertTrue(addFolder.waitForExistence(timeout: 5))
+        XCTAssertTrue(scanAgain.exists)
+        XCTAssertEqual(addFolder.label, "Add folder…")
+        XCTAssertEqual(scanAgain.label, "Scan again")
+        XCTAssertLessThan(addFolder.frame.minX, scanAgain.frame.minX, "Scan again is last")
         app.typeKey("9", modifierFlags: .command)
         XCTAssertTrue(app.staticTexts["Full Disk Access is optional. You can keep using CacheDrop without it."].waitForExistence(timeout: 5))
         let status = app.staticTexts["fullDiskAccessStatus"]

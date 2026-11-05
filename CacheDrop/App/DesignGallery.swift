@@ -356,7 +356,7 @@ private struct ButtonRuleGalleryExamples: View {
     var body: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
             Text("Page body · Regular capsule").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
-            HStack { Button("Add folder…") {}; Button("Scan again") {} }
+            Button("Clear completed history…") {}
             Text("Row and status line · Link").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
             StatusRow(text: "Downloads · Access unavailable", role: .caution, action: StatusAction(title: "Choose again…") {})
             Text("Sheet footer · Large capsules, Cancel then the primary button").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
@@ -369,6 +369,9 @@ private struct ButtonRuleGalleryExamples: View {
             }.frame(maxWidth: CacheDropDesign.Size.sheetNarrow)
             Text("Bottom bar · Large capsules").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
             ActionStrip(message: "Example note") { Button("Scan again") {}; Button("Review plan") {}.buttonStyle(.borderedProminent) }
+            // #776, Decision 181: Locations' actions are in the bar, both regular, Scan again last.
+            Text("Locations · Bottom bar").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+            ActionStrip(message: nil) { Button("Add folder…") {}; Button("Scan again") {} }
             // #782, Decision 177: while a run's items wait in the Trash, Results leads with Empty from Trash…; its line keeps Open Trash.
             Text("Results · Items still in the Trash").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
             TrashLine(text: nil, identifier: "galleryResultsTrash")

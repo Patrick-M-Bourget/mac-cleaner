@@ -1593,7 +1593,7 @@ extension CatalogCleanupUITests {
         // Downloads is always a scanned location (Decision 83), so folders are added from Locations in the sidebar.
         app.buttons["Locations"].click()
         XCTAssertTrue(app.staticTexts["Locations"].waitForExistence(timeout: 5))
-        app.buttons["Add folder…"].click()
+        actionStrip(app).buttons["locationsAddFolder"].click() // In the bottom bar (#776)
         let panel = app.sheets.firstMatch.exists ? app.sheets.firstMatch : app.dialogs.firstMatch
         XCTAssertTrue(panel.waitForExistence(timeout: 5))
         panel.typeKey("g", modifierFlags: [.command, .shift])
