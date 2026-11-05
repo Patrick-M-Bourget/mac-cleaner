@@ -113,7 +113,8 @@ class DecisionsCheckTests(CommandTests):
         self.repo = self.home / 'repo'
         (self.repo / 'scripts').mkdir(parents=True)
         (self.repo / 'docs').mkdir()
-        shutil.copy2(ROOT / 'scripts/check-decisions.sh', self.repo / 'scripts/check-decisions.sh')
+        for name in ('check-decisions.sh', 'order-decisions.py'):  # the check reads Decisions with the ordering script's parser
+            shutil.copy2(ROOT / 'scripts' / name, self.repo / 'scripts' / name)
         for args in (['init', '-q', '-b', 'main'], ['config', 'user.email', 't@example.com'], ['config', 'user.name', 'T']):
             self.git(*args)
         self.reset('1. **One.** First.\n2. **Two.** Second:\n    - a point.\n')
@@ -153,6 +154,7 @@ class DecisionsCheckTests(CommandTests):
         result = self.check()
         self.assertEqual(result.returncode, 1)
         self.assertIn('Decision 2 follows 3', result.stdout)
+        self.assertIn('scripts/order-decisions.py', result.stdout, 'the fix for a union merge is named (#727)')
         self.assertNotIn('was edited', result.stdout)
 
 
