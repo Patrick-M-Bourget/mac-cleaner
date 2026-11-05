@@ -44,6 +44,8 @@ public enum AppUninstall {
         public var receiptsUnread = false
         /// A plug-in product's files that stay because CacheDrop doesn't recognize their kind (#291, Decision 53).
         public var unrecognised = 0
+        /// When the app was last opened, as Spotlight keeps it (#781, Decision 188); nil when unknown, and for a plug-in product.
+        public var lastOpened: Date? = nil
         /// The app must be closed first (Decision 29): its bundle ID, its helpers' and any process run from inside it (#281).
         public var owner: RuleOwner { RuleOwner(name: name, bundleIDs: ([bundleID] + helpers).filter { !$0.isEmpty }, paths: [path] + (plugIn?.otherPaths ?? [])) }
 
@@ -96,6 +98,7 @@ public enum AppUninstall {
         let notInPlan = RemovedAppLeftovers.notOffered(by: offered, found), removable = notInPlan.filter { Removability.canMoveToTrash($0.url) }
         var target = Target(name: app.name, bundleID: app.bundleID, path: url.path, helpers: helpers,
                             needsPassword: notInPlan.count - removable.count, inPlan: found.count - notInPlan.count)
+        target.lastOpened = app.lastOpened
         target.passwordPaths = notInPlan.filter { !Removability.canMoveToTrash($0.url) }.map(\.url.path)
         target.inPlanRuleIDs = planRuleIDs(offering: found, among: offered)
         let files = removable.map { $0.uninstalled(with: target, ruleID: $0.ruleID == RemovedAppLeftovers.ruleID ? filesRuleID : possiblyRelatedRuleID) }

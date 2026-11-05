@@ -27,7 +27,8 @@ public struct SystemAppPresence: AppPresence {
             let item = Unmanaged<MDItem>.fromOpaque(raw).takeUnretainedValue()
             guard let id = MDItemCopyAttribute(item, kMDItemCFBundleIdentifier) as? String, let path = MDItemCopyAttribute(item, kMDItemPath) as? String else { return nil }
             let name = (MDItemCopyAttribute(item, kMDItemDisplayName) as? String).map { ($0 as NSString).deletingPathExtension } ?? URL(fileURLWithPath: path).deletingPathExtension().lastPathComponent
-            return InstalledApp(name: name, bundleID: id, path: path)
+            // When it was last opened, read in the same query (#781); unknown stays nil.
+            return InstalledApp(name: name, bundleID: id, path: path, lastOpened: MDItemCopyAttribute(item, kMDItemLastUsedDate) as? Date)
         }
     }
     /// `/Applications`, `~/Applications` and each other volume's `Applications`.

@@ -5,6 +5,8 @@ import Foundation
 /// Installed apps for a disposable test run (#173): only the bundle IDs listed in `<home>/.cachedrop-test-installed-apps`, one per
 /// line, and the app bundles in `<home>/Applications` (#267), so a UI test never asks Spotlight or Launch Services about this Mac.
 /// While `<home>/.cachedrop-test-apps-unreadable` exists the list is unknown, as when Spotlight doesn't answer (#310).
+/// `<home>/.cachedrop-test-last-opened` gives a bundle app the date Spotlight would say it was last opened (#781), one
+/// `<bundle ID> <ISO 8601 date>` per line; any other app's stays unknown.
 struct FixtureAppPresence: AppPresence {
     let home: URL?
     /// Set in a snapshot, which reads once for checking many items together.
@@ -16,8 +18,15 @@ struct FixtureAppPresence: AppPresence {
         if let frozen { return frozen }
         guard let home, !FileManager.default.fileExists(atPath: home.appendingPathComponent(".cachedrop-test-apps-unreadable").path) else { return nil }
         let listed = (try? String(contentsOf: home.appendingPathComponent(".cachedrop-test-installed-apps"), encoding: .utf8)) ?? ""
+        let opened = ((try? String(contentsOf: home.appendingPathComponent(".cachedrop-test-last-opened"), encoding: .utf8)) ?? "").split(separator: "\n")
+            .reduce(into: [String: Date]()) { dates, line in
+                let parts = line.split(separator: " ")
+                if parts.count == 2, let date = ISO8601DateFormatter().date(from: String(parts[1])) { dates[String(parts[0])] = date }
+            }
         return listed.split(separator: "\n").map { InstalledApp(name: String($0), bundleID: String($0), path: "/Applications/\($0).app") }
-            + SystemAppPresence.bundles(in: home.appendingPathComponent("Applications")).compactMap(SystemAppPresence.app)
+            + SystemAppPresence.bundles(in: home.appendingPathComponent("Applications")).compactMap(SystemAppPresence.app).map { app in
+                InstalledApp(name: app.name, bundleID: app.bundleID, path: app.path, maker: app.maker, lastOpened: opened[app.bundleID])
+            }
     }
     func isRegistered(bundleID: String) -> Bool { false }
 
