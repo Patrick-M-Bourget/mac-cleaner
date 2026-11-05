@@ -27,7 +27,7 @@ struct SmartCleanView: View {
                 }.background(CacheDropDesign.reading)
             }
             CleanupActionBar(selection: selection, source: .smartClean, viewHistory: viewHistory, reviewRecovery: reviewRecovery) {
-                Button("Done") { selection.dismissResult() }.buttonStyle(.borderedProminent).accessibilityIdentifier("smartCleanDone")
+                Button("Done") { selection.dismissResult() }.accessibilityIdentifier("smartCleanDone")
             } idle: {
                 BusyAction(busy: selection.isCheckingReview) {
                     Button(summary.cleanUpTitle) { Task { await openReview() } }.buttonStyle(.borderedProminent).controlSize(.large)

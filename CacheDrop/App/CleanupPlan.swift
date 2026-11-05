@@ -314,7 +314,7 @@ struct LiveCleanupPlanView: View {
         }.background(CacheDropDesign.reading).modifier(PlanScrollTarget(selection: selection, presentation: presentation, proxy: proxy))
         }
         CleanupActionBar(selection: selection, source: .plan, viewHistory: viewHistory, reviewRecovery: reviewRecovery) {
-            if let newPlan { Button("Start a new plan", action: newPlan).buttonStyle(.borderedProminent) }
+            if let newPlan { Button("Start a new plan", action: newPlan) }
         } idle: {
             BusyAction(busy: selection.isCheckingReview) {
                 ReviewCleanupButton(enabled: selection.canReview && !selection.isCheckingReview, focusRequest: reviewFocusRequest,
@@ -432,7 +432,8 @@ extension CleanupRunSection {
 }
 
 /// The bottom bar of a page that cleans (Decision 46): Stop while its run goes, the result's buttons after it, and the
-/// page's own actions otherwise. `finish` is the result's last button: Done, or Start a new plan.
+/// page's own actions otherwise. `finish` is the result's last button: Done, or Start a new plan, unstyled: the bar makes it
+/// prominent unless Empty from Trash… leads (#782).
 struct CleanupActionBar<Finish: View, Idle: View>: View {
     let selection: CleanupPlan
     let source: CleanupSelections.Source
@@ -449,7 +450,9 @@ struct CleanupActionBar<Finish: View, Idle: View>: View {
             ActionStrip(message: selection.requiresRecoveryReview ? recoveryNote : nil) {
                 if let viewHistory { Button("View history", action: viewHistory) }
                 if selection.requiresRecoveryReview, let reviewRecovery { Button("Review interrupted cleanup", action: reviewRecovery) }
-                finish()
+                // While the run's items wait in the Trash, Empty from Trash… leads and the finish button is secondary (#782).
+                if ResultsEmptyFromTrashButton.leads(selection.catalog.result) { finish() } else { finish().buttonStyle(.borderedProminent) }
+                ResultsEmptyFromTrashButton(result: selection.catalog.result)
             }
         } else {
             ActionStrip(message: idleNote) { idle() }

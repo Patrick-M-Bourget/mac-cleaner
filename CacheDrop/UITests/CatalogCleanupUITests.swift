@@ -2086,9 +2086,9 @@ final class TrashSpaceUITests: XCTestCase {
         XCTAssertEqual(lineText(), before, "The Trash holds what it held before the run")
     }
 
-    /// #359, Decision 68: an installer a run moved to the (fixture) Trash is deleted from it from Results: Empty from Trash…,
-    /// the review sheet, Empty. Only that item goes; History shows "Emptied from the Trash · 1 item" and the item has no
-    /// Put back. Debug test runs trash into, and empty from, the fixture home's `.Trash`, never the real one.
+    /// #359, Decision 68: an installer a run moved to the (fixture) Trash is deleted from it from Results: the bottom bar's
+    /// prominent Empty from Trash… (#782), the review sheet, Empty. Only that item goes; History shows "Emptied from the Trash
+    /// · 1 item" and the item has no Put back. Debug test runs trash into, and empty from, the fixture home's `.Trash`, never the real one.
     /// The run also deletes the npm cache, so Results and History set the measured figure against an estimate without
     /// the installer's size (#587).
     @MainActor func testEmptyFromTrashDeletesWhatARunMovedThereAndHistoryRecordsIt() throws {
@@ -2127,14 +2127,17 @@ final class TrashSpaceUITests: XCTestCase {
         let estimateLine = app.staticTexts["resultsEstimate"]
         XCTAssertEqual(estimateLine.value as? String ?? estimateLine.label,
                        "Estimated before cleanup: " + deletedSize + " · measured from the change in free space around each item")
-        // #588: the summary's In the Trash figure says how much once; the line under it is just "Empty from Trash… · Open Trash".
-        let empty = app.descendants(matching: .any)["resultsTrashEmpty"]
+        // #588: the summary's In the Trash figure says how much once; the line under it is just its link, Open Trash (#782).
+        // #782: Empty from Trash… leads the bottom bar while the run's items are in the Trash, Start a new plan beside it.
+        let empty = app.buttons["resultsEmptyFromTrash"]
         XCTAssertTrue(empty.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["Start a new plan"].exists)
         XCTAssertTrue(app.descendants(matching: .any)["resultsTrashOpen"].exists)
+        XCTAssertFalse(app.descendants(matching: .any)["resultsTrashEmpty"].exists, "The line keeps only Open Trash")
         XCTAssertFalse(app.staticTexts["resultsTrash"].exists, "No size or sentence before the links")
         XCTAssertTrue(app.staticTexts["In the Trash · Freed when you empty it"].exists)
         XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'is in the Trash' OR value CONTAINS 'is in the Trash'")).firstMatch.exists)
-        revealAndClick(empty, in: app)
+        empty.click()
 
         XCTAssertTrue(app.staticTexts["Empty from the Trash"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Deleted permanently. They can’t be put back."].exists)
@@ -2147,7 +2150,9 @@ final class TrashSpaceUITests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: mine.path), "Emptying deletes only what CacheDrop moved there")
         done.click()
         XCTAssertFalse(app.descendants(matching: .any)["putBack-Setup.dmg"].exists, "An emptied item can't be put back")
-        XCTAssertFalse(empty.exists, "Nothing of CacheDrop's is left to empty")
+        XCTAssertFalse(empty.exists, "Nothing of CacheDrop's is left to empty: the bar is as before")
+        XCTAssertFalse(app.descendants(matching: .any)["resultsTrashOpen"].exists)
+        XCTAssertTrue(app.buttons["Start a new plan"].exists)
 
         app.typeKey("5", modifierFlags: .command)
         func run(_ title: String) -> XCUIElement {

@@ -3,22 +3,41 @@ import Observation
 import CacheDropCore
 import SwiftUI
 
-/// Results after a run moved items to the Trash (#359): "Empty from Trash… · Open Trash", while CacheDrop's own items are
-/// still there, read after the run. The summary's In the Trash figure already says how much, so the line has no size or
-/// sentence of its own (#588, Decision 92 rule 2). With none left, no line.
+/// Results after a run moved items to the Trash (#359): "Open Trash", while CacheDrop's own items are still there, read
+/// after the run. Empty from Trash… is the bar's prominent button meanwhile (#782, Decision 177). The summary's In the Trash
+/// figure already says how much, so the line has no size or sentence of its own (#588, Decision 92 rule 2). With none left, no line.
 struct TrashEmptyHint: View {
     @State private var measured = false
-    @State private var sheet = EmptyFromTrashSheetState()
     private var trash = TrashModel.shared
     var body: some View {
         // A stack, not a Group: a Group passes `.task` to its children, and with the line not shown yet it has none, so the
         // reading after the run never started and the line never appeared (#392).
         VStack(alignment: .leading, spacing: 0) {
-            // The shared reading, so a put back (#159) or an emptying updates the line too; it stays while its sheet is open.
-            if measured, trash.emptyableBytes > 0 || sheet.request != nil {
-                TrashLine(text: nil, identifier: "resultsTrash", empty: { sheet.open() }).emptyFromTrashSheet($sheet.request)
-            }
+            // The shared reading, so a put back (#159) or an emptying updates the line too.
+            if measured, trash.emptyableBytes > 0 { TrashLine(text: nil, identifier: "resultsTrash") }
         }.task { await trash.refresh(); measured = true }
+    }
+}
+
+/// Results' bottom bar button while the run moved CacheDrop's own items to the Trash and they're still there (#782,
+/// Decision 177): **Empty from Trash…**, prominent, so a first clean frees space for real. It opens the line's old sheet and
+/// stays while the sheet is open; otherwise it's absent and the bar's own finish button leads.
+struct ResultsEmptyFromTrashButton: View {
+    let result: CatalogExecutionResult?
+    @State private var sheet = EmptyFromTrashSheetState()
+    private var trash = TrashModel.shared
+    init(result: CatalogExecutionResult?) { self.result = result }
+    /// Whether the bar leads with it, as `CatalogExecutionResult.leadsWithEmptyFromTrash` says.
+    @MainActor static func leads(_ result: CatalogExecutionResult?) -> Bool {
+        result?.leadsWithEmptyFromTrash(cacheDropBytesInTrash: TrashModel.shared.emptyable?.bytes) == true
+    }
+    var body: some View {
+        if Self.leads(result) || sheet.request != nil {
+            Button("Empty from Trash…") { sheet.open() }.buttonStyle(.borderedProminent)
+                .disabled(AppLifecycleController.shared.updateInstallation.blocksNewWork)
+                .accessibilityIdentifier("resultsEmptyFromTrash")
+                .emptyFromTrashSheet($sheet.request)
+        }
     }
 }
 

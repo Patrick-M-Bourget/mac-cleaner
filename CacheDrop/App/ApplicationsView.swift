@@ -134,7 +134,7 @@ struct ApplicationsView: View {
             // Every ticked item is counted, those the search hides too (#295).
             CleanupActionBar(selection: selection, source: .applications, viewHistory: viewHistory, reviewRecovery: reviewRecovery,
                              idleNote: catalog.applicationsSelected.isEmpty ? nil : CacheDropDesign.items(catalog.applicationsSelected.count) + " selected") {
-                Button("Done") { selection.dismissResult() }.buttonStyle(.borderedProminent)
+                Button("Done") { selection.dismissResult() }
             } idle: {
                 BusyAction(busy: selection.isCheckingReview) {
                     ReviewCleanupButton(enabled: selection.canReviewApplications && !selection.isCheckingReview, focusRequest: reviewFocusRequest,

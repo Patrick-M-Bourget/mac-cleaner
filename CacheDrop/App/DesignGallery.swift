@@ -345,6 +345,10 @@ private struct ButtonRuleGalleryExamples: View {
             }.frame(maxWidth: CacheDropDesign.Size.sheetNarrow)
             Text("Bottom bar · Large capsules").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
             ActionStrip(message: "Example note") { Button("Scan again") {}; Button("Review plan") {}.buttonStyle(.borderedProminent) }
+            // #782, Decision 177: while a run's items wait in the Trash, Results leads with Empty from Trash…; its line keeps Open Trash.
+            Text("Results · Items still in the Trash").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+            TrashLine(text: nil, identifier: "galleryResultsTrash")
+            ActionStrip(message: nil) { Button("View history") {}; Button("Start a new plan") {}; Button("Empty from Trash…") {}.buttonStyle(.borderedProminent) }
         }
     }
 }
