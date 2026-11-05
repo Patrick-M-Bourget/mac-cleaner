@@ -232,3 +232,119 @@ print(json.dumps(pages[int(cursor) if cursor else 0]))
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class UIJourneysTests(CommandTests):
+    """scripts/ui-journeys.sh names the journeys that never reported and reruns them once (#724). xcodebuild is a stub
+    that replays canned logs, one per test run."""
+
+    def setUp(self):
+        super().setUp()
+        self.repo = self.home / 'repo'
+        (self.repo / 'scripts').mkdir(parents=True)
+        shutil.copy2(ROOT / 'scripts/ui-journeys.sh', self.repo / 'scripts/ui-journeys.sh')
+        tests = self.repo / 'CacheDrop/UITests'
+        tests.mkdir(parents=True)
+        (tests / 'AUITests.swift').write_text('''import XCTest
+final class AUITests: XCTestCase {
+    private final class Observer: NSObject, XCTestObservation {
+        func testCaseDidFinish(_ testCase: XCTestCase) {}
+    }
+    @MainActor func testOne() throws {}
+    func testTwo() {}
+}
+final class BUITests: XCTestCase {
+    @MainActor func testThree() throws {}
+}
+extension AUITests {
+    @MainActor func testFour() throws {}
+}
+''')
+        self.calls = self.home / 'calls'
+        self.runs = self.home / 'runs'
+        self.runs.mkdir()
+        self.env.update(CALLS=str(self.calls), RUNS=str(self.runs), TMPDIR=str(self.home))
+        self.executable(self.bin / 'xcodebuild', '''import os, sys
+from pathlib import Path
+calls = Path(os.environ['CALLS'])
+with open(calls, 'a') as f: f.write(' '.join(sys.argv[1:]) + '\\n')
+if sys.argv[1] != 'test-without-building': sys.exit(0)
+run = sum(1 for line in calls.read_text().splitlines() if line.startswith('test-without-building'))
+log = Path(os.environ['RUNS']) / str(run)
+lines = log.read_text().splitlines() if log.exists() else []
+code = 0
+for line in lines:
+    if line.startswith('EXIT '): code = int(line.split()[1])
+    else: print(line)
+sys.exit(code)
+''')
+        self.executable(self.bin / 'pkill', 'import sys; sys.exit(1)')  # never stop the owner's real processes
+
+    def run_log(self, number, *results, exit_code=0):
+        lines = ["Test Suite 'Selected tests' started at 2026-11-04 10:00:00.000"]
+        for result in results:
+            test, outcome = result.split()
+            cls, name = test.split('/')
+            lines.append(f"Test Case '-[CacheDropUITests.{cls} {name}]' started.")
+            if outcome == 'restart':
+                lines.append(f'Restarting after unexpected exit, crash, or test timeout in {cls}.{name}(); summary will include totals from previous launches.')
+            elif outcome != 'none':
+                lines.append(f"Test Case '-[CacheDropUITests.{cls} {name}]' {outcome} (1.234 seconds).")
+        lines.append(f'EXIT {exit_code}')
+        (self.runs / str(number)).write_text('\n'.join(lines) + '\n')
+
+    def journeys(self, *args):
+        result = self.run_command(['/bin/bash', str(self.repo / 'scripts/ui-journeys.sh'), '--no-build', *args])
+        runs = [c for c in self.calls.read_text().splitlines() if c.startswith('test-without-building')]
+        return result, runs
+
+    def test_all_reported_runs_once_and_prints_one_line_per_test(self):
+        self.run_log(1, 'AUITests/testOne passed', 'AUITests/testFour skipped')
+        result, runs = self.journeys('testOne', 'testFour')
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertEqual(len(runs), 1)
+        self.assertIn('-only-testing:CacheDropUITests/AUITests/testFour', runs[0], 'a test in an extension resolves to its class')
+        self.assertIn('AUITests/testOne passed (1.234 seconds).', result.stdout)
+        self.assertIn('AUITests/testFour skipped (1.234 seconds).', result.stdout)
+        self.assertNotIn('No result', result.stdout)
+        self.assertTrue(result.stdout.splitlines()[-1].startswith('xcodebuild exit 0; full log: '), result.stdout)
+
+    def test_one_missing_is_named_and_rerun_once_and_still_missing_fails(self):
+        self.run_log(1, 'AUITests/testOne passed', 'BUITests/testThree restart', exit_code=65)
+        self.run_log(2, 'BUITests/testThree none', exit_code=65)
+        result, runs = self.journeys('testOne', 'testThree')
+        self.assertNotEqual(result.returncode, 0, result.stdout)
+        self.assertIn('Restarting after unexpected exit, crash, or test timeout in BUITests.testThree()', result.stdout)
+        self.assertIn('No result: BUITests/testThree', result.stdout)
+        self.assertEqual(len(runs), 2, 'reruns once, not again')
+        self.assertIn('-only-testing:CacheDropUITests/BUITests/testThree', runs[1])
+        self.assertNotIn('testOne', runs[1])
+        last = result.stdout.splitlines()[-1]
+        self.assertIn('still no result: BUITests/testThree', last)
+
+    def test_one_missing_then_rerun_passing_succeeds(self):
+        self.run_log(1, 'AUITests/testOne passed', 'BUITests/testThree none', exit_code=65)
+        self.run_log(2, 'BUITests/testThree passed')
+        result, runs = self.journeys('testOne', 'testThree')
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertEqual(len(runs), 2)
+        self.assertIn('BUITests/testThree passed (1.234 seconds).', result.stdout)
+        self.assertIn('rerun', result.stdout.splitlines()[-1])
+
+    def test_a_failure_in_the_first_run_still_fails_after_a_passing_rerun(self):
+        self.run_log(1, 'AUITests/testOne failed', 'BUITests/testThree none', exit_code=65)
+        self.run_log(2, 'BUITests/testThree passed')
+        result, runs = self.journeys('testOne', 'testThree')
+        self.assertNotEqual(result.returncode, 0, result.stdout)
+        self.assertEqual(len(runs), 2)
+
+    def test_all_requests_every_test_in_classes_and_extensions(self):
+        self.run_log(1, 'AUITests/testOne passed', 'AUITests/testTwo passed', 'BUITests/testThree passed', exit_code=65)
+        self.run_log(2, 'AUITests/testFour passed')
+        result, runs = self.journeys('--all')
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertNotIn('-only-testing', runs[0], '--all runs the whole suite')
+        self.assertIn('No result: AUITests/testFour', result.stdout)
+        self.assertNotIn('testCaseDidFinish', result.stdout)
+        self.assertEqual(runs[1].count('-only-testing'), 1)
+        self.assertIn('-only-testing:CacheDropUITests/AUITests/testFour', runs[1])
