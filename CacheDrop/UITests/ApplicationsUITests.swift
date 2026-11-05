@@ -125,6 +125,7 @@ final class ApplicationsUITests: XCTestCase {
     }
 
     /// Decision 151: a DAW leaves Apps for Audio software; plug-ins group by maker, and a maker with one product shows it directly.
+    /// Decision 175: Audio software opens straight to its groups, behind "Show groups · N".
     @MainActor func testAudioSoftwareHoldsDAWsAndPlugInsGroupedByMaker() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
@@ -150,7 +151,7 @@ final class ApplicationsUITests: XCTestCase {
         XCTAssertFalse(element(app, "applicationsApp-" + live.path).exists, "The DAW isn't under Apps")
 
         let audio = applicationsSection(app, "audio software")
-        XCTAssertEqual(audio.label, "Choose audio software · 4", "One DAW and three plug-ins")
+        XCTAssertEqual(audio.label, "Show groups · 2", "DAWs and apps, and Plug-ins")
         XCTAssertFalse(app.checkBoxes["applicationsSection-audio"].exists, "A section is never ticked whole")
         // A search opens the section, the group and the maker its match is in.
         let beta = element(app, "applicationsPlugIn-" + home.appendingPathComponent("Library/Audio/Plug-Ins/Components/Beta.component").path)
@@ -159,7 +160,10 @@ final class ApplicationsUITests: XCTestCase {
         XCTAssertTrue(beta.waitForExistence(timeout: 5), "Audio software, Plug-ins and Maker Audio Inc open for the match")
         search.typeKey("a", modifierFlags: .command); search.typeKey(.delete, modifierFlags: [])
 
-        openApplicationsSections(app, ["audio software", "apps", "plug-ins"])
+        openApplicationsSections(app, ["audio software"])
+        XCTAssertTrue(element(app, "applicationsGroup-apps").waitForExistence(timeout: 5), "Opening Audio software shows its groups")
+        XCTAssertTrue(element(app, "applicationsGroup-plug-ins").exists)
+        openApplicationsSections(app, ["apps", "plug-ins"])
         XCTAssertTrue(element(app, "applicationsApp-" + live.path).waitForExistence(timeout: 5), "DAWs and apps lists it")
         XCTAssertTrue(element(app, "applicationsGroup-maker:Maker Audio Inc").waitForExistence(timeout: 5), "Two products of one maker make a group")
         XCTAssertFalse(element(app, "applicationsGroup-maker:Solo Sounds").exists, "A maker with one product shows it directly")
@@ -536,7 +540,7 @@ final class ApplicationsUITests: XCTestCase {
     }
 
     /// Decision 159 (#716): uninstalling a driver and one of Reason's devices reads only their rows again, as an app's uninstall
-    /// does (134): while the rescan after it runs, their rows are gone, Audio software's count drops, and the other device stays
+    /// does (134): while the rescan after it runs, their rows are gone, their groups' counts drop, and the other device stays
     /// listed and clickable, undimmed. The rescan holds only when it isn't a full scan, so the held progress shows it read less.
     @MainActor func testUninstallingADriverAndAReasonDeviceUpdatesTheirRowsWithoutAFullScan() throws {
         continueAfterFailure = false
@@ -559,7 +563,7 @@ final class ApplicationsUITests: XCTestCase {
         waitForCatalogScan(app)
         openApplications(app, ["drivers", "plug-ins"])
 
-        XCTAssertEqual(applicationsSection(app, "audio software").label, "Choose audio software · 3", "One driver and two devices")
+        XCTAssertEqual(applicationsSection(app, "audio software").label, "Show groups · 2", "Plug-ins and Drivers")
         func box(_ id: String) -> XCUIElement { element(app, id, .checkBox) }
         let driverBox = box("applicationsDriver-" + driver.path)
         let pangea = box("applicationsPlugIn-" + devices.appendingPathComponent("Pangea").path)
@@ -576,7 +580,8 @@ final class ApplicationsUITests: XCTestCase {
         XCTAssertTrue(progress.waitForExistence(timeout: 10), "The run rescans")
         XCTAssertTrue(driverBox.waitForNonExistence(timeout: 5), "The driver's row is gone at once")
         XCTAssertFalse(pangea.exists, "So is the device's")
-        XCTAssertEqual(applicationsSection(app, "audio software").label, "Choose audio software · 1", "The section's count drops at once")
+        XCTAssertEqual(applicationsSection(app, "audio software").label, "Show groups · 1", "Drivers leaves at once with its one driver")
+        XCTAssertTrue(app.disclosureTriangles["Choose plug-ins · 1"].exists, "Plug-ins' count drops at once")
         XCTAssertTrue(humana.waitForExistence(timeout: 5), "The other device stays listed")
         XCTAssertTrue(progress.exists, "Still rescanning: the held rescan reads only the touched rows")
         XCTAssertTrue(humana.isEnabled, "Not dimmed: the rescan doesn't read it again")

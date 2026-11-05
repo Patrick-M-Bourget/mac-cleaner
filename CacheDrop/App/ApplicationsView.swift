@@ -359,8 +359,10 @@ struct ApplicationsView: View {
                             empty: ("No audio software to list", "No DAWs, plug-ins, sounds or drivers other than Apple’s were found."))
             }
         } else {
+            // Opening it shows its groups straight away, behind "Show groups · N" (Decision 175).
+            let groups = [apps, plugIns, sounds, drivers].filter { !$0.isEmpty }.count
             CategoryRow(category: .audioSoftware, state: nil, title: "Audio software", detail: detail, size: total(all), enabled: true,
-                        identifier: "applicationsSection-audio", itemCount: all.count, chooseNoun: "audio software",
+                        identifier: "applicationsSection-audio", itemCount: groups, chooseVerb: "Show", chooseNoun: "groups",
                         expanded: sectionOpen(.audio), toggle: {}) { appsUnreadableNote } items: {
                 VStack(alignment: .leading, spacing: 0) {
                     if !apps.isEmpty {
@@ -421,13 +423,15 @@ struct ApplicationsView: View {
             }
         }
     }
-    /// One of Audio software's groups, or a maker: a category row with no checkbox, its rows behind "Choose <noun> · N".
+    /// One of Audio software's groups, or a maker: a category row with no checkbox, its rows behind "Choose <noun> · N". The
+    /// section shows the badge once: a group's place for it stays empty, so its title keeps the rows' text column (Decision 175).
     private func group<Rows: View>(_ title: String, _ group: AudioGroup, verb: String = "Choose", noun: String, entries: [InventoryEntry],
                                    @ViewBuilder rows: @escaping () -> Rows) -> some View {
         let open = Binding(get: { model.openGroups.contains(group) }, set: { if $0 { model.openGroups.insert(group) } else { model.openGroups.remove(group) } })
         return VStack(alignment: .leading, spacing: 0) {
             CategoryRow(category: .audioSoftware, state: nil, title: title, detail: "", size: total(entries), enabled: true,
-                        identifier: "applicationsGroup-" + group.key, itemCount: entries.count, chooseVerb: verb, chooseNoun: noun, expanded: open, toggle: {}) { EmptyView() } items: { rows() }
+                        identifier: "applicationsGroup-" + group.key, itemCount: entries.count, chooseVerb: verb, chooseNoun: noun, showsBadge: false,
+                        expanded: open, toggle: {}) { EmptyView() } items: { rows() }
             // Open, its last row's divider ends it.
             if !open.wrappedValue { Divider().padding(.vertical, CacheDropDesign.Space.md) }
         }
