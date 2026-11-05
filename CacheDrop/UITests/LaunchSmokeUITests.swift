@@ -1256,10 +1256,12 @@ final class RecoveryReviewUITests: XCTestCase {
         }
         XCTAssertTrue(app.links["Reveal Trashed.dmg in Finder"].exists,
                       "Recovery uses the glossary's Reveal in Finder action for the item found in Trash")
-        // #436: the page says once that nothing restarts, in its subtitle; its bottom bar has no note.
+        // Decision 184 cut the subtitle to its first sentence, so "Nothing restarts by itself" (#436) is no longer said,
+        // and the bottom bar still has no note.
+        let subtitle = "CacheDrop checked where each unfinished item is now"
+        XCTAssertEqual(app.staticTexts.matching(NSPredicate(format: "label == %@ OR value == %@", subtitle, subtitle)).count, 1)
         let restarts = NSPredicate(format: "label CONTAINS 'Nothing restarts by itself' OR value CONTAINS 'Nothing restarts by itself'")
-        XCTAssertEqual(app.staticTexts.matching(restarts).count, 1)
-        XCTAssertEqual(actionStrip(app).staticTexts.matching(restarts).count, 0)
+        XCTAssertEqual(app.staticTexts.matching(restarts).count, 0)
         app.buttons["recoveryMarkReviewed"].click()
         XCTAssertTrue(app.staticTexts["recoveryMessage"].waitForExistence(timeout: 10))
 
