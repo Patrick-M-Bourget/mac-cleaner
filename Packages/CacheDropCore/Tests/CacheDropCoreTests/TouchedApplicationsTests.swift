@@ -247,8 +247,26 @@ private func withAudioSoftware() throws -> (home: URL, synth: InstalledApp, driv
 }
 /// The drivers' and devices' items, as the full scan offers them.
 private func audioItems(_ home: URL) -> [Candidate] {
-    AudioSoftware.uninstallItems(AudioSoftware.drivers(home: home, systemRoot: home.appendingPathComponent("root")), hosts: [])
-        + AudioSoftware.uninstallItems(AudioSoftware.optionalDevices(home: home), hosts: AudioSoftware.reasonHosts)
+    AudioSoftware.uninstallItems(home: home, systemRoot: home.appendingPathComponent("root"), exclusions: ProtectedItemsPolicy())
+}
+
+/// #718: a Reason device is known by what its item carries, Reason's hosts, never by where its folder is; a driver isn't one.
+@Test func aReasonDeviceIsKnownByItsHosts() throws {
+    let (home, _, driver, devices) = try withAudioSoftware()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let items = audioItems(home)
+    #expect(Set(items.filter(AudioSoftware.isDevice).compactMap(\.uninstall?.path)) == Set(devices.map(\.path)))
+    #expect(items.contains { $0.uninstall?.path == driver.path && !AudioSoftware.isDevice($0) })
+}
+
+/// #718: the rescan reads drivers and Reason devices again only for the rows that are neither an app read again nor a
+/// plug-in product: none after a run that touched only those.
+@Test func theRescanReadsAudioFoldersOnlyForRowsThatAreNoAppOrProduct() {
+    var touched = TouchedApplications()
+    touched.rows = ["/Applications/Synth.app", "product:synth"]
+    #expect(touched.audioRows(apps: ["/Applications/Synth.app"], products: ["product:synth"]).isEmpty)
+    touched.rows.insert("/Library/Audio/Plug-Ins/HAL/Loopback.driver")
+    #expect(touched.audioRows(apps: ["/Applications/Synth.app"], products: ["product:synth"]) == ["/Library/Audio/Plug-Ins/HAL/Loopback.driver"])
 }
 
 /// #716: uninstalling a driver or one of Reason's devices reads again only its row, as an app's uninstall does, never a full scan.

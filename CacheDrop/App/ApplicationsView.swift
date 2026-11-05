@@ -388,16 +388,16 @@ struct ApplicationsView: View {
     private func soundRows(_ sounds: [InventoryEntry]) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             ForEach(sounds) { sound in
-                InspectableItemRow(name: sound.name, detail: [sound.maker, sound.volume.map { "On \($0), not connected" }].compactMap { $0 }.joined(separator: " · "),
-                                   size: sound.size.text, symbol: "waveform", inspected: false, inspect: nil,
-                                   reveal: { model.reveal(sound.name, sound.parts.map(\.url)) }, revealIdentifier: "applicationsSoundReveal-" + sound.id) { EmptyView() }
-                    .help(sound.id)
-                if let tool = model.manager(of: sound) {
-                    // Under the row's name, as a plug-in's "<tool> can uninstall it" line.
+                // Its manager's line under its name, as a plug-in's "<tool> can uninstall it" line.
+                let manager = model.manager(of: sound).map { tool in
                     StatusRow(text: "\(tool.name) can remove or move it", symbol: "shippingbox", identifier: "applicationsSoundManager-" + sound.id,
                               action: StatusAction(title: "Open " + tool.name, identifier: "applicationsSoundOpen-" + sound.id) { model.open(tool) })
-                        .padding(.leading, CacheDropDesign.Space.md * 2 + CacheDropDesign.Size.itemIcon).padding(.bottom, CacheDropDesign.Space.md)
                 }
+                InspectableItemRow(name: sound.name, detail: [sound.maker, sound.volume.map { "On \($0), not connected" }].compactMap { $0 }.joined(separator: " · "),
+                                   size: sound.size.text, symbol: "waveform", inspected: false, inspect: nil,
+                                   reveal: { model.reveal(sound.name, sound.parts.map(\.url)) }, revealIdentifier: "applicationsSoundReveal-" + sound.id,
+                                   status: manager) { EmptyView() }
+                    .help(sound.id)
             }
         }.padding(.bottom, CacheDropDesign.Space.md)
     }
