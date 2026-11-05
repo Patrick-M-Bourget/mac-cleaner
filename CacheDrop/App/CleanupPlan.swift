@@ -275,12 +275,6 @@ private struct PlanScrollTarget: ViewModifier {
     func reveal(_ category: CatalogCategory) { expandedCategories.insert(category); scrollTarget = category; offset = nil }
 }
 
-/// Smart clean's open categories (#219): its own, separate from the plan's, kept until CacheDrop quits. Categories start collapsed.
-@MainActor @Observable final class SmartCleanPresentation {
-    var sort = ListSort()
-    var expandedCategories: Set<CatalogCategory> = []
-}
-
 struct LiveCleanupPlanView: View {
     @Bindable var selection: CleanupPlan
     var viewHistory: (() -> Void)? = nil

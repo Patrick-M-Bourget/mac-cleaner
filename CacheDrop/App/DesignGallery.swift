@@ -128,6 +128,8 @@ struct DesignGallery: View {
 
                     SelectionSummary(value: "3 files", detail: "Example selection · No action will run", title: "Ready to clean")
                     SelectionSummary(value: "Synthetic mixed selection", detail: "Downloads and browser caches · No action will run", title: "Ready to clean")
+                    // Smart clean's card (#779, Decision 173): the same component, titled "Free up".
+                    SelectionSummary(value: "Up to 2.4 GB", detail: "12 items selected", title: SmartCleanSummary.title)
                     HStack(spacing: CacheDropDesign.Space.lg) {
                         ForEach(0..<9) { index in CategoryBadge(category: [StorageCategory.cloud, .developer, .downloads, .browser, .managed, .appCaches, .audioSoftware, .photoVideo, .leftovers][index]) }
                     }

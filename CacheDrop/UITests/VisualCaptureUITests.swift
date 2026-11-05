@@ -95,11 +95,10 @@ final class VisualCaptureUITests: XCTestCase {
             XCTAssertTrue(drivers.waitForExistence(timeout: 5), "Audio software lists its drivers")
             reveal(drivers, in: app, nearTop: true)
         case "smart-clean":
-            // Smart clean with Photo and video's "Choose items" open: the disclosure right below its category row.
+            // Smart clean with its Photo and video row; the page lists no items (#779).
             app.typeKey("2", modifierFlags: .command)
             let category = app.checkBoxes["smartCleanCategory-photo-video"]
             XCTAssertTrue(category.waitForExistence(timeout: 10), "Smart clean lists Photo and video")
-            openChooseItems(below: category, in: app)
             reveal(category, in: app, nearTop: true)
         case "plan-photo-video":
             // Overview's row opens the Cleanup plan with Photo and video open (#733). Its own page name: a second `case "plan"`
@@ -118,15 +117,4 @@ final class VisualCaptureUITests: XCTestCase {
         default:
             break
         }
-    }
-
-    /// Opens the "Choose items" disclosure right below a category's row, the first one under it on the page.
-    @MainActor private func openChooseItems(below category: XCUIElement, in app: XCUIApplication) {
-        XCTAssertTrue(category.waitForExistence(timeout: 10), "\(category) is listed")
-        reveal(category, in: app, nearTop: true)
-        let below = app.disclosureTriangles.matching(NSPredicate(format: "label BEGINSWITH 'Choose items · '")).allElementsBoundByIndex
-            .filter { $0.frame.minY > category.frame.minY }.min { $0.frame.minY < $1.frame.minY }
-        XCTAssertNotNil(below, "\(category) has Choose items")
-        if let below { openDisclosure(below, in: app) }
-    }
-}
+    }}

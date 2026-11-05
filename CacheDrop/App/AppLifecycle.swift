@@ -32,7 +32,6 @@ import StorageAlerts
     let workspaceNavigation = WorkspaceNavigation()
     let locations = RememberedLocations()
     let planPresentation = CleanupPlanPresentation()
-    let smartCleanPresentation = SmartCleanPresentation()
     let locationsExplorer = StorageExplorerContext()
     lazy var inspection = ExploreStorage(selection: selection)
     lazy var manualUpdater = ManualUpdater(lifecycle: self)

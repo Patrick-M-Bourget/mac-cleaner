@@ -207,7 +207,6 @@ private struct WorkspaceView: View {
     @State private var locationsModel = AppLifecycleController.shared.locations
     private var explorerContext: StorageExplorerContext { AppLifecycleController.shared.locationsExplorer }
     @State private var planPresentation = AppLifecycleController.shared.planPresentation
-    @State private var smartCleanPresentation = AppLifecycleController.shared.smartCleanPresentation
     private var explorerCaller: Destination { get { navigationState.explorerCaller } nonmutating set { navigationState.explorerCaller = newValue } }
     private var planReturnsToExplorer: Bool { get { navigationState.planReturnsToExplorer } nonmutating set { navigationState.planReturnsToExplorer = newValue } }
     private var scanOrigin: Destination { get { navigationState.scanOrigin } nonmutating set { navigationState.scanOrigin = newValue } }
@@ -779,7 +778,7 @@ private struct WorkspaceView: View {
 
     private var smartCleanPage: some View {
         SmartCleanView(selection: selection, openPlan: { openPlan($0) }, viewHistory: { navigate(.history) }, reviewRecovery: { openRecovery(caller: .smartClean) },
-                       presentation: smartCleanPresentation, scanAgain: { if canScanAgain { scanAgain() } })
+                       scanAgain: { if canScanAgain { scanAgain() } })
     }
 
     private var applicationsPage: some View {

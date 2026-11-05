@@ -2,7 +2,8 @@ import AppKit
 import CacheDropCore
 import SwiftUI
 
-/// Smart clean (#141, #319): recommended items and held rows, grouped by category with one consequence line each.
+/// Smart clean (#141, #319, #779): the quickest effective first clean, on one screen. It decides; the Cleanup plan edits
+/// (Decision 173). "Free up X", one row per recommended category, one caption that leads to the plan, and Clean up X.
 /// Recommended items start ticked; choices are shared with the plan and Applications (Decision 67). Clean up opens the review sheet.
 struct SmartCleanView: View {
     let selection: CleanupPlan
@@ -10,8 +11,6 @@ struct SmartCleanView: View {
     let openPlan: (CatalogCategory?) -> Void
     var viewHistory: (() -> Void)? = nil
     var reviewRecovery: (() -> Void)? = nil
-    /// Which categories are open, kept by the caller like the plan's `CleanupPlanPresentation` (Decision 48).
-    @Bindable var presentation: SmartCleanPresentation
     /// The workspace's Scan again, for the state that says nothing here can be cleaned (#321).
     var scanAgain: () -> Void = {}
     @State private var approvalError: String?
@@ -20,17 +19,18 @@ struct SmartCleanView: View {
     private var model: CatalogCleanupModel { selection.catalog }
 
     var body: some View {
+        let summary = SmartCleanSummary(ticked: model.smartCleanCandidates, catalog: model.catalog)
         VStack(spacing: 0) {
             ScrollViewReader { proxy in
                 ScrollView {
-                    if selection.showsRun(for: .smartClean) { CleanupRunSection(selection: selection, reveal: proxy.revealRow) } else { page }
+                    if selection.showsRun(for: .smartClean) { CleanupRunSection(selection: selection, reveal: proxy.revealRow) } else { page(summary) }
                 }.background(CacheDropDesign.reading)
             }
             CleanupActionBar(selection: selection, source: .smartClean, viewHistory: viewHistory, reviewRecovery: reviewRecovery) {
                 Button("Done") { selection.dismissResult() }.buttonStyle(.borderedProminent).accessibilityIdentifier("smartCleanDone")
             } idle: {
                 BusyAction(busy: selection.isCheckingReview) {
-                    Button("Clean up") { Task { await openReview() } }.buttonStyle(.borderedProminent).controlSize(.large)
+                    Button(summary.cleanUpTitle) { Task { await openReview() } }.buttonStyle(.borderedProminent).controlSize(.large)
                         .disabled(!selection.canReviewSmartClean).accessibilityIdentifier("smartCleanCleanUp")
                 }.help(model.isScanning ? CacheDropDesign.waitForScanHelp : "")
             }
@@ -45,17 +45,21 @@ struct SmartCleanView: View {
         .onChange(of: model.isScanning) { _, scanning in if scanning { nothingToClean = false } }
     }
 
-    private var page: some View {
-        // What something holds stays listed, unticked, with why (#374).
+    private func page(_ summary: SmartCleanSummary) -> some View {
+        // What something holds stays in its category, unticked, with why (#374).
         let items = model.recommendedCandidates + model.recommendedHeld
-        let rows = presentation.sort.ordered(CatalogOverview(catalog: model.catalog, candidates: items).rows,
-                                             name: { $0.category.smartCleanTitle }, bytes: { $0.estimate.sortBytes })
+        // No column header here, so no sort to choose: largest first (Decision 173).
+        let rows = ListSort().ordered(CatalogOverview(catalog: model.catalog, candidates: items).rows,
+                                      name: { $0.category.smartCleanTitle }, bytes: { $0.estimate.sortBytes })
         return VStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
-            PageHeader(title: "Smart clean", subtitle: "A safe plan from what takes up space. Untick anything you want to keep.")
+            PageHeader(title: "Smart clean", subtitle: "What’s safe to clean, already ticked")
                 .accessibilityElement(children: .combine).accessibilityIdentifier("smartCleanHeader")
                 .padding(.bottom, CacheDropDesign.Space.sm)
-            summary
-            ColumnHeader(nameTitle: "Name", sizeTitle: "Size", sort: $presentation.sort, identifier: "smartCleanSort")
+            // The plan's card (Decision 74), titled "Free up" here (Decision 173): what the ticked items release, never what
+            // goes to the Trash (#350, SPEC section 6), "Up to" when part of it is copies that share disk blocks.
+            SelectionSummary(value: summary.freeUp ?? CacheDropDesign.noValue, detail: CacheDropDesign.items(summary.itemCount) + " selected",
+                             identifier: "smartCleanSummary", title: SmartCleanSummary.title)
+                .help(CacheDropDesign.selectionEstimateHelp)
             SettingsUnreadableNotice(model: model)
             if let approvalError { StatusRow(text: approvalError, symbol: "exclamationmark.circle", role: .caution, identifier: "smartCleanError") }
             if nothingToClean {
@@ -78,97 +82,32 @@ struct SmartCleanView: View {
         }.padding(CacheDropDesign.Space.page).frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// The Cleanup plan's summary card (#370, Decision 74): what the ticked items release, never what goes to the Trash
-    /// (#350, SPEC section 6), "Up to" when part of it is copies that share disk blocks; and how many items are ticked.
-    private var summary: some View {
-        let ticked = model.smartCleanCandidates, releasing = ticked.filter(\.releasesSpace)
-        let value = releasing.isEmpty ? CacheDropDesign.noValue : model.sizeText(of: releasing)
-        return SelectionSummary(value: value, detail: CacheDropDesign.items(ticked.count) + " selected", identifier: "smartCleanSummary",
-                                title: "Ready to clean")
-            .help(CacheDropDesign.selectionEstimateHelp)
-    }
-
-    /// The plan's category row (Decision 48): its checkbox ticks or unticks all of its recommended items; "Choose items · N"
-    /// opens one line per rule (or per app or profile when a rule groups them), unless the category has only one that can be ticked
-    /// with it. N counts
-    /// those lines, not the items behind them (#229).
+    /// The plan's category row (Decision 48) with the plan's what-it-is line and no "Choose items" (Decision 173): its checkbox,
+    /// or a click on the row (Decision 69), ticks or unticks all of its recommended items. What something holds is never ticked
+    /// with it (#374, Decision 78) and says why under the row.
     private func category(_ row: CatalogOverview.Row, items: [Candidate]) -> some View {
         let found = items.filter { candidate in row.rules.contains { $0.id == candidate.ruleID } }
-        // The plan's rule (#240): a held item is ticked on its own, never with its category (#374).
         let selection = model.categorySelection(row.rules, items: found)
-        let lines = presentation.sort.ordered(lines(row, found: found).sorted { $0.accessibilitySuffix < $1.accessibilitySuffix },
-                                              name: \.name, bytes: { SizeEstimate(sum: $0.items.map(SizeEstimate.init)).sortBytes })
-        let expanded = Binding(get: { presentation.expandedCategories.contains(row.category) },
-                               set: { if $0 { presentation.expandedCategories.insert(row.category) } else { presentation.expandedCategories.remove(row.category) } })
-        // One consequence line per category (#319), from what its rules do.
-        let consequence = SmartCleanConsequence.line(for: row.category, rules: row.rules)
-        return CategoryRow(category: row.category.storageCategory, state: selection.state, title: row.category.smartCleanTitle, detail: consequence,
-                           size: row.valueText, enabled: model.canEdit, identifier: "smartCleanCategory-" + row.id,
-                           itemCount: lines.count > 1 || selection.toggle == .showItems ? lines.count : nil, expanded: expanded,
-                           toggle: {
-            // Nothing may be ticked together (#384): the checkbox opens the lines, even a lone one, to tick each on its own.
-            if model.toggle(selection) { expanded.wrappedValue = true }
-        }) {
-            EmptyView()
+        let holds = CandidateHold.grouped(found).compactMap(\.hold)
+        return CategoryRow(category: row.category.storageCategory, state: selection.state, title: row.category.smartCleanTitle,
+                           detail: row.category.overviewDetail, size: row.valueText, enabled: model.canEdit, identifier: "smartCleanCategory-" + row.id,
+                           itemCount: nil, expanded: .constant(false),
+                           // Nothing may be ticked together (#384): the plan lists the items, to tick each on its own.
+                           toggle: { if model.toggle(selection) { openPlan(row.category) } }) {
+            ForEach(Array(holds.enumerated()), id: \.offset) { index, hold in
+                StatusRow(text: hold.line, symbol: "exclamationmark.circle", role: .caution, identifier: "smartCleanHeld-\(row.id)-\(index + 1)")
+            }
         } items: {
-            VStack(alignment: .leading, spacing: 0) { ForEach(lines) { line($0) } }
+            EmptyView()
         }
     }
 
-    private struct Line: Identifiable {
-        /// The rule, the group and the hold (#384): two holds whose lines read alike stay two lines.
-        struct ID: Hashable { let rule: String; let group: String?; let hold: CandidateHold? }
-        let id: ID
-        /// Its accessibility identifier's suffix: "rule|group", then "|held-N" for the Nth held line of that group.
-        let accessibilitySuffix: String
-        let name: String
-        let rule: CleanupRule
-        let items: [Candidate]
-        /// What holds these items (#374); nil for free ones.
-        var hold: CandidateHold? = nil
-    }
-    private func lines(_ row: CatalogOverview.Row, found: [Candidate]) -> [Line] {
-        row.rules.flatMap { rule -> [Line] in
-            let items = found.filter { $0.ruleID == rule.id }
-            let groups = Dictionary(grouping: items) { $0.group }
-            return groups.keys.sorted { ($0 ?? "").localizedStandardCompare($1 ?? "") == .orderedAscending }.flatMap { group in
-                let name = group.map { row.rules.count > 1 ? rule.title + " · " + $0 : $0 } ?? rule.title
-                // Held items get a line of their own per hold, unticked, saying why (#374), in the order the scan found them (#384).
-                let byHold = CandidateHold.grouped(groups[group] ?? []), base = rule.id + "|" + (group ?? "")
-                var heldNumber = 0
-                return byHold.map { held in
-                    var suffix = base
-                    if held.hold != nil { heldNumber += 1; suffix += "|held-\(heldNumber)" }
-                    return Line(id: Line.ID(rule: rule.id, group: group, hold: held.hold), accessibilitySuffix: suffix,
-                                name: name, rule: rule, items: held.items, hold: held.hold)
-                }
-            }
-        }
-    }
-    private func line(_ line: Line) -> some View {
-        InspectableItemRow(name: line.name, detail: line.hold?.line ?? "",
-                           size: SizeFormatter.text(line.items.reduce(0) { $0 + $1.estimatedBytes }, complete: line.items.allSatisfy(\.sizeComplete),
-                                              upperBound: line.rule.estimateIsUpperBound, estimate: line.items.contains(where: \.sizeIsEstimate)),
-                           symbol: "folder", inspected: false,
-                           // Clicking the line ticks it, as its checkbox does; Finder is its own Reveal link (#367, Decision 72).
-                           inspect: line.rule.itemRowClick == .tick ? { if model.canEdit { model.setSelected(line.items, !line.items.allSatisfy(model.isSelected)) } } : nil,
-                           actionLabel: "Include " + line.name, reveal: { Finder.reveal(line.items.map(\.url)) }, revealIdentifier: "smartCleanLineReveal-" + line.accessibilitySuffix) {
-            Toggle("Include " + line.name, isOn: Binding(get: { line.items.allSatisfy(model.isSelected) }, set: { model.setSelected(line.items, $0) }))
-                .labelsHidden().disabled(!model.canEdit).accessibilityIdentifier("smartCleanLine-" + line.accessibilitySuffix)
-        }.help(line.items.map(\.url.path).sorted().joined(separator: "\n"))
-    }
-
-    /// What Smart clean leaves out, each a link to the Cleanup plan, where it can be chosen by hand.
+    /// What Smart clean leaves out, and the one way to change it: the Cleanup plan, with the same ticks (Decision 67).
     private var notIncluded: some View {
-        let kinds: [(title: String, category: CatalogCategory?)] = [("newer downloads", .downloads), ("models", .models), ("iCloud copies", .icloud),
-                                                                    ("your files", .files)]
-        return HStack(alignment: .firstTextBaseline, spacing: CacheDropDesign.Space.xs) {
-            Text("Not included:").foregroundStyle(.secondary)
-            ForEach(Array(kinds.enumerated()), id: \.offset) { index, kind in
-                if index > 0 { Text("·").foregroundStyle(.secondary) }
-                Button(kind.title) { openPlan(kind.category) }.buttonStyle(.link)
-                    .accessibilityIdentifier("smartCleanNotIncluded-" + (kind.category?.rawValue ?? "running"))
-            }
+        HStack(alignment: .firstTextBaseline, spacing: CacheDropDesign.Space.xs) {
+            Text(SmartCleanSummary.notIncluded).foregroundStyle(.secondary)
+            Text("·").foregroundStyle(.secondary).accessibilityHidden(true)
+            Button(SmartCleanSummary.adjust) { openPlan(nil) }.buttonStyle(.link).accessibilityIdentifier("smartCleanAdjust")
         }.font(CacheDropDesign.TypeStyle.caption).accessibilityElement(children: .contain).accessibilityIdentifier("smartCleanNotIncluded")
     }
 
