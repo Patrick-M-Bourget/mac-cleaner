@@ -70,8 +70,7 @@ private final class FakeQuitter: AppQuitting, @unchecked Sendable {
     let outside = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropOtherApps-\(UUID())").resolvingSymlinksInPath()
     var started: [Process] = []
     defer {
-        for process in started where process.isRunning { process.terminate() }
-        for process in started { process.waitUntilExit() }
+        for process in started { process.stop() }
         try? FileManager.default.removeItem(at: root); try? FileManager.default.removeItem(at: outside)
     }
     func codeSign(_ arguments: [String]) throws {
@@ -80,8 +79,7 @@ private final class FakeQuitter: AppQuitting, @unchecked Sendable {
         command.arguments = arguments
         let errors = Pipe()
         command.standardError = errors
-        try command.run()
-        command.waitUntilExit()
+        try command.runToEnd()
         let diagnostic = String(decoding: errors.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
         try #require(command.terminationStatus == 0, "Fixture signing or verification failed before launch: \(diagnostic)")
     }
@@ -110,8 +108,8 @@ private final class FakeQuitter: AppQuitting, @unchecked Sendable {
 
     #expect(quitter.requestQuit(["com.maker.synth"]))
     #expect(await quitter.waitUntilClosed(["com.maker.synth"], timeout: .seconds(5)))
-    // The process can disappear from libproc before Foundation delivers its termination notification.
-    synth.waitUntilExit()
-    #expect(!synth.isRunning)
+    // The process can disappear from libproc before Foundation delivers its termination notification, so wait for that
+    // too, but never forever (#747).
+    #expect(synth.ended(within: .seconds(5)), "Foundation never saw the quit fixture app end")
     #expect(!quitter.isOpen(["com.maker.synth"]))
 }

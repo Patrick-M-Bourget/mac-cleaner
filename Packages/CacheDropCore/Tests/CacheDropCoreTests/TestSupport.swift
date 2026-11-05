@@ -264,3 +264,38 @@ final class MarkedProcessLifetime: @unchecked Sendable {
         return gone - firstSeen
     }
 }
+
+/// Every wait on a process a test starts is bounded (#747). `waitUntilExit()` blocks forever when Foundation never delivers
+/// the termination, which once hung the Core suite for 90 minutes, so tests use these instead.
+extension Process {
+    /// Waits at most `limit` for Foundation to see this process end, and says whether it did.
+    func ended(within limit: Duration) -> Bool {
+        let end = ContinuousClock.now + limit
+        while isRunning {
+            guard ContinuousClock.now < end else { return false }
+            Thread.sleep(forTimeInterval: 0.02)
+        }
+        return true
+    }
+
+    /// Runs a short tool to its end. One that outlasts `limit` is stopped and fails the test.
+    func runToEnd(within limit: Duration = .seconds(60), sourceLocation: SourceLocation = #_sourceLocation) throws {
+        try run()
+        let done = ended(within: limit)
+        if !done { stop() }
+        try #require(done, "\(executableURL?.lastPathComponent ?? "A tool") did not end within \(limit)", sourceLocation: sourceLocation)
+    }
+
+    /// Ends a process the test started: asks it to stop, then kills it, and reaps it if Foundation never saw it end, so
+    /// nothing outlives the test. Each step waits at most two seconds.
+    func stop() {
+        guard processIdentifier > 0 else { return }
+        if isRunning { terminate() }
+        guard !ended(within: .seconds(2)) else { return }
+        kill(processIdentifier, SIGKILL)
+        guard !ended(within: .seconds(2)) else { return }
+        let end = ContinuousClock.now + .seconds(2)
+        var status: Int32 = 0
+        while waitpid(processIdentifier, &status, WNOHANG) == 0, ContinuousClock.now < end { Thread.sleep(forTimeInterval: 0.02) }
+    }
+}

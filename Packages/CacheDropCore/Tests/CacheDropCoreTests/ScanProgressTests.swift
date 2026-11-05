@@ -132,7 +132,7 @@ private func createEmpty(_ url: URL) throws -> URL {
     process.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
     process.arguments = ["--hfsCompression", source.path, destination.path]
     process.standardOutput = FileHandle.nullDevice; process.standardError = FileHandle.nullDevice
-    try process.run(); process.waitUntilExit()
+    try process.runToEnd()
     #expect(process.terminationStatus == 0)
     var metadata = stat()
     #expect(lstat(destination.path, &metadata) == 0)
