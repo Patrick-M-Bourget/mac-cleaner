@@ -25,7 +25,7 @@ final class VisualCaptureUITests: XCTestCase {
         case "photo-video":
             try addAdobeCaches(in: home)
             try addFinalCutLibraries(in: home)
-            pages = ["overview", "smart-clean", "plan", "plan-final-cut"]
+            pages = ["overview", "smart-clean", "plan-photo-video", "plan-final-cut"]
         case let unknown:
             XCTFail("No capture scenario named \(unknown)")
             return
@@ -101,8 +101,9 @@ final class VisualCaptureUITests: XCTestCase {
             XCTAssertTrue(category.waitForExistence(timeout: 10), "Smart clean lists Photo and video")
             openChooseItems(below: category, in: app)
             reveal(category, in: app, nearTop: true)
-        case "plan":
-            // Overview's row opens the Cleanup plan with Photo and video open (#733).
+        case "plan-photo-video":
+            // Overview's row opens the Cleanup plan with Photo and video open (#733). Its own page name: a second `case "plan"`
+            // never ran, so the first capture reached the plan with ⌘3, where categories start collapsed (Decision 48, #752).
             app.typeKey("1", modifierFlags: .command)
             revealAndClick(app.buttons["overviewCategory-photo-video"], in: app)
             let category = app.checkBoxes["planCategory-photo-video"]
@@ -110,9 +111,8 @@ final class VisualCaptureUITests: XCTestCase {
             XCTAssertTrue(app.checkBoxes["planRule-adobe-media-cache"].waitForExistence(timeout: 5), "Photo and video is open")
             reveal(category, in: app, nearTop: true)
         case "plan-final-cut":
-            // Photo and video's rules were gone by this page in the first capture (#742), so open its Choose items again if closed.
+            // Photo and video is still open from Overview's row (#752).
             let render = app.checkBoxes["planRule-final-cut-render-files"]
-            if !render.waitForExistence(timeout: 2) { openChooseItems(below: app.checkBoxes["planCategory-photo-video"], in: app) }
             XCTAssertTrue(render.waitForExistence(timeout: 10), "Photo and video lists Final Cut Pro's render files")
             reveal(render, in: app, nearTop: true)
         default:

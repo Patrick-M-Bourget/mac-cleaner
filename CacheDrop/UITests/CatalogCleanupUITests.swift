@@ -1795,6 +1795,36 @@ final class AppManagedStorageUITests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: original.path))
     }
 
+    /// #752: with Adobe's caches and two Final Cut Pro libraries, Overview's Photo and video row opens the Cleanup plan with
+    /// the category open (#733), and it stays open once the scan has settled.
+    @MainActor func testPhotoAndVideoStaysOpenFromOverviewWithAdobeAndFinalCut() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        try addAdobeCaches(in: home)
+        try addFinalCutLibraries(in: home)
+        app.launch()
+        waitForOverview(app)
+        waitForCatalogScan(app)
+
+        revealAndClick(app.buttons["overviewCategory-photo-video"], in: app)
+        let category = app.checkBoxes["planCategory-photo-video"]
+        XCTAssertTrue(category.waitForExistence(timeout: 10), "The Cleanup plan lists Photo and video")
+        // Whatever finishes after the click (the remembered folders' scan, a rescan) has to leave it open.
+        XCTAssertTrue(app.staticTexts["catalogScanProgress"].waitForNonExistence(timeout: 60), "The scan settled")
+        Thread.sleep(forTimeInterval: 2)
+        reveal(category, in: app, nearTop: true)
+        let chooseItems = app.disclosureTriangles.matching(NSPredicate(format: "label BEGINSWITH 'Choose items · '")).allElementsBoundByIndex
+            .filter { $0.frame.minY > category.frame.minY }.min { $0.frame.minY < $1.frame.minY }
+        XCTAssertEqual(chooseItems?.value as? Int, 1, "Photo and video's Choose items is open")
+        XCTAssertTrue(app.checkBoxes["planRule-adobe-media-cache"].exists, "Adobe's rule is listed")
+        let render = app.checkBoxes["planRule-final-cut-render-files"]
+        reveal(render, in: app, nearTop: true)
+        XCTAssertTrue(render.exists, "Final Cut Pro's render files are listed")
+    }
+
     /// #179: Lightroom Classic's previews and Smart Previews are separate rows, counted by catalog, each with its own
     /// steps; the catalog is never listed or offered, and opening Lightroom changes nothing.
     @MainActor func testLightroomPreviewsAreSeparateFromSmartPreviewsAndNoCatalogIsOffered() throws {
