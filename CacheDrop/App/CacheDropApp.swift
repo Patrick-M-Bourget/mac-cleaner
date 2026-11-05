@@ -398,8 +398,7 @@ private struct WorkspaceView: View {
 
     private func navigation(_ value: Destination) -> some View {
         CacheDropSidebarRow(title: value.rawValue, symbol: value.symbol, selected: sidebarSelection == value,
-                        accent: value == .growth ? CacheDropDesign.purple : value == .plan ? CacheDropDesign.teal : value == .history ? .secondary : CacheDropDesign.blue,
-                        selectedCategories: value == .plan ? selection.actionableSelectedCategoryCount : nil) {
+                        accent: value == .growth ? CacheDropDesign.purple : value == .plan ? CacheDropDesign.teal : value == .history ? .secondary : CacheDropDesign.blue) {
             navigate(value)
         }.keyboardShortcut(value.shortcut, modifiers: .command).disabled(welcome.isShowing)
             .accessibilityIdentifier(value.id)

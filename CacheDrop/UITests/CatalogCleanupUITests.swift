@@ -2406,9 +2406,9 @@ extension CatalogCleanupUITests {
             app.launch()
             waitForOverview(app)
             waitForCatalogScan(app)
-            let badge = app.buttons["Cleanup plan"]
-            XCTAssertEqual(badge.label, "Cleanup plan, 2 categories selected",
-                           "npm and Yarn count once, plus App update downloads (#531)")
+            // #777 (Decision 182): the sidebar row carries no count, whatever is ticked; the page's card counts items.
+            let sidebarRow = app.buttons["Cleanup plan"]
+            XCTAssertEqual(sidebarRow.label, "Cleanup plan", "No count badge on the sidebar (#777)")
             let title = "Developer caches and build files"
 
             app.typeKey("2", modifierFlags: .command)
@@ -2418,7 +2418,6 @@ extension CatalogCleanupUITests {
             XCTAssertTrue(smart.isEnabled)
             revealAndClick(smart, in: app)
             XCTAssertEqual(smart.value as? Int, 0, "The native checkbox unticks the category")
-            XCTAssertEqual(badge.label, "Cleanup plan, 1 category selected")
             revealAndClick(smart, in: app)
             XCTAssertEqual(smart.value as? Int, 1, "The native checkbox ticks the category again")
             revealAndClick(app.staticTexts[title].firstMatch, in: app)
@@ -2432,7 +2431,6 @@ extension CatalogCleanupUITests {
             app.typeKey("2", modifierFlags: .command)
             XCTAssertTrue(smart.waitForExistence(timeout: 5))
             XCTAssertFalse([0, 1].contains(smart.value as? Int), "One of two ticked reads as mixed: \(String(describing: smart.value))")
-            XCTAssertEqual(badge.label, "Cleanup plan, 2 categories selected", "Partial selection still counts the category once")
             revealAndClick(app.staticTexts[title].firstMatch, in: app)
             XCTAssertEqual(smart.value as? Int, 1, "All on when any are off")
 
@@ -2449,27 +2447,25 @@ extension CatalogCleanupUITests {
             XCTAssertEqual(plan.value as? Int, 0, "The same on the plan")
             revealAndClick(app.staticTexts[title].firstMatch, in: app)
             XCTAssertEqual(plan.value as? Int, 1)
-            XCTAssertEqual(badge.label, "Cleanup plan, 2 categories selected")
             let downloads = app.checkBoxes["planCategory-downloads"]
             revealAndClick(downloads, in: app)
-            XCTAssertEqual(badge.label, "Cleanup plan, 3 categories selected", "A newly selected category adds one")
+            XCTAssertEqual(downloads.value as? Int, 1, "Downloads ticked")
             let updates = app.checkBoxes["planCategory-updaters"]
             revealAndClick(updates, in: app)
-            XCTAssertEqual(badge.label, "Cleanup plan, 2 categories selected")
             app.typeKey("2", modifierFlags: .command)
             let smartUpdates = app.checkBoxes["smartCleanCategory-updaters"]
             XCTAssertTrue(smartUpdates.waitForExistence(timeout: 5))
             XCTAssertEqual(smartUpdates.value as? Int, 0, "Updater selection is shared")
             revealAndClick(smartUpdates, in: app)
-            XCTAssertEqual(badge.label, "Cleanup plan, 3 categories selected", "Restoring the updater restores the count")
+            XCTAssertEqual(smartUpdates.value as? Int, 1, "Updater ticked again, shared with the plan")
+            XCTAssertEqual(sidebarRow.label, "Cleanup plan", "No count with three categories ticked (#777)")
             app.typeKey("3", modifierFlags: .command)
             revealAndClick(app.buttons["planSort-name"], in: app)
-            XCTAssertEqual(badge.label, "Cleanup plan, 3 categories selected", "Sorting preserves selection and its count")
+            XCTAssertEqual(downloads.value as? Int, 1, "Sorting preserves selection")
             revealAndClick(plan, in: app)
             revealAndClick(downloads, in: app)
-            XCTAssertEqual(badge.label, "Cleanup plan, 1 category selected")
             revealAndClick(updates, in: app)
-            XCTAssertEqual(badge.label, "Cleanup plan", "No selected categories omits the badge's count")
+            XCTAssertEqual(sidebarRow.label, "Cleanup plan", "Still no count with nothing ticked (#777)")
         }
 
     }

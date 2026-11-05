@@ -46,10 +46,9 @@ enum CacheDropDesign {
         /// The workspace's default content size and minimum outer-window size.
         static let defaultWindow = CGSize(width: 1120, height: 760)
         static let minimumWindow = CGSize(width: 900, height: 640)
-        /// Sidebar width, its two fixed caption slots and the selected-category count badge.
+        /// Sidebar width and its two fixed caption slots.
         static let sidebarWidth: CGFloat = 190
         static let sidebarCaptionHeight: CGFloat = 14
-        static let sidebarCountBadge: CGFloat = 18
         /// The icon column of an inspectable item and the location row's identity column.
         static let itemIcon: CGFloat = 20
         static let locationIdentity: CGFloat = 240
@@ -800,7 +799,6 @@ struct CacheDropSidebarRow: View {
     let symbol: String
     let selected: Bool
     var accent: Color = CacheDropDesign.blue
-    var selectedCategories: Int? = nil
     let action: () -> Void
     var body: some View {
         Button(action: action) {
@@ -809,12 +807,8 @@ struct CacheDropSidebarRow: View {
                 Label { Text(title).foregroundStyle(selected ? .primary : .secondary) } icon: {
                     Image(systemName: symbol).foregroundStyle(accent).frame(width: CacheDropDesign.Size.sidebarIcon)
                 }
+                // No count badge (#777, Decision 182): the page's card counts what's selected.
                 Spacer(minLength: 0)
-                if let count = selectedCategories {
-                    Text(String(max(0, count))).font(CacheDropDesign.TypeStyle.sidebarNote.weight(.medium)).monospacedDigit()
-                        .frame(width: CacheDropDesign.Size.sidebarCountBadge, height: CacheDropDesign.Size.sidebarCountBadge).background(CacheDropDesign.summary, in: Capsule())
-                        .opacity(count > 0 ? 1 : 0).accessibilityHidden(true)
-                }
             }.font(CacheDropDesign.TypeStyle.note)
                 .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, CacheDropDesign.Space.sm).padding(.horizontal, CacheDropDesign.Space.sm)
                 .background {
@@ -825,11 +819,7 @@ struct CacheDropSidebarRow: View {
                     }
                 }
                 .contentShape(Rectangle())
-        }.buttonStyle(.plain).accessibilityLabel(accessibleTitle).accessibilityIdentifier(title).accessibilityAddTraits(selected ? .isSelected : [])
-    }
-    private var accessibleTitle: String {
-        guard let count = selectedCategories, count > 0 else { return title }
-        return "\(title), \(count) \(count == 1 ? "category" : "categories") selected"
+        }.buttonStyle(.plain).accessibilityLabel(title).accessibilityIdentifier(title).accessibilityAddTraits(selected ? .isSelected : [])
     }
 }
 

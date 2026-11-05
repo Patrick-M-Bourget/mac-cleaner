@@ -47,11 +47,11 @@ struct DesignGallery: View {
                     }.buttonStyle(.plain).accessibilityValue(shellExamplesExpanded ? "Expanded" : "Collapsed").accessibilityIdentifier("galleryShellExamples")
                     if shellExamplesExpanded {
                         ShellAppearanceGalleryExamples()
+                        // #777, Decision 182: sidebar rows carry no count badge, selected or not.
                         VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
-                            Text("Synthetic category badge · Inert examples").font(.headline)
-                            CacheDropSidebarRow(title: "Cleanup plan", symbol: "checklist", selected: false, selectedCategories: 0) {}
-                            CacheDropSidebarRow(title: "Cleanup plan", symbol: "checklist", selected: true, selectedCategories: 1) {}
-                            CacheDropSidebarRow(title: "Cleanup plan", symbol: "checklist", selected: false, selectedCategories: 2) {}
+                            Text("Synthetic sidebar rows · Inert examples").font(.headline)
+                            CacheDropSidebarRow(title: "Cleanup plan", symbol: "checklist", selected: false, accent: CacheDropDesign.teal) {}
+                            CacheDropSidebarRow(title: "Cleanup plan", symbol: "checklist", selected: true, accent: CacheDropDesign.teal) {}
                         }.frame(width: 166).background { ChromeSurface(role: .sidebar) }
                     }
                     DisclosureGroup("Synthetic History activity examples", isExpanded: $historyExamplesExpanded) {
