@@ -62,6 +62,7 @@ The names CacheDrop shows, what they mean, and where they live in code. Copy fol
 | trial | Clean up and uninstall, free until they have freed 2 GB on this Mac; Settings reads **X of free cleanup left**, then **Free trial used** (Decisions 135, 137) | `Trial`, `TrialController`, `CleanupAllowance` |
 | setup progress | The setup events CacheDrop sends only when the user opts in (Decision 127) | `SetupProgressReporter`, `SetupProgressEvent` |
 | What CacheDrop cleans | Onboarding's row of the cleanable categories' badges; while scanning, each lights up as its category finishes (#783) | `CategoryBadgeRow`, `OnboardingWelcomeStep` |
+| Developer, Browsers, App caches, Downloads, Audio, Photo and video, Models, App updates, Logs, Deleted apps | The categories' short names, under their badges in onboarding (#784) | `CatalogCategory.shortTitle`, `Onboarding.categories` |
 | Never touches | Onboarding's muted line naming what CacheDrop never cleans: **Never touches: Photos · Mail · Messages · passwords** (#783) | `OnboardingWelcomeStep` |
 | Found X so far, Found X you can clean | Onboarding's running total while scanning, then what the scan found (#783) | `OnboardingScanStep` |
 

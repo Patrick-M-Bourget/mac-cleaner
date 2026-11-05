@@ -5,26 +5,42 @@ import CacheDropCore
 /// Onboarding's two steps (#783): Welcome shows what CacheDrop looks at, and one sheet then scans, lighting each category's
 /// badge as it finishes, and shows what it found. Plain inputs only, designed in the Design gallery; #784 wires them in.
 
-/// The cleanable categories as a row of their badges (#783). Welcome shows them all lit; while scanning, a category still
-/// being read stays dimmed and lights up when it finishes, at once with Reduce Motion.
+/// The cleanable categories' badges, each over its short name, in rows of five (#783, #784). Welcome shows them all lit;
+/// while scanning, a category still being read stays dimmed and lights up when it finishes, at once with Reduce Motion.
 struct CategoryBadgeRow: View {
     let categories: [CatalogCategory]
     /// The categories finished so far; nil lights them all.
     var finished: Set<CatalogCategory>? = nil
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Ten badges with their names don't fit one row of the narrow sheet.
+    private static let perRow = 5
     var body: some View {
-        HStack(spacing: CacheDropDesign.Space.sm) {
-            ForEach(categories, id: \.self) { category in
-                let lit = finished?.contains(category) ?? true
-                CategoryBadge(category: category.storageCategory)
-                    .opacity(lit ? 1 : CacheDropDesign.Opacity.waiting)
-                    .animation(reduceMotion ? nil : .easeInOut(duration: CacheDropDesign.Motion.waiting), value: lit)
-                    .help(category.overviewTitle)
+        VStack(spacing: CacheDropDesign.Space.md) {
+            ForEach(Array(stride(from: 0, to: categories.count, by: Self.perRow)), id: \.self) { start in
+                HStack(alignment: .top, spacing: CacheDropDesign.Space.sm) {
+                    ForEach(categories[start..<min(start + Self.perRow, categories.count)], id: \.self) { category in
+                        badge(category)
+                    }
+                    // A short last row keeps the columns of the rows above.
+                    ForEach(0..<(Self.perRow - min(Self.perRow, categories.count - start)), id: \.self) { _ in Color.clear.frame(maxWidth: .infinity, maxHeight: 0) }
+                }
             }
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(categories.map(\.overviewTitle).joined(separator: ", "))
         .accessibilityIdentifier("welcomeCategories")
+    }
+    private func badge(_ category: CatalogCategory) -> some View {
+        let lit = finished?.contains(category) ?? true
+        return VStack(spacing: CacheDropDesign.Space.xs) {
+            CategoryBadge(category: category.storageCategory)
+            Text(category.shortTitle).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                .multilineTextAlignment(.center).lineLimit(2).fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity)
+        .opacity(lit ? 1 : CacheDropDesign.Opacity.waiting)
+        .animation(reduceMotion ? nil : .easeInOut(duration: CacheDropDesign.Motion.waiting), value: lit)
+        .help(category.overviewTitle)
     }
 }
 
@@ -60,8 +76,8 @@ struct OnboardingScanStep: View {
     enum Phase {
         /// `found` is the running total; `finished` the categories read so far.
         case scanning(found: Int64, finished: Set<CatalogCategory>)
-        /// `breakdown` draws the storage bar; `top` is the largest categories, largest first (three are shown).
-        case ready(found: Int64, breakdown: StorageBreakdown, top: [Found])
+        /// `top` is the largest categories, largest first (three are shown). No storage bar (owner, 2026-11-05).
+        case ready(found: Int64, top: [Found])
         case nothingFound
     }
     let categories: [CatalogCategory]
@@ -86,23 +102,20 @@ struct OnboardingScanStep: View {
                     }
                 }
             } footer: { EmptyView() }
-        case .ready(let found, let breakdown, let top):
+        case .ready(let found, let top):
             OnboardingSheet(onClose: onClose) {
                 Text("Found " + SizeFormatter.text(found) + " you can clean").font(CacheDropDesign.TypeStyle.value).monospacedDigit()
                     .multilineTextAlignment(.center).accessibilityAddTraits(.isHeader).accessibilityIdentifier("welcomeFound")
-                VStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
-                    CapacityMeter(available: breakdown.total - breakdown.used, total: breakdown.total, showsValue: false, prominent: true, breakdown: breakdown)
-                    VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
-                        ForEach(top.prefix(3)) { row in
-                            HStack(spacing: CacheDropDesign.Space.md) {
-                                CategoryBadge(category: row.category.storageCategory)
-                                Text(row.category.overviewTitle).font(CacheDropDesign.TypeStyle.note).lineLimit(1)
-                                Spacer(minLength: CacheDropDesign.Space.sm)
-                                Text(row.estimate.text).font(CacheDropDesign.TypeStyle.note).foregroundStyle(.secondary).monospacedDigit()
-                            }.accessibilityElement(children: .combine)
-                        }
-                    }.accessibilityElement(children: .contain).accessibilityIdentifier("welcomeTopCategories")
-                }
+                VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
+                    ForEach(top.prefix(3)) { row in
+                        HStack(spacing: CacheDropDesign.Space.md) {
+                            CategoryBadge(category: row.category.storageCategory)
+                            Text(row.category.overviewTitle).font(CacheDropDesign.TypeStyle.note).lineLimit(1)
+                            Spacer(minLength: CacheDropDesign.Space.sm)
+                            Text(row.estimate.text).font(CacheDropDesign.TypeStyle.note).foregroundStyle(.secondary).monospacedDigit()
+                        }.accessibilityElement(children: .combine)
+                    }
+                }.accessibilityElement(children: .contain).accessibilityIdentifier("welcomeTopCategories")
             } footer: {
                 Button("Start Smart clean", action: onStartSmartClean).buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
                     .accessibilityIdentifier("welcomeStartSmartClean")

@@ -272,7 +272,7 @@ struct DesignGallery: View {
 /// Onboarding's steps (#783) with synthetic data: Welcome, Scanning with 4 of 10 categories read, Ready and Nothing found.
 private struct OnboardingGalleryExamples: View {
     @State private var sharing = false
-    private static let categories: [CatalogCategory] = [.developer, .browser, .system, .downloads, .audio, .photoVideo, .models, .updaters, .logs, .leftovers]
+    private static let categories = Onboarding.categories
     private static let found: [(CatalogCategory, Int64)] = [(.developer, 3_900_000_000), (.browser, 1_600_000_000), (.system, 800_000_000),
                                                              (.downloads, 300_000_000), (.logs, 200_000_000)]
     var body: some View {
@@ -285,8 +285,6 @@ private struct OnboardingGalleryExamples: View {
             }
             example("Ready", "ready") {
                 step(.ready(found: Self.found.reduce(0) { $0 + $1.1 },
-                            breakdown: StorageBreakdown(used: 380_000_000_000, total: 500_000_000_000,
-                                                        categories: Self.found.map { ($0.0, .measured($0.1)) }, trash: .holds(0)),
                             top: Self.found.prefix(3).map { .init(category: $0.0, estimate: .measured($0.1)) }))
             }
             example("Nothing found", "nothingFound") { step(.nothingFound) }
