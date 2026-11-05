@@ -47,6 +47,19 @@ func addAudioSoftware(in home: URL) throws {
         .write(to: driver.appendingPathComponent("Contents/Info.plist"))
 }
 
+/// #399's Final Cut Pro libraries in the fixture home: Untitled in Movies, with render files, optimized media and its original
+/// media, and Client Cut on a connected volume (`<home>/Volumes` here), with proxy media. Returns Untitled's render file and clip.
+@discardableResult func addFinalCutLibraries(in home: URL) throws -> (render: URL, original: URL) {
+    let render = home.appendingPathComponent("Movies/Untitled.fcpbundle/Event 1/Render Files/a.mov")
+    let original = home.appendingPathComponent("Movies/Untitled.fcpbundle/Event 1/Original Media/clip.mov")
+    for file in [render, original, home.appendingPathComponent("Movies/Untitled.fcpbundle/Event 1/Transcoded Media/High Quality Media/c.mov"),
+                 home.appendingPathComponent("Volumes/Shuttle/Client Cut.fcpbundle/Event 1/Transcoded Media/Proxy Media/b.mov")] {
+        try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data(repeating: 4, count: 60_000).write(to: file)
+    }
+    return (render, original)
+}
+
 /// Turns on the Settings dry run for this launch through the DEBUG-only test seam, for journeys that assert nothing changed.
 @MainActor func turnOnDryRun(_ app: XCUIApplication) {
     app.launchEnvironment["CACHEDROP_TEST_DRY_RUN"] = "1"
@@ -1714,13 +1727,7 @@ final class AppManagedStorageUITests: XCTestCase {
         let state = try configureIsolatedState(app)
         let home = try configureCatalogHome(app)
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
-        let render = home.appendingPathComponent("Movies/Untitled.fcpbundle/Event 1/Render Files/a.mov")
-        let original = home.appendingPathComponent("Movies/Untitled.fcpbundle/Event 1/Original Media/clip.mov")
-        for file in [render, original, home.appendingPathComponent("Movies/Untitled.fcpbundle/Event 1/Transcoded Media/High Quality Media/c.mov"),
-                     home.appendingPathComponent("Volumes/Shuttle/Client Cut.fcpbundle/Event 1/Transcoded Media/Proxy Media/b.mov")] {
-            try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try Data(repeating: 4, count: 60_000).write(to: file)
-        }
+        let (render, original) = try addFinalCutLibraries(in: home)
         app.launch()
 
         let entry = app.buttons["overviewAppManaged"]
