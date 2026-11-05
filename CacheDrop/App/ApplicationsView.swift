@@ -510,7 +510,7 @@ struct ApplicationsView: View {
             if !uninstall.isEmpty {
                 VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
                     ForEach(AppRuleFamily.uninstallRules.filter { rule in uninstall.contains { $0.ruleID == rule.id } }) { rule in
-                        Text(rule.title).font(CacheDropDesign.TypeStyle.caption.weight(.medium))
+                        Text(rule.title).font(CacheDropDesign.TypeStyle.subheading)
                         CatalogItemRows(model: catalog, rule: rule, app: entry.id)
                     }
                     // A partly removable product lists what stays, with no checkbox (Decision 50).

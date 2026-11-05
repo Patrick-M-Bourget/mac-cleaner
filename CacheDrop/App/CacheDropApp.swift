@@ -427,7 +427,7 @@ private struct WorkspaceView: View {
                 SummarySurface {
                     VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
                         StatusRow(text: context.observedAt.map { "Space was low at \($0.formatted(date: .omitted, time: .shortened))" } ?? "Space was low", symbol: "bell", identifier: "openedStorageAlert")
-                        HStack {
+                        HStack(spacing: CacheDropDesign.Space.sm) {
                             Button("Scan again") { alerts.dismissOpenedAlert(); scanAgain() }.disabled(!canScanAgain).help(scanAgainHelp)
                             Button("Dismiss", action: alerts.dismissOpenedAlert)
                         }
@@ -436,7 +436,7 @@ private struct WorkspaceView: View {
             }
             if recovery.requiresReview {
                 SummarySurface {
-                    HStack {
+                    HStack(spacing: CacheDropDesign.Space.sm) {
                         StatusRow(text: "Interrupted cleanup needs review", symbol: "exclamationmark.circle", role: .caution)
                         Button("Review interrupted cleanup") { openRecovery(caller: .overview) }
                     }
@@ -462,7 +462,7 @@ private struct WorkspaceView: View {
         let more = max(0, rows.count - CatalogOverview.leadingRowCount)
         let shown = overviewShowsAllCategories ? rows : Array(rows.prefix(CatalogOverview.leadingRowCount))
         return VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
-                HStack(alignment: .firstTextBaseline) {
+                HStack(alignment: .firstTextBaseline, spacing: CacheDropDesign.Space.sm) {
                     Text("Can be cleaned").font(CacheDropDesign.TypeStyle.section)
                     Spacer(minLength: CacheDropDesign.Space.md)
                     // Nothing known yet: the size is "—" and the rows are skeletons (#308).
@@ -601,11 +601,8 @@ private struct WorkspaceView: View {
                 Group {
                 if scope.isBuiltIn {
                     // Built-in Downloads is never picked; folder guidance belongs in Locations (#527).
-                    HStack(alignment: .firstTextBaseline, spacing: CacheDropDesign.Space.sm) {
-                        StatusRow(text: recoveryText(scope, status: status), symbol: "info.circle", role: .caution, identifier: "overviewLocationRecovery").fixedSize()
-                        Button("Locations") { navigate(.locations) }.buttonStyle(.link).accessibilityIdentifier("overviewDownloadsLocations")
-                        Spacer(minLength: 0)
-                    }
+                    StatusRow(text: recoveryText(scope, status: status), symbol: "info.circle", role: .caution, identifier: "overviewLocationRecovery",
+                              action: StatusAction(title: "Locations", identifier: "overviewDownloadsLocations") { navigate(.locations) })
                 } else {
                     StatusRow(text: recoveryText(scope, status: status), symbol: "info.circle", role: .caution,
                         identifier: "overviewLocationRecovery", action: StatusAction(title: "Choose again…", identifier: "overviewChooseAgain") {
@@ -639,7 +636,7 @@ private struct WorkspaceView: View {
             if locations.isEmpty {
                 // A location in recovery is chosen: its row at the top says what's wrong (#388), so only say this when none is.
                 if locationsModel.recoveries.isEmpty {
-                    Text("No folders chosen yet").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).accessibilityIdentifier("overviewNoLocations")
+                    EmptyState(title: "No folders chosen yet", symbol: "folder", identifier: "overviewNoLocations", compact: true)
                 }
             } else {
                 RecommendationGroup {
@@ -946,7 +943,7 @@ private struct WorkspaceView: View {
                     status: (scope.isBuiltIn ? "Built in · " : "") + locationStatus(scope), overlap: locationOverlap(scope), included: Binding(get: { scope.isIncluded }, set: { included in
                         if locationsModel.setIncluded(included, scope: scope) { selection.suspendScope(URL(fileURLWithPath: scope.path)) }
                     }), enabled: !explorer.isScanning && !selection.workspaceRunning, fixed: scope.isBuiltIn) {
-                    HStack {
+                    HStack(spacing: CacheDropDesign.Space.sm) {
                         if isScanned(scope), locationsModel.statuses[scope.id]?.needsRecovery != true {
                             Button("Explore") { openExplorer(caller: .locations, at: URL(fileURLWithPath: scope.path)) }
                                 .buttonStyle(.link).accessibilityIdentifier("locationExplore:" + scope.path)

@@ -114,7 +114,7 @@ struct StorageTrendsChangeRow: View {
                 Capsule().fill(delta > 0 ? CacheDropDesign.purple : CacheDropDesign.teal)
                     .frame(width: geometry.size.width * min(1, Double(abs(delta)) / Double(max(1, maximum))))
             }.frame(height: CacheDropDesign.Size.meterCompact).frame(maxWidth: .infinity).accessibilityHidden(true)
-            Text(StorageTrendsPresentation.signed(delta)).monospacedDigit().fixedSize()
+            Text(StorageTrendsPresentation.signed(delta)).font(CacheDropDesign.TypeStyle.note).monospacedDigit().fixedSize()
         }.padding(.vertical, CacheDropDesign.Space.sm).accessibilityElement(children: .combine)
     }
 }
@@ -160,7 +160,7 @@ struct StorageTrendsHistoryView: View {
         let days = max(1, Calendar.current.dateComponents([.day], from: from, to: to).day ?? 0)
         PageHeader(title: "Storage trends", subtitle: "What grew or shrank since " + from.formatted(date: .long, time: .omitted))
         HStack(alignment: .firstTextBaseline, spacing: CacheDropDesign.Space.sm) {
-            Text(StorageTrendsPresentation.signed(comparison.logicalDelta ?? 0)).font(CacheDropDesign.TypeStyle.page).monospacedDigit().accessibilityIdentifier("growthNetChange")
+            Text(StorageTrendsPresentation.signed(comparison.logicalDelta ?? 0)).font(CacheDropDesign.TypeStyle.value).monospacedDigit().accessibilityIdentifier("growthNetChange")
             Text("net growth · " + (days == 1 ? "past day" : "past \(days) days")).foregroundStyle(.secondary)
         }
         Picker("Show growth by", selection: $model.dimension) {
@@ -193,7 +193,7 @@ struct StorageTrendsHistoryView: View {
             }
         }
         if !comparison.coverageChanges.isEmpty {
-            DisclosureGroup("Not counted as growth: \(comparison.coverageChanges.count) \(comparison.coverageChanges.count == 1 ? "location" : "locations")", isExpanded: $model.coverageExpanded) {
+            ActionDisclosureGroup("Not counted as growth: \(comparison.coverageChanges.count) \(comparison.coverageChanges.count == 1 ? "location" : "locations")", isExpanded: $model.coverageExpanded) {
                 VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
                     ForEach(comparison.coverageChanges) { change in
                         StatusRow(text: StorageTrendsPresentation.coverage(change), symbol: "eye.slash", role: .caution)

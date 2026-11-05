@@ -58,7 +58,7 @@ struct CatalogConfirmationSection: View {
                     VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
                         Text(group.consequence.consequence).font(CacheDropDesign.TypeStyle.note).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                         ForEach(group.lines) { line in
-                            HStack {
+                            HStack(spacing: CacheDropDesign.Space.sm) {
                                 Text(line.category.overviewTitle)
                                 Spacer()
                                 if !line.cleansNothing { Text(line.estimate.text(upperBound: line.isUpperBound)).monospacedDigit() }
@@ -91,7 +91,7 @@ struct CatalogConfirmationSection: View {
     }
     private func files(_ rule: CleanupRule, _ items: [Candidate]) -> some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.xs) {
-            Text(rule.title).font(CacheDropDesign.TypeStyle.caption.weight(.medium))
+            Text(rule.title).font(CacheDropDesign.TypeStyle.subheading)
             // Only what this rule adds to its group's line (Decision 92 rules 2 and 7); most Trash rules add nothing.
             if !rule.consequence.isEmpty {
                 Text(rule.consequence).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
@@ -99,7 +99,7 @@ struct CatalogConfirmationSection: View {
             // An app's files are grouped by the folder they are in (#177).
             if rule.category == .apps {
                 ForEach(AppUninstall.byPlace(items), id: \.place) { place in
-                    Text(PathDisplay.shortLocation(of: place.items[0].url, home: CatalogCleanupModel.checkHome)).font(CacheDropDesign.TypeStyle.caption.weight(.medium))
+                    Text(PathDisplay.shortLocation(of: place.items[0].url, home: CatalogCleanupModel.checkHome)).font(CacheDropDesign.TypeStyle.subheading)
                     ForEach(place.items) { item in Text(item.displayName).font(CacheDropDesign.TypeStyle.caption).help(item.url.path) }
                 }
             } else {

@@ -361,9 +361,9 @@ struct StorageExplorerView: View {
                 if entry.item.isDuplicateResource { Text("Shared with another item, so it counts once.").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary) }
                 if entry.item.kind == .package || entry.item.kind == .symbolicLink { Text("CacheDrop doesn’t look inside it.").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary) }
                 if entry.item.previewAvailability != .local { Text("Not downloaded. Quick Look won’t download it.").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary) }
-                HStack {
+                HStack(spacing: CacheDropDesign.Space.sm) {
                     Button("Quick Look") { model.showObserved(entry.scan); model.preview(entry.item) }.disabled(entry.item.kind != .file || entry.item.previewAvailability != .local || model.isScanning)
-                    Button("Reveal in Finder") { model.reveal(entry.item) }
+                    Button("Reveal in Finder") { model.reveal(entry.item) }.buttonStyle(.link)
                 }
             }
         } else if folderAvailable, let folder = context.position.folder {
@@ -448,7 +448,7 @@ struct ExplorerInspector<Content: View>: View {
     var body: some View {
         SummarySurface {
             VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
-                HStack {
+                HStack(spacing: CacheDropDesign.Space.sm) {
                     Text(name).font(CacheDropDesign.TypeStyle.section).lineLimit(2); Spacer()
                     if let close { CloseButton(label: "Close inspector", action: close) }
                 }

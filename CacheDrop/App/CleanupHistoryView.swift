@@ -154,7 +154,7 @@ struct CleanupHistoryView: View {
     }
     var body: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
-            HStack(alignment: .firstTextBaseline) {
+            HStack(alignment: .firstTextBaseline, spacing: CacheDropDesign.Space.sm) {
                 PageHeader(title: "History")
                 HistoryActivityFilterControl(selection: $model.filter)
             }
@@ -230,7 +230,7 @@ struct CleanupHistoryView: View {
                     // Deleted from the Trash (#359): no Reveal in Trash and no Put back.
                     let emptied = run.emptiedIDs.contains(record.id) || TrashModel.shared.emptiedIDs.contains(record.id)
                     if let trash = record.trashURL, !putBack, !emptied, !record.isPutBack {
-                        Button("Reveal in Trash") { Finder.reveal([trash]) }.buttonStyle(.link).help(trash.path)
+                        Button("Reveal in Trash") { Finder.reveal([trash]) }.buttonStyle(.link).font(CacheDropDesign.TypeStyle.rowLink).help(trash.path)
                     }
                     if record.canPutBack, !emptied {
                         PutBackLink(record: record, alreadyPutBack: run.putBackIDs.contains(record.id)) { Task { await model.load(maintainCompleted: false) } }

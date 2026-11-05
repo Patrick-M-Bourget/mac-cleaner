@@ -164,7 +164,7 @@ struct FirstRunWelcomeView: View {
     /// Preparation couldn't finish: today's state (Decision 108).
     private var failed: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
-            HStack {
+            HStack(spacing: CacheDropDesign.Space.sm) {
                 AppBrand()
                 Spacer()
                 CloseButton(identifier: "welcomeCancel") { model.finish() }

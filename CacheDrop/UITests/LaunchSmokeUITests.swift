@@ -289,7 +289,7 @@ final class LaunchSmokeUITests: XCTestCase {
         XCTAssertTrue(status.waitForExistence(timeout: 5))
         XCTAssertTrue((status.value as? String ?? status.label).contains("Couldn’t check"))
         XCTAssertTrue(app.staticTexts["fullDiskAccessSummary"].exists)
-        XCTAssertTrue(app.links["systemAccessOpenSettings"].exists)
+        XCTAssertTrue(app.buttons["systemAccessOpenSettings"].exists)
         XCTAssertFalse(app.sheets.firstMatch.exists)
         XCTAssertFalse(app.links["manageLocalRecords"].exists)
     }
@@ -307,11 +307,11 @@ final class LaunchSmokeUITests: XCTestCase {
         XCTAssertTrue(status.waitForExistence(timeout: 5))
         XCTAssertTrue((status.value as? String ?? status.label).contains("Checking…"))
         XCTAssertTrue(app.staticTexts["fullDiskAccessSummary"].exists)
-        XCTAssertTrue(app.links["systemAccessOpenSettings"].isHittable)
+        XCTAssertTrue(app.buttons["systemAccessOpenSettings"].isHittable)
         let unknown = NSPredicate(format: "label CONTAINS %@ OR value CONTAINS %@", "Couldn’t check", "Couldn’t check")
         XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: unknown, object: status)], timeout: 15), .completed)
         XCTAssertTrue(app.staticTexts["fullDiskAccessSummary"].exists)
-        XCTAssertTrue(app.links["systemAccessOpenSettings"].isHittable)
+        XCTAssertTrue(app.buttons["systemAccessOpenSettings"].isHittable)
     }
 
     @MainActor func testFolderAccessGuidanceOpensLocations() throws {
@@ -359,7 +359,7 @@ final class LaunchSmokeUITests: XCTestCase {
         XCTAssertTrue((status.value as? String ?? status.label).contains("Not granted"))
 
         XCTAssertTrue(app.staticTexts["fullDiskAccessSummary"].exists)
-        XCTAssertTrue(app.links["systemAccessOpenSettings"].isHittable)
+        XCTAssertTrue(app.buttons["systemAccessOpenSettings"].isHittable)
         app.typeKey("1", modifierFlags: .command)
         // #161: the calm sheet: title, two-line explanation, coverage table, one note, two buttons.
         revealAndClick(app.links["fullDiskAccessLink"].firstMatch, in: app)
@@ -400,7 +400,7 @@ final class LaunchSmokeUITests: XCTestCase {
         app.activate()
         let granted = NSPredicate(format: "label CONTAINS %@ OR value CONTAINS %@", "Granted", "Granted")
         XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: granted, object: status)], timeout: 10), .completed)
-        XCTAssertFalse(app.links["systemAccessOpenSettings"].exists)
+        XCTAssertFalse(app.buttons["systemAccessOpenSettings"].exists)
         XCTAssertEqual(app.staticTexts["fullDiskAccessSheetStatus"].value as? String ?? app.staticTexts["fullDiskAccessSheetStatus"].label, "Included")
         XCTAssertFalse(app.staticTexts["fullDiskAccessHowTo"].exists)
     }
@@ -1409,7 +1409,7 @@ extension RecoveryReviewUITests {
         app.buttons["Review interrupted cleanup"].click()
         assertBlockedDuringUpdate([app.buttons["recoveryMarkReviewed"]])
         app.typeKey("5", modifierFlags: .command)
-        let run = app.buttons["cleanupRun:" + completedBatch.uuidString]
+        let run = app.descendants(matching: .any).matching(identifier: "cleanupRun:" + completedBatch.uuidString).firstMatch
         XCTAssertTrue(run.waitForExistence(timeout: 5)); revealAndClick(run, in: app)
         assertBlockedDuringUpdate([app.links["putBack-Trashed.dmg"]])
         app.typeKey("8", modifierFlags: .command)

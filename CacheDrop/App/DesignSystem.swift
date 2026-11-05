@@ -71,6 +71,8 @@ enum CacheDropDesign {
         /// Opaque sidebar chrome and the inspected item's accent tint.
         static let opaqueSidebar: Double = 0.65
         static let inspectedItem: Double = 0.06
+        /// The white sheen over the chrome and the selected sidebar row (`highlight`).
+        static let highlight: Double = 0.08
     }
     enum Stroke {
         static let fine: CGFloat = 0.5
@@ -98,6 +100,9 @@ enum CacheDropDesign {
         /// A link in a list row (#718): an item's Reveal in Finder, and a status line's Open <tool> or Reveal in Finder under a
         /// row's name, all one size.
         static let rowLink = Font.caption
+        /// A heading inside a disclosed list, over its own items: a rule's or a folder's name in the review sheet's Show files and
+        /// an app's Choose items (#772).
+        static let subheading = Font.caption.weight(.medium)
     }
     /// Reference colours belong here, never in individual screens. Keep system text/focus colours.
     static func adaptive(light: UInt32, dark: UInt32) -> Color {
@@ -111,7 +116,7 @@ enum CacheDropDesign {
     /// The sidebar's tint over its material, and its opaque fallback (#549): the same recipe in both themes.
     static var sidebar: Color { adaptive(light: 0xF2F2F5, dark: 0x242428) }
     static var selection: Color { adaptive(light: 0xE5EDFA, dark: 0x353E51) }
-    static var highlight: Color { adaptive(light: 0xFFFFFF, dark: 0xFFFFFF).opacity(0.08) }
+    static var highlight: Color { adaptive(light: 0xFFFFFF, dark: 0xFFFFFF).opacity(Opacity.highlight) }
     static var blue: Color { adaptive(light: 0x0877ED, dark: 0x60A9FF) }
     static var purple: Color { adaptive(light: 0x9360D8, dark: 0xB290ED) }
     /// Light teal is a step darker than the prototype's 0x349A9B so a meter segment keeps 3:1 against the track (#164).
@@ -438,7 +443,7 @@ struct SelectionSummary: View {
     var body: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
         SummarySurface {
-            HStack(alignment: .center) {
+            HStack(alignment: .center, spacing: CacheDropDesign.Space.sm) {
                 VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
                     Text(title).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
                     Text(value).font(CacheDropDesign.TypeStyle.value).monospacedDigit().accessibilityIdentifier(identifier.isEmpty ? "" : identifier + "Value")
@@ -461,21 +466,31 @@ enum StatusRole {
     case neutral, success, caution, failure
     var color: Color { switch self { case .neutral: .secondary; case .success: .green; case .caution: .orange; case .failure: .red } }
 }
-/// A disclosure group whose title opens it too ("Choose items", "Show files", "About folder access"). On macOS only a
-/// DisclosureGroup's chevron toggles it. `isExpanded` lets the owner keep the state; otherwise the group keeps its own.
-struct ActionDisclosureGroup<Content: View>: View {
-    let title: String
+/// The one disclosure (#772): a group whose title opens it too ("Choose items", "Show files", a History row). On macOS only a
+/// DisclosureGroup's chevron toggles it. `isExpanded` lets the owner keep the state; otherwise the group keeps its own. A
+/// `label` other than a title, such as a History row's, is one button; `identifier` names it, and it then says whether it's open.
+struct ActionDisclosureGroup<Title: View, Content: View>: View {
     var isExpanded: Binding<Bool>?
+    var identifier: String? = nil
     @ViewBuilder var content: () -> Content
+    @ViewBuilder var label: () -> Title
     @State private var expanded = false
-    init(_ title: String, isExpanded: Binding<Bool>? = nil, @ViewBuilder content: @escaping () -> Content) {
-        self.title = title; self.isExpanded = isExpanded; self.content = content
+    init(isExpanded: Binding<Bool>? = nil, identifier: String? = nil, @ViewBuilder content: @escaping () -> Content, @ViewBuilder label: @escaping () -> Title) {
+        self.isExpanded = isExpanded; self.identifier = identifier; self.content = content; self.label = label
     }
     var body: some View {
         let expanded = isExpanded ?? $expanded
         DisclosureGroup(isExpanded: expanded, content: content) {
-            Button(title) { expanded.wrappedValue.toggle() }.buttonStyle(.plain)
+            let title = Button { expanded.wrappedValue.toggle() } label: { label() }.buttonStyle(.plain)
+            if let identifier {
+                title.accessibilityElement(children: .combine).accessibilityValue(expanded.wrappedValue ? "Expanded" : "Collapsed").accessibilityIdentifier(identifier)
+            } else { title }
         }
+    }
+}
+extension ActionDisclosureGroup where Title == Text {
+    init(_ title: String, isExpanded: Binding<Bool>? = nil, @ViewBuilder content: @escaping () -> Content) {
+        self.init(isExpanded: isExpanded, content: content) { Text(title) }
     }
 }
 /// A link that fixes a status row's problem in place, such as "Choose again…" (#223, #311).
@@ -486,18 +501,46 @@ struct StatusAction {
     var isDisabled = false
     let action: () -> Void
 }
+/// The one quiet status line (#772): its symbol in the role's colour, the text, then the links that act on it, joined to
+/// each other by "·" ("Trash holds 4 GB", then "Empty Trash… · Open Trash"). An empty text
+/// draws the symbol and links alone (Results' Trash line). `detail` names what the text sums up, in its tooltip and
+/// accessibility value ("2 locations need Full Disk Access" names them). Its links take the size of what holds it: a
+/// row's notice sets `TypeStyle.rowLink`.
 struct StatusRow: View {
     let text: String
     var symbol = "info.circle"
     var role: StatusRole = .neutral
     var identifier: String = ""
-    var action: StatusAction? = nil
+    var detail: String? = nil
+    var actions: [StatusAction] = []
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: CacheDropDesign.Space.sm) {
-            Label { Text(text).fixedSize(horizontal: false, vertical: true).accessibilityIdentifier(identifier) } icon: { Image(systemName: symbol).foregroundStyle(role.color) }
+            Label {
+                if !text.isEmpty {
+                    Text(text).fixedSize(horizontal: false, vertical: true).modifier(StatusDetail(detail: detail)).accessibilityIdentifier(identifier)
+                }
+            } icon: { Image(systemName: symbol).foregroundStyle(role.color).accessibilityHidden(text.isEmpty) }
                 .font(CacheDropDesign.TypeStyle.note).foregroundStyle(.secondary)
-            if let action { Button(action.title, action: action.action).buttonStyle(.link).disabled(action.isDisabled).accessibilityIdentifier(action.identifier) }
+            HStack(alignment: .firstTextBaseline, spacing: CacheDropDesign.Space.xs) {
+                ForEach(Array(actions.enumerated()), id: \.offset) { index, action in
+                    if index > 0 { Text("·").foregroundStyle(.secondary).accessibilityHidden(true) }
+                    Button(action.title, action: action.action).buttonStyle(.link).disabled(action.isDisabled).accessibilityIdentifier(action.identifier)
+                }
+            }
         }.frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+extension StatusRow {
+    /// A line with at most one link, such as "Choose again…".
+    init(text: String, symbol: String = "info.circle", role: StatusRole = .neutral, identifier: String = "", detail: String? = nil, action: StatusAction?) {
+        self.init(text: text, symbol: symbol, role: role, identifier: identifier, detail: detail, actions: action.map { [$0] } ?? [])
+    }
+}
+/// A status line's `detail`, only when it has one, so its text keeps its own value otherwise.
+private struct StatusDetail: ViewModifier {
+    let detail: String?
+    func body(content: Content) -> some View {
+        if let detail { content.help(detail).accessibilityValue(detail) } else { content }
     }
 }
 struct SettingsRow<Content: View>: View {
@@ -594,7 +637,7 @@ struct EmptyState: View {
     }
     private var full: some View {
         HStack(alignment: .top, spacing: inList ? CacheDropDesign.Space.md : CacheDropDesign.Space.lg) {
-            Image(systemName: symbol).font(.title2).foregroundStyle(.secondary).frame(width: CacheDropDesign.Size.badge).accessibilityHidden(true)
+            Image(systemName: symbol).font(CacheDropDesign.TypeStyle.badgeIcon).foregroundStyle(.secondary).frame(width: CacheDropDesign.Size.badge).accessibilityHidden(true)
             VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
                 Text(title).font(CacheDropDesign.TypeStyle.section)
                 if !detail.isEmpty { Text(detail).font(CacheDropDesign.TypeStyle.note).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }

@@ -173,7 +173,7 @@ struct EmptyFromTrashSheet: View {
     }
     /// One item, by name, then its size or outcome.
     private func line(name: String, path: String, trailing: String) -> some View {
-        HStack(alignment: .firstTextBaseline) {
+        HStack(alignment: .firstTextBaseline, spacing: CacheDropDesign.Space.sm) {
             Text(name).lineLimit(1).truncationMode(.middle).help(path)
             Spacer()
             Text(trailing).monospacedDigit()

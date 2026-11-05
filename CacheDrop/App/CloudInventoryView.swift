@@ -10,7 +10,7 @@ struct CloudInventoryView: View {
             VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
                 HStack(spacing: CacheDropDesign.Space.sm) { CategoryBadge(category: .cloud); Text("iCloud in this scan").font(CacheDropDesign.TypeStyle.section) }
                 if report.isComplete && report.items.isEmpty && report.unknownMembershipCount == 0 {
-                    Text("No iCloud files in this folder.").foregroundStyle(.secondary)
+                    EmptyState(title: "No iCloud files in this folder.", symbol: "icloud", identifier: "overviewCloudEmpty", compact: true)
                 } else {
                     Text(report.localAllocatedBytes.map { SizeFormatter.text($0, complete: report.isComplete) + " of iCloud files are downloaded to this Mac · " + files(report.localItemCount) }
                          ?? files(report.localItemCount) + " from iCloud are downloaded to this Mac")

@@ -121,7 +121,7 @@ struct CleanupRecoveryView: View {
                     let items = snapshot.interruptedBatches.flatMap { findings[$0.id] ?? [] }
                     ForEach(snapshot.interruptedBatches) { batch in
                         Text("Started " + (batch.records.first?.approvedAt.formatted(date: .abbreviated, time: .shortened) ?? "Unknown date")).font(CacheDropDesign.TypeStyle.section)
-                        LazyVStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
+                        LazyVStack(alignment: .leading, spacing: 0) {
                             ForEach(findings[batch.id] ?? []) { item in
                                 row(item)
                                 Divider()
@@ -153,7 +153,7 @@ struct CleanupRecoveryView: View {
                 Button("Reveal in Finder") { Finder.reveal([found]) }.buttonStyle(.link).help(found.path)
                     .accessibilityLabel("Reveal " + record.originalURL.lastPathComponent + " in Finder")
             }
-            DisclosureGroup("Details") {
+            ActionDisclosureGroup("Details") {
                 VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
                     Text(record.recoveryLine)
                     Text("Location: " + record.scopeURL.path)
