@@ -3260,6 +3260,8 @@ extension CatalogCleanupUITests {
         app.typeKey("3", modifierFlags: .command)
         let name = app.buttons["planSort-name"], size = app.buttons["planSort-size"]
         XCTAssertTrue(size.waitForExistence(timeout: 5))
+        // #765: Name sits over the categories' titles, past their checkboxes, as on Applications.
+        XCTAssertGreaterThan(name.frame.minX, app.checkBoxes["planCategory-downloads"].frame.maxX, "Name isn't over the checkboxes")
         expandDisclosures(in: app)
         let npm = app.checkBoxes["planRule-npm-cache"], yarn = app.checkBoxes["planRule-yarn-cache"]
         let alpha = app.checkBoxes["planItem-downloads-Alpha.dmg"], zulu = app.checkBoxes["planItem-downloads-Zulu.dmg"]

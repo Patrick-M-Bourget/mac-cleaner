@@ -321,6 +321,14 @@ struct ColumnHeader: View {
         }
     }
 }
+extension ColumnHeader {
+    /// The header over a list of `CategoryRow`s (#765): **Name** over the rows' titles, past their checkbox and badge, and
+    /// **Size** flush with their size column. The Cleanup plan and Applications share it.
+    static func categoryRows(sort: Binding<ListSort>, identifier: String) -> ColumnHeader {
+        ColumnHeader(nameTitle: "Name", sizeTitle: "Size", sort: sort, identifier: identifier,
+                     insets: EdgeInsets(top: 0, leading: CacheDropDesign.Size.categoryContentIndent, bottom: 0, trailing: 0))
+    }
+}
 /// One sortable label (#352, Decision 77): clicking the active one flips its direction, clicking the other switches to it,
 /// and a chevron sits on the active one. Identified `<identifier>-name` or `<identifier>-size`.
 struct SortButton: View {

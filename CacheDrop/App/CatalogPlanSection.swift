@@ -13,7 +13,7 @@ struct CatalogPlanSection: View {
     var exploreStorage: (() -> Void)? = nil
     var body: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
-            ColumnHeader(nameTitle: "Name", sizeTitle: "Size", sort: $sort, identifier: "planSort")
+            ColumnHeader.categoryRows(sort: $sort, identifier: "planSort")
             // Nothing known yet: skeleton rows; a rescan dims the rows already shown (#308).
             if !model.hasScanned {
                 SkeletonRows(.category, identifier: "planSkeleton")

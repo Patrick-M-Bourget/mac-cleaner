@@ -32,7 +32,7 @@ struct SmartCleanView: View {
                 Button("Done") { selection.dismissResult() }.accessibilityIdentifier("smartCleanDone")
             } idle: {
                 BusyAction(busy: selection.isCheckingReview) {
-                    Button(summary.cleanUpTitle) { Task { await openReview() } }.buttonStyle(.borderedProminent).controlSize(.large)
+                    Button(summary.cleanUpTitle) { Task { await openReview() } }.buttonStyle(.borderedProminent)
                         .disabled(!selection.canReviewSmartClean).accessibilityIdentifier("smartCleanCleanUp")
                 }.help(model.isScanning ? CacheDropDesign.waitForScanHelp : "")
             }

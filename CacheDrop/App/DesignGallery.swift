@@ -366,9 +366,11 @@ private struct ListHeaderGalleryExamples: View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
             PageHeader(title: "Example page", subtitle: "Search under the description; sort by clicking a column of the list’s header.")
             PageSearchField(label: "Search the example list", prompt: "Name or maker", text: $search, identifier: "gallerySearch")
-            ColumnHeader(nameTitle: "Name", sizeTitle: "On disk", sort: $sort, identifier: "gallerySort")
+            // The plan's and Applications' preset (#765): Name over the rows' titles, Size over their sizes.
+            ColumnHeader.categoryRows(sort: $sort, identifier: "gallerySort")
             ForEach(sort.ordered(Self.rows, name: \.name, bytes: \.bytes), id: \.name) { row in
-                HStack { Text(row.name); Spacer(); Text(SizeFormatter.text(row.bytes)) }.font(CacheDropDesign.TypeStyle.note)
+                CategoryRow(category: .downloads, state: .unchecked, title: row.name, detail: "", size: SizeFormatter.text(row.bytes), enabled: true,
+                            identifier: "gallerySortRow-" + row.name, itemCount: nil, expanded: .constant(false), toggle: {}) { EmptyView() } items: { EmptyView() }
             }
         }
     }
