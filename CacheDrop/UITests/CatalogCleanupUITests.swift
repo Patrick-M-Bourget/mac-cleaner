@@ -47,6 +47,38 @@ func addAudioSoftware(in home: URL) throws {
         .write(to: driver.appendingPathComponent("Contents/Info.plist"))
 }
 
+/// #399's Final Cut Pro libraries in the fixture home: Untitled in Movies, with render files, optimized media and its original
+/// media, and Client Cut on a connected volume (`<home>/Volumes` here), with proxy media. Returns Untitled's render file and clip.
+@discardableResult func addFinalCutLibraries(in home: URL) throws -> (render: URL, original: URL) {
+    let render = home.appendingPathComponent("Movies/Untitled.fcpbundle/Event 1/Render Files/a.mov")
+    let original = home.appendingPathComponent("Movies/Untitled.fcpbundle/Event 1/Original Media/clip.mov")
+    // Optimized and proxy media in one event share the name "Untitled · Event 1" (#744).
+    for file in [render, original, home.appendingPathComponent("Movies/Untitled.fcpbundle/Event 1/Transcoded Media/High Quality Media/c.mov"),
+                 home.appendingPathComponent("Movies/Untitled.fcpbundle/Event 1/Transcoded Media/Proxy Media/d.mov"),
+                 home.appendingPathComponent("Volumes/Shuttle/Client Cut.fcpbundle/Event 1/Transcoded Media/Proxy Media/b.mov")] {
+        try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data(repeating: 4, count: 60_000).write(to: file)
+    }
+    return (render, original)
+}
+
+/// #730's and #400's Adobe rows in the fixture home: the media cache in its default folder, a media cache moved in Adobe's
+/// settings to a connected volume (`<home>/Volumes` here) holding Peak Files, and Premiere Pro's and After Effects' caches for 26.0.
+func addAdobeCaches(in home: URL) throws {
+    let moved = home.appendingPathComponent("Volumes/Edit/Adobe Cache")
+    for relative in ["Library/Application Support/Adobe/Common/Media Cache Files/clip.ims", "Library/Application Support/Adobe/Common/Media Cache/db.mcdb",
+                     "Volumes/Edit/Adobe Cache/Peak Files/clip 48000.pek", "Library/Caches/Adobe/Premiere Pro/26.0/cache.bin",
+                     "Library/Caches/Adobe/After Effects/26.0/Disk Cache/frame.bin"] {
+        let file = home.appendingPathComponent(relative)
+        try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data(repeating: 6, count: 40_000).write(to: file)
+    }
+    // Written as Premiere writes it once the cache is moved.
+    let settings = home.appendingPathComponent("Library/Preferences/com.Adobe.Common 26.0.plist")
+    try FileManager.default.createDirectory(at: settings.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try PropertyListSerialization.data(fromPropertyList: ["Media Cache": ["FolderPath": moved.path + "/"]], format: .binary, options: 0).write(to: settings)
+}
+
 /// Turns on the Settings dry run for this launch through the DEBUG-only test seam, for journeys that assert nothing changed.
 @MainActor func turnOnDryRun(_ app: XCUIApplication) {
     app.launchEnvironment["CACHEDROP_TEST_DRY_RUN"] = "1"
@@ -1714,14 +1746,7 @@ final class AppManagedStorageUITests: XCTestCase {
         let state = try configureIsolatedState(app)
         let home = try configureCatalogHome(app)
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
-        let render = home.appendingPathComponent("Movies/Untitled.fcpbundle/Event 1/Render Files/a.mov")
-        let original = home.appendingPathComponent("Movies/Untitled.fcpbundle/Event 1/Original Media/clip.mov")
-        for file in [render, original, home.appendingPathComponent("Movies/Untitled.fcpbundle/Event 1/Transcoded Media/High Quality Media/c.mov"),
-                     home.appendingPathComponent("Movies/Untitled.fcpbundle/Event 1/Transcoded Media/Proxy Media/d.mov"),
-                     home.appendingPathComponent("Volumes/Shuttle/Client Cut.fcpbundle/Event 1/Transcoded Media/Proxy Media/b.mov")] {
-            try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try Data(repeating: 4, count: 60_000).write(to: file)
-        }
+        let (render, original) = try addFinalCutLibraries(in: home)
         app.launch()
 
         let entry = app.buttons["overviewAppManaged"]
