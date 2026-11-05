@@ -398,8 +398,7 @@ private struct WorkspaceView: View {
 
     private func navigation(_ value: Destination) -> some View {
         CacheDropSidebarRow(title: value.rawValue, symbol: value.symbol, selected: sidebarSelection == value,
-                        accent: value == .growth ? CacheDropDesign.purple : value == .plan ? CacheDropDesign.teal : value == .history ? .secondary : CacheDropDesign.blue,
-                        selectedCategories: value == .plan ? selection.actionableSelectedCategoryCount : nil) {
+                        accent: value == .growth ? CacheDropDesign.purple : value == .plan ? CacheDropDesign.teal : value == .history ? .secondary : CacheDropDesign.blue) {
             navigate(value)
         }.keyboardShortcut(value.shortcut, modifiers: .command).disabled(welcome.isShowing)
             .accessibilityIdentifier(value.id)
@@ -422,7 +421,7 @@ private struct WorkspaceView: View {
 
     private var overview: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
-            PageHeader(title: "Overview", subtitle: "What takes up space, and what can be cleaned.", titleIdentifier: "overviewTitle")
+            PageHeader(title: "Overview", subtitle: "What takes up space, and what can be cleaned", titleIdentifier: "overviewTitle")
             ScanHistoryRecordingNotice()
             if let context = alerts.openedAlertContext {
                 SummarySurface {
@@ -633,7 +632,7 @@ private struct WorkspaceView: View {
                 Button("Explore storage") { exploreStorage(caller: .overview) }
                     .buttonStyle(.link).font(CacheDropDesign.TypeStyle.caption).disabled(selection.workspaceRunning)
                 // One clear action: pick a folder, remember it and scan it now (#125).
-                Button("Scan a folder…", systemImage: "folder.badge.plus", action: chooseFolderForScan)
+                Button("Add folder…", systemImage: "folder.badge.plus", action: chooseFolderForScan)
                     .buttonStyle(.link).font(CacheDropDesign.TypeStyle.caption)
                     .disabled(explorer.isScanning || selection.workspaceRunning).accessibilityIdentifier("overviewScanFolder")
             }
@@ -688,7 +687,7 @@ private struct WorkspaceView: View {
         locationsModel.recoveries.map { scope, status in
             // Built-in Downloads is checked again rather than picked (#388).
             ExplorerUnavailableLocation(scope: URL(fileURLWithPath: scope.path).standardizedFileURL, reason: locationsModel.recoveryReasons[scope.id] ?? status.reason,
-                                        actionTitle: scope.isBuiltIn ? "Check again" : "Choose again…") { if scope.isBuiltIn { scanLocations([scope]) } else { renewAndScan(scope) } }
+                                        actionTitle: scope.isBuiltIn ? "Scan again" : "Choose again…") { if scope.isBuiltIn { scanLocations([scope]) } else { renewAndScan(scope) } }
         }
     }
     /// "Folder not found · last scanned <time>" for a deleted or moved folder, "Access unavailable" for an unreadable one (#254).
@@ -850,6 +849,15 @@ private struct WorkspaceView: View {
                 Button("Scan again", action: scanAgain).disabled(!canScanAgain).help(scanAgainHelp)
                     .accessibilityIdentifier("growthScanAgain")
             }
+        } else if destination == .locations {
+            // Its actions sit in the bar, as on Overview and Storage trends, Scan again last (#776, Decision 181).
+            ActionStrip(message: nil) {
+                Button("Add folder…", action: chooseFolderForScan).disabled(explorer.isScanning || selection.workspaceRunning)
+                    .accessibilityIdentifier("locationsAddFolder")
+                Button("Scan again") { scanLocations(locationsModel.included) }
+                    .disabled(locationsModel.included.isEmpty || explorer.isScanning || selection.workspaceRunning)
+                    .accessibilityIdentifier("locationsScanAgain")
+            }
         } else {
             ActionStrip()
         }
@@ -930,13 +938,8 @@ private struct WorkspaceView: View {
 
     private var locations: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
-            PageHeader(title: "Locations", subtitle: "Folders CacheDrop scans at launch and when you scan again.")
+            PageHeader(title: "Locations", subtitle: "Folders CacheDrop scans at launch and when you scan again")
             ScanHistoryRecordingNotice()
-            HStack {
-                Button("Add folder…", action: chooseFolderForScan).disabled(explorer.isScanning || selection.workspaceRunning)
-                Button("Scan selected locations") { scanLocations(locationsModel.included) }
-                    .disabled(locationsModel.included.isEmpty || explorer.isScanning || selection.workspaceRunning)
-            }
             if locationsModel.scopes.isEmpty { EmptyState(title: "No locations yet", detail: "Add a folder to scan it now and each time CacheDrop opens.", symbol: "folder.badge.plus") }
             ForEach(locationsModel.scopes) { scope in
                 LocationScopeRow(name: URL(fileURLWithPath: scope.path).lastPathComponent, path: scope.path,

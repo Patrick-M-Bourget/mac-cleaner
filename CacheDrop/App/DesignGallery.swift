@@ -47,11 +47,11 @@ struct DesignGallery: View {
                     }.buttonStyle(.plain).accessibilityValue(shellExamplesExpanded ? "Expanded" : "Collapsed").accessibilityIdentifier("galleryShellExamples")
                     if shellExamplesExpanded {
                         ShellAppearanceGalleryExamples()
+                        // #777, Decision 182: sidebar rows carry no count badge, selected or not.
                         VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
-                            Text("Synthetic category badge · Inert examples").font(.headline)
-                            CacheDropSidebarRow(title: "Cleanup plan", symbol: "checklist", selected: false, selectedCategories: 0) {}
-                            CacheDropSidebarRow(title: "Cleanup plan", symbol: "checklist", selected: true, selectedCategories: 1) {}
-                            CacheDropSidebarRow(title: "Cleanup plan", symbol: "checklist", selected: false, selectedCategories: 2) {}
+                            Text("Synthetic sidebar rows · Inert examples").font(.headline)
+                            CacheDropSidebarRow(title: "Cleanup plan", symbol: "checklist", selected: false, accent: CacheDropDesign.teal) {}
+                            CacheDropSidebarRow(title: "Cleanup plan", symbol: "checklist", selected: true, accent: CacheDropDesign.teal) {}
                         }.frame(width: 166).background { ChromeSurface(role: .sidebar) }
                     }
                     DisclosureGroup("Synthetic History activity examples", isExpanded: $historyExamplesExpanded) {
@@ -60,6 +60,24 @@ struct DesignGallery: View {
                     DisclosureGroup("Synthetic Storage trends examples", isExpanded: $growthExamplesExpanded) { StorageTrendsGalleryExamples() }
                     DisclosureGroup("Synthetic storage map examples", isExpanded: $mapExamplesExpanded) { StorageMapGalleryExamples() }
                     DisclosureGroup("Synthetic storage alert settings", isExpanded: $alertExamplesExpanded) {
+                        // #778, Decision 183: a Settings group is the Form's own header and one footer; a toggle's detail is its caption.
+                        Form {
+                            Section {
+                                Toggle(isOn: .constant(true)) {
+                                    Text("Notify me when space is low")
+                                    Text("CacheDrop checks free space about every 15 minutes while it’s open").font(CacheDropDesign.TypeStyle.caption)
+                                }
+                                Toggle(isOn: .constant(false)) {
+                                    Text("Remind me weekly to clean up")
+                                    Text("Sent when your last scan that week found at least 1 GB ready to clean").font(CacheDropDesign.TypeStyle.caption)
+                                }
+                            } header: {
+                                Text("Notifications")
+                            } footer: {
+                                Text("CacheDrop never scans or cleans in the background").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                            }
+                        }.formStyle(.grouped).frame(width: CacheDropDesign.Size.sheetNarrow).fixedSize(horizontal: false, vertical: true)
+                            .accessibilityIdentifier("gallerySettingsGroup")
                         AlertThresholdEditor(draft: .constant("60"), canApply: true, apply: {})
                         AlertThresholdEditor(draft: .constant("invalid"), canApply: false, invalidDraft: true, apply: {})
                         AlertPermissionDetails(authorization: .denied, checked: true, settingsFeedback: "System Settings could not be opened.", openSettings: {})
@@ -356,7 +374,7 @@ private struct ButtonRuleGalleryExamples: View {
     var body: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
             Text("Page body · Regular capsule").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
-            HStack { Button("Add folder…") {}; Button("Scan selected locations") {} }
+            Button("Clear completed history…") {}
             Text("Row and status line · Link").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
             StatusRow(text: "Downloads · Access unavailable", role: .caution, action: StatusAction(title: "Choose again…") {})
             Text("Sheet footer · Large capsules, Cancel then the primary button").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
@@ -369,6 +387,9 @@ private struct ButtonRuleGalleryExamples: View {
             }.frame(maxWidth: CacheDropDesign.Size.sheetNarrow)
             Text("Bottom bar · Large capsules").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
             ActionStrip(message: "Example note") { Button("Scan again") {}; Button("Review plan") {}.buttonStyle(.borderedProminent) }
+            // #776, Decision 181: Locations' actions are in the bar, both regular, Scan again last.
+            Text("Locations · Bottom bar").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+            ActionStrip(message: nil) { Button("Add folder…") {}; Button("Scan again") {} }
             // #782, Decision 177: while a run's items wait in the Trash, Results leads with Empty from Trash…; its line keeps Open Trash.
             Text("Results · Items still in the Trash").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
             TrashLine(text: nil, identifier: "galleryResultsTrash")

@@ -28,6 +28,7 @@ The names CacheDrop shows, what they mean, and where they live in code. Copy fol
 | Review sheet | Lists exactly what Clean up will do, grouped by consequence | `CatalogConfirmationSection` |
 | Results | What a cleanup did, outcomes first | `CatalogResultsSection` |
 | Review interrupted cleanup | Where each item of a cleanup that stopped is now | `CleanupRecoveryView`, `CleanupRecovery` |
+| Settings | The Settings window (⌘,), in five groups: General, Notifications, Updates, Privacy (Share setup progress) and License (#778) | `CacheDropSettingsView` |
 | Bottom bar | The same bar on every screen: actions, background work | `ActionStrip` |
 | Cleanup (sidebar header) | The sidebar group of Smart clean, Cleanup plan, Applications and History (Decision 149) | `SidebarGroup.cleanup` |
 | Storage (sidebar header) | The sidebar group of Explore storage, Storage trends, Locations and System access (Decision 149) | `SidebarGroup.storage` |
@@ -88,7 +89,8 @@ The names CacheDrop shows, what they mean, and where they live in code. Copy fol
 | Start scan | Onboarding's one button on Welcome: asks for basic access, then begins the first scan (#783, #784) | `OnboardingWelcomeStep`, `WelcomeModel.start` |
 | Start Smart clean | Onboarding's one button once the first scan is ready: opens Smart clean (#783) | `OnboardingScanStep` |
 | View Overview | Onboarding's one button when the first scan found nothing to clean (#783) | `OnboardingScanStep` |
-| Scan again | Any action that scans | `CatalogCleanupModel`, `ExploreStorage` |
+| Scan again | Any action that scans: Overview's and Storage trends' bar, Locations, a location's recovery, onboarding's failure and the Protected items notice (#767) | `CatalogCleanupModel`, `ExploreStorage` |
+| Add folder… | Pick a folder to remember and scan now and at each launch; on Overview and Locations (#767) | `chooseFolderForScan`, `RememberedLocations` |
 | Dry run | Runs the whole flow; nothing changes. **Dry run · Nothing changes** before a run, **Dry run · Nothing changed** after; the Settings toggle reads **Dry run** (#768) | `dryRun`, `DryRunToggle` |
 | Measured freed space, Freed | Free space measured around each item, not the estimate; History rows note it **Freed** | `MeasuredFreedSpace`, `CleanupHistoryRun.headline` |
 | Free up | Smart clean's card title over what its ticked items release; its button reads **Clean up X** with the same X; the Cleanup plan's card says **Ready to clean** (Decision 173) | `SmartCleanSummary` |
@@ -110,4 +112,4 @@ The names CacheDrop shows, what they mean, and where they live in code. Copy fol
 
 ## Not shown to users
 
-deletion remnant, observed, coverage, baseline, known locations, journal, approval, records, resource identity, metadata, directory, leftovers, available (for free space), Potential space released, Show in Finder, Rescan, Recheck, telemetry, install ID, Storage overview, Cleanup results, Permanently removed, Scan now, Couldn’t be measured, Not accessible, reclaimable, bundle ID, Rules version, File ID.
+deletion remnant, observed, coverage, baseline, known locations, journal, approval, records, resource identity, metadata, directory, leftovers, available (for free space), Potential space released, Show in Finder, Rescan, Recheck, Scan a folder, Scan selected locations, telemetry, install ID, Storage overview, Cleanup results, Permanently removed, Scan now, Couldn’t be measured, Not accessible, reclaimable, bundle ID, Rules version, File ID.

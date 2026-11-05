@@ -22,7 +22,7 @@ struct SavedDataView: View {
     var back: BackButton? = nil
     var body: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
-            PageHeader(title: "Saved data", subtitle: "What CacheDrop keeps on this Mac. Your files and the access you gave in System Settings stay as they are.", back: back)
+            PageHeader(title: "Saved data", subtitle: "What CacheDrop keeps on this Mac", back: back)
             if let error = model.loadError { StatusRow(text: error, symbol: "exclamationmark.triangle", role: .caution) }
             if let message = model.message {
                 StatusRow(text: message, symbol: model.blocked ? "exclamationmark.triangle" : "info.circle", role: model.blocked ? .caution : .neutral, identifier: "historyStatus")

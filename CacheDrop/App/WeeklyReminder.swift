@@ -55,14 +55,17 @@ enum WeeklyReminderNotification {
     }
 }
 
-/// The weekly reminder in the Settings window, beside low-space alerts. Off by default; turning it on asks for
-/// notification permission if it hasn't been answered.
+/// The weekly reminder in Settings' Notifications group, under low-space alerts (#778). Off by default; turning it on asks
+/// for notification permission if it hasn't been answered.
 struct WeeklyReminderSettings: View {
     @ObservedObject var controller: WeeklyReminderController
     @State private var settingsFeedback = ""
     var body: some View {
-        Section {
-            Toggle("Remind me weekly to clean up", isOn: Binding(get: { controller.enabled }, set: { on in Task { await controller.setEnabled(on) } }))
+        Group {
+            Toggle(isOn: Binding(get: { controller.enabled }, set: { on in Task { await controller.setEnabled(on) } })) {
+                Text("Remind me weekly to clean up")
+                Text("Sent when your last scan that week found at least 1 GB ready to clean").font(CacheDropDesign.TypeStyle.caption)
+            }
                 .disabled(controller.stateUnavailable).accessibilityIdentifier("weeklyReminderToggle")
             if controller.enabled {
                 AlertPermissionDetails(authorization: controller.authorization, checked: controller.authorizationChecked,
@@ -76,11 +79,6 @@ struct WeeklyReminderSettings: View {
             if controller.enabled || controller.stateUnavailable {
                 Text(WeeklyReminderPresentation.status(controller)).accessibilityIdentifier("weeklyReminderStatus")
             }
-        } header: {
-            Text("Weekly reminder")
-        } footer: {
-            Text("Sent when your last scan that week found at least 1 GB ready to clean. It never scans or cleans in the background.")
-                .font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
         }
         .task { await controller.activated() }
     }

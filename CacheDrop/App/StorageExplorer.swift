@@ -86,7 +86,7 @@ import SwiftUI
 struct ExplorerUnavailableLocation {
     let scope: URL
     let reason: String
-    /// "Choose again…", or "Check again" for built-in Downloads, which is never picked (#388).
+    /// "Choose again…", or "Scan again" for built-in Downloads, which is never picked (#388).
     var actionTitle = "Choose again…"
     let chooseAgain: () -> Void
     /// When the folder was last observed, as the explorer and Overview both show it (#249, #254).
@@ -155,10 +155,9 @@ struct StorageExplorerView: View {
                 PageHeader(title: context.title, back: backButton, search: search)
                 ScanHistoryRecordingNotice()
                 breadcrumbs
-                // The screen's one explanation (Decision 25).
-                Text(showsLargeAndOld ? "Files of 500 MB or more, or not opened in 90 days."
-                     : showsMap ? "Click a folder to open it, or a file to see its details and add it to the plan." : "Click a name to open or inspect it.")
-                    .font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).lineLimit(1).accessibilityIdentifier("explorerHint")
+                // The screen's one explanation (Decision 25), in a page subtitle's style; List and Map share one hint (#769).
+                Text(showsLargeAndOld ? "Files of 500 MB or more, or not opened in 90 days." : "Click a folder to open it, or a file to see its details")
+                    .font(CacheDropDesign.TypeStyle.note).foregroundStyle(.secondary).lineLimit(1).accessibilityIdentifier("explorerHint")
                 // The inspector shows one path, only for a picked item or a folder on show (#320, #371).
                 HStack(alignment: .top, spacing: CacheDropDesign.Space.lg) {
                     Group { if showsMap { map } else { list } }.frame(maxWidth: .infinity, maxHeight: .infinity)

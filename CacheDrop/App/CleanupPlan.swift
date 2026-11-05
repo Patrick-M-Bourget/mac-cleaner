@@ -40,11 +40,6 @@ struct RefreshRequest: Sendable {
         !AppLifecycleController.shared.updateInstallation.blocksNewWork && !AppLifecycleController.shared.maintenanceInProgress && !workspaceRunning
         && (catalog.selectedCount == 0 || catalog.canReview) && hasPendingChoices
     }
-    /// Categories with live, reviewable choices, for the sidebar badge.
-    var actionableSelectedCategoryCount: Int {
-        guard canReview else { return 0 }
-        return catalog.selectedCategoryCount
-    }
     private var expectedProtectedItemsFingerprint = "none"
     func invalidateCoverage() {
         refreshRequests.removeAll(); scans.removeAll()

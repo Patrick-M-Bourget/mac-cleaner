@@ -105,7 +105,7 @@ struct CleanupRecoveryView: View {
     var viewHistory: () -> Void = {}
     var body: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
-            PageHeader(title: "Review interrupted cleanup", subtitle: "CacheDrop checked where each unfinished item is now. Nothing restarts by itself.", back: back)
+            PageHeader(title: "Review interrupted cleanup", subtitle: "CacheDrop checked where each unfinished item is now", back: back)
             if let message = model.message {
                 StatusRow(text: message, symbol: model.markFailed ? "exclamationmark.triangle" : "checkmark.circle", role: model.markFailed ? .caution : .success, identifier: "recoveryMessage",
                           action: model.markFailed ? nil : StatusAction(title: "View History", identifier: "recoveryViewHistory", action: viewHistory))
