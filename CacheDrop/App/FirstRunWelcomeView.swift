@@ -65,7 +65,7 @@ import SwiftUI
             while true {
                 if catalog.isScanning { await catalog.waitForScanCompletion() }
                 guard let scanID = catalog.preparedScan else {
-                    problem = catalog.settingsUnreadable ? CatalogCleanupModel.settingsUnreadableText : "The scan couldn’t finish. Try again or continue with available results."
+                    problem = catalog.settingsUnreadable ? CatalogCleanupModel.settingsUnreadableText : "The scan couldn’t finish. Scan again or continue with available results."
                     break
                 }
                 let apps = ApplicationsModel.shared
@@ -177,7 +177,7 @@ struct FirstRunWelcomeView: View {
                 EmptyView()
             } actions: {
                 Button("Continue with available results") { model.finish() }.accessibilityIdentifier("welcomeAvailableResults")
-                Button("Retry") { model.begin(retry: true) }.keyboardShortcut(.defaultAction).accessibilityIdentifier("welcomeRetry")
+                Button("Scan again") { model.begin(retry: true) }.keyboardShortcut(.defaultAction).accessibilityIdentifier("welcomeRetry")
             }
         }
         .padding(CacheDropDesign.Space.xl).frame(width: CacheDropDesign.Size.sheetNarrow).background(CacheDropDesign.reading).cacheDropButtonRule()

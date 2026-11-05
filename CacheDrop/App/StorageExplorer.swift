@@ -86,7 +86,7 @@ import SwiftUI
 struct ExplorerUnavailableLocation {
     let scope: URL
     let reason: String
-    /// "Choose again…", or "Check again" for built-in Downloads, which is never picked (#388).
+    /// "Choose again…", or "Scan again" for built-in Downloads, which is never picked (#388).
     var actionTitle = "Choose again…"
     let chooseAgain: () -> Void
     /// When the folder was last observed, as the explorer and Overview both show it (#249, #254).

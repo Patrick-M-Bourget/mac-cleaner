@@ -44,13 +44,13 @@ struct CatalogPlanSection: View {
 }
 
 /// The one line every page that cleans, and Overview, shows when the Protected items settings couldn't be read (#310),
-/// with Try again, which scans again.
+/// with Scan again (#767).
 struct SettingsUnreadableNotice: View {
     let model: CatalogCleanupModel
     var body: some View {
         if model.settingsUnreadable {
             StatusRow(text: CatalogCleanupModel.settingsUnreadableText, symbol: "exclamationmark.triangle", role: .caution, identifier: "settingsUnreadable",
-                      action: StatusAction(title: "Try again", identifier: "settingsUnreadableTryAgain") { Task { await model.rescan() } })
+                      action: StatusAction(title: "Scan again", identifier: "settingsUnreadableTryAgain") { Task { await model.rescan() } })
                 .disabled(model.isScanning)
         }
     }

@@ -907,6 +907,7 @@ final class FirstRunWelcomeUITests: XCTestCase {
         XCTAssertTrue(app.buttons["welcomeStartScan"].waitForExistence(timeout: 10))
         app.buttons["welcomeStartScan"].click()
         XCTAssertTrue(app.buttons["welcomeRetry"].waitForExistence(timeout: 120))
+        XCTAssertEqual(app.buttons["welcomeRetry"].label, "Scan again", "Scan again for every scan (#767)")
         XCTAssertFalse(app.buttons["welcomeStartSmartClean"].exists, "Failed preparation is not success")
         try FileManager.default.removeItem(at: unreadable)
         app.buttons["welcomeRetry"].click()

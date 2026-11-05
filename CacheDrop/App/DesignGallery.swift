@@ -356,7 +356,7 @@ private struct ButtonRuleGalleryExamples: View {
     var body: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
             Text("Page body · Regular capsule").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
-            HStack { Button("Add folder…") {}; Button("Scan selected locations") {} }
+            HStack { Button("Add folder…") {}; Button("Scan again") {} }
             Text("Row and status line · Link").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
             StatusRow(text: "Downloads · Access unavailable", role: .caution, action: StatusAction(title: "Choose again…") {})
             Text("Sheet footer · Large capsules, Cancel then the primary button").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)

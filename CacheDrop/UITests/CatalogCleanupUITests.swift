@@ -206,12 +206,13 @@ func waitForOverview(_ app: XCUIApplication, file: StaticString = #filePath, lin
 }
 
 /// Reveals and clicks an element inside a scrolling page.
-/// Overview's Scan a folder link: it waits while a folder scan runs (Downloads is scanned at launch, Decision 83) and sits
+/// Overview's Add folder… link (#767): it waits while a folder scan runs (Downloads is scanned at launch, Decision 83) and sits
 /// below the categories (#345), so wait for it to be enabled and scroll to it before clicking.
 @MainActor func chooseFolderToScan(_ app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line) {
     let link = app.links["overviewScanFolder"]
     let enabled = XCTNSPredicateExpectation(predicate: NSPredicate(format: "isEnabled == true"), object: link)
-    XCTAssertEqual(XCTWaiter().wait(for: [enabled], timeout: 30), .completed, "Scan a folder stayed disabled", file: file, line: line)
+    XCTAssertEqual(XCTWaiter().wait(for: [enabled], timeout: 30), .completed, "Add folder… stayed disabled", file: file, line: line)
+    XCTAssertEqual(link.label, "Add folder…", "One name for adding a folder, as on Locations (#767)", file: file, line: line)
     revealAndClick(link, in: app)
 }
 
@@ -1168,7 +1169,7 @@ extension CatalogCleanupUITests {
         app.launch()
 
         waitForOverview(app)
-        // #125: a clear Scan a folder action on Overview picks the folder and scans it right away.
+        // #125: a clear Add folder… action on Overview picks the folder and scans it right away.
         chooseFolderToScan(app)
         let panel = app.sheets.firstMatch.exists ? app.sheets.firstMatch : app.dialogs.firstMatch
         XCTAssertTrue(panel.waitForExistence(timeout: 5))
@@ -2530,8 +2531,8 @@ extension CatalogCleanupUITests {
                        .completed, "npm ticked again, Yarn still unticked: \(String(describing: developerInSmartClean.value))")
     }
 
-    /// #310: unreadable Protected items settings read as one error line with Try again, on Overview and on the page the user
-    /// is on, never "Nothing to review" or "Nothing to clean"; once they can be read, Try again scans and the line goes.
+    /// #310: unreadable Protected items settings read as one error line with Scan again (#767), on Overview and on the page the user
+    /// is on, never "Nothing to review" or "Nothing to clean"; once they can be read, Scan again scans and the line goes.
     @MainActor func testUnreadableSettingsSayWhyWithTryAgainNeverNothing() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
@@ -2548,6 +2549,7 @@ extension CatalogCleanupUITests {
         XCTAssertFalse(app.descendants(matching: .any)["overviewEmpty"].exists, "Never \"nothing to clean\"")
         XCTAssertFalse(app.descendants(matching: .any)["overviewSkeleton"].exists, "Never still loading")
         XCTAssertTrue(app.links["settingsUnreadableTryAgain"].exists)
+        XCTAssertEqual(app.links["settingsUnreadableTryAgain"].label, "Scan again", "Scan again for every scan (#767)")
 
         app.typeKey("2", modifierFlags: .command)
         XCTAssertTrue(notice.waitForExistence(timeout: 5), "Smart clean says it too")
@@ -2556,7 +2558,7 @@ extension CatalogCleanupUITests {
 
         try FileManager.default.removeItem(at: rules)
         app.links["settingsUnreadableTryAgain"].click()
-        XCTAssertTrue(notice.waitForNonExistence(timeout: 30), "Try again scanned with the settings readable")
+        XCTAssertTrue(notice.waitForNonExistence(timeout: 30), "Scan again scanned with the settings readable")
         XCTAssertTrue(app.checkBoxes["smartCleanCategory-developer"].waitForExistence(timeout: 30))
     }
 
