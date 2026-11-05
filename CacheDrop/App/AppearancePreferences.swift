@@ -41,9 +41,10 @@ struct AppearancePicker: View {
     }
 }
 
-/// The Settings window (⌘,). Appearance follows the system unless overridden here; the menu bar item is shown and
-/// low-space alerts are off unless changed here (#131); the dry run is off unless turned on here; the license key is
-/// entered and removed here (#594).
+/// The Settings window (⌘,), in five groups (#778, Decision 183): General, Notifications, Updates, Privacy and License,
+/// each with the Form's own header and at most one footer. Appearance follows the system unless overridden here; the
+/// menu bar item is shown and low-space alerts are off unless changed here (#131); the dry run is off unless turned on
+/// here; the license key is entered and removed here (#594).
 struct CacheDropSettingsView: View {
     @State private var appearance = AppLifecycleController.shared.appearance
     @AppStorage(PreferenceKeys.showsMenuBarItem) private var showsMenuBarItem = true
@@ -56,15 +57,20 @@ struct CacheDropSettingsView: View {
                 if appearance.notice != nil { AppearancePreferenceNotice(notice: appearance.notice, retry: { appearance.retrySaving() }) }
                 Toggle("Show free space in the menu bar", isOn: $showsMenuBarItem).accessibilityIdentifier("menuBarItemToggle")
                 LoginSettingsView()
-            }
-            // #131: low-space alerts live here, not in the sidebar.
-            LowSpaceAlertsSettings(controller: AppLifecycleController.shared.alerts)
-            WeeklyReminderSettings(controller: AppLifecycleController.shared.weeklyReminder)
-            Section { DryRunToggle(model: AppLifecycleController.shared.selection.catalog) }
-            Section {
-                Toggle(SetupProgressSharing.title, isOn: sharing.binding).accessibilityIdentifier("shareSetupProgressSettings")
+                DryRunToggle(model: AppLifecycleController.shared.selection.catalog)
+            } header: {
+                Text("General")
             } footer: {
-                Text(SetupProgressSharing.explanation).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                footer("Nothing changes while it’s on")
+            }
+            // #131: low-space alerts live here, not in the sidebar; the weekly reminder beside them (#599).
+            Section {
+                LowSpaceAlertsSettings(controller: AppLifecycleController.shared.alerts)
+                WeeklyReminderSettings(controller: AppLifecycleController.shared.weeklyReminder)
+            } header: {
+                Text("Notifications")
+            } footer: {
+                footer("CacheDrop never scans or cleans in the background")
             }
             Section {
                 // #600: weekly; Sparkle asks before downloading or installing anything (Decision 145).
@@ -73,13 +79,25 @@ struct CacheDropSettingsView: View {
                     .onChange(of: checksForUpdatesAutomatically) { _, _ in AppLifecycleController.shared.manualUpdater.automaticChecksChanged() }
                 Button("Check for Updates…") { AppLifecycleController.shared.manualUpdater.checkForUpdates() }
                     .buttonStyle(.link).accessibilityIdentifier("checkForUpdatesSettings")
+            } header: {
+                Text("Updates")
             } footer: {
-                Text("CacheDrop checks once a week. Nothing is downloaded or installed until you choose.")
-                    .font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                footer("CacheDrop checks once a week")
+            }
+            // The one setting that sends anything, so never under General (#778).
+            Section {
+                Toggle(SetupProgressSharing.title, isOn: sharing.binding).accessibilityIdentifier("shareSetupProgressSettings")
+            } header: {
+                Text("Privacy")
+            } footer: {
+                footer(SetupProgressSharing.explanation)
             }
             LicenseSettings(license: AppLifecycleController.shared.license, trial: AppLifecycleController.shared.trial)
         }.formStyle(.grouped).frame(width: CacheDropDesign.Size.sheetNarrow).fixedSize(horizontal: false, vertical: true)
             .cacheDropButtonRule().background { SettingsOpensUnfocused() }
+    }
+    private func footer(_ text: String) -> some View {
+        Text(text).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
     }
 }
 

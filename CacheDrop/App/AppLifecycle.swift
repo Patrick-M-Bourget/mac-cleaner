@@ -233,7 +233,7 @@ import StorageAlerts
 struct LoginSettingsView: View {
     @ObservedObject var lifecycle = AppLifecycleController.shared
     var body: some View {
-        Toggle("Start CacheDrop at Login", isOn: Binding(get: { lifecycle.loginIntent }, set: { lifecycle.chooseLogin($0) }))
+        Toggle("Start CacheDrop at login", isOn: Binding(get: { lifecycle.loginIntent }, set: { lifecycle.chooseLogin($0) }))
             .accessibilityIdentifier("startAtLoginToggle")
             .task { lifecycle.refreshLogin() }
         if let error = lifecycle.loginError { StatusRow(text: error, symbol: "exclamationmark.circle") }

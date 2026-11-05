@@ -28,6 +28,7 @@ The names CacheDrop shows, what they mean, and where they live in code. Copy fol
 | Review sheet | Lists exactly what Clean up will do, grouped by consequence | `CatalogConfirmationSection` |
 | Results | What a cleanup did, outcomes first | `CatalogResultsSection` |
 | Review interrupted cleanup | Where each item of a cleanup that stopped is now | `CleanupRecoveryView`, `CleanupRecovery` |
+| Settings | The Settings window (⌘,), in five groups: General, Notifications, Updates, Privacy (Share setup progress) and License (#778) | `CacheDropSettingsView` |
 | Bottom bar | The same bar on every screen: actions, background work | `ActionStrip` |
 | Cleanup (sidebar header) | The sidebar group of Smart clean, Cleanup plan, Applications and History (Decision 149) | `SidebarGroup.cleanup` |
 | Storage (sidebar header) | The sidebar group of Explore storage, Storage trends, Locations and System access (Decision 149) | `SidebarGroup.storage` |

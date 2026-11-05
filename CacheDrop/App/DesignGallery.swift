@@ -60,6 +60,24 @@ struct DesignGallery: View {
                     DisclosureGroup("Synthetic Storage trends examples", isExpanded: $growthExamplesExpanded) { StorageTrendsGalleryExamples() }
                     DisclosureGroup("Synthetic storage map examples", isExpanded: $mapExamplesExpanded) { StorageMapGalleryExamples() }
                     DisclosureGroup("Synthetic storage alert settings", isExpanded: $alertExamplesExpanded) {
+                        // #778, Decision 183: a Settings group is the Form's own header and one footer; a toggle's detail is its caption.
+                        Form {
+                            Section {
+                                Toggle(isOn: .constant(true)) {
+                                    Text("Notify me when space is low")
+                                    Text("CacheDrop checks free space about every 15 minutes while it’s open").font(CacheDropDesign.TypeStyle.caption)
+                                }
+                                Toggle(isOn: .constant(false)) {
+                                    Text("Remind me weekly to clean up")
+                                    Text("Sent when your last scan that week found at least 1 GB ready to clean").font(CacheDropDesign.TypeStyle.caption)
+                                }
+                            } header: {
+                                Text("Notifications")
+                            } footer: {
+                                Text("CacheDrop never scans or cleans in the background").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                            }
+                        }.formStyle(.grouped).frame(width: CacheDropDesign.Size.sheetNarrow).fixedSize(horizontal: false, vertical: true)
+                            .accessibilityIdentifier("gallerySettingsGroup")
                         AlertThresholdEditor(draft: .constant("60"), canApply: true, apply: {})
                         AlertThresholdEditor(draft: .constant("invalid"), canApply: false, invalidDraft: true, apply: {})
                         AlertPermissionDetails(authorization: .denied, checked: true, settingsFeedback: "System Settings could not be opened.", openSettings: {})

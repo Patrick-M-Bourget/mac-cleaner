@@ -131,16 +131,19 @@ struct AlertPermissionDetails: View {
     }
 }
 
-/// Low-space alerts in the Settings window (#131). Off by default. Turning them on asks for notification
-/// permission, only then. Capacity checks only: nothing is scanned or cleaned in the background.
+/// Low-space alerts in Settings' Notifications group (#131, #778). Off by default. Turning them on asks for notification
+/// permission, only then. Capacity checks only: nothing is scanned or cleaned in the background, as the group's footer says.
 struct LowSpaceAlertsSettings: View {
     @ObservedObject var controller: StorageAlertsController
     @State private var capacity = AppLifecycleController.shared.capacity
     @State private var settingsFeedback = ""
     private var currentTotal: Int64? { capacity.failed || capacity.isRefreshing ? nil : capacity.reading?.total }
     var body: some View {
-        Section {
-            Toggle("Notify me when space is low", isOn: Binding(get: { controller.requested }, set: { enabled in Task { await controller.setEnabled(enabled) } }))
+        Group {
+            Toggle(isOn: Binding(get: { controller.requested }, set: { enabled in Task { await controller.setEnabled(enabled) } })) {
+                Text("Notify me when space is low")
+                Text("CacheDrop checks free space about every 15 minutes while it’s open").font(CacheDropDesign.TypeStyle.caption)
+            }
                 .disabled(!controller.requested && !AlertPolicy.validThreshold(controller.appliedThresholdBytes, total: controller.total))
                 .accessibilityIdentifier("lowSpaceAlertsToggle")
             if controller.requested {
@@ -163,11 +166,6 @@ struct LowSpaceAlertsSettings: View {
                     Text(LowSpaceAlertsPresentation.status(controller.shellState)).accessibilityIdentifier("storageAlertStatus")
                 }
             }
-        } header: {
-            Text("Low-space alerts")
-        } footer: {
-            Text("CacheDrop checks free space about every 15 minutes while it’s open. It never scans or cleans in the background.")
-                .font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
         }
         .task {
             controller.configure()

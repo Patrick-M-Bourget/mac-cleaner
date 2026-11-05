@@ -225,8 +225,13 @@ final class LaunchSmokeUITests: XCTestCase {
         XCTAssertFalse(app.descendants(matching: .any)["weeklyReminderStatus"].exists)
         // #600: weekly update checks are on by default.
         XCTAssertEqual(app.descendants(matching: .any)["automaticUpdateChecksToggle"].value as? Int, 1, "Automatic update checks are on by default")
-        // #690: its note is a sentence, as the other Settings notes are.
-        XCTAssertTrue(app.staticTexts["CacheDrop checks once a week. Nothing is downloaded or installed until you choose."].exists)
+        // #778: five groups under the Form's own headers, one footer each; the background line is said once (#769).
+        for header in ["General", "Notifications", "Updates", "Privacy", "License"] { XCTAssertTrue(app.staticTexts[header].exists, header) }
+        XCTAssertTrue(app.staticTexts["CacheDrop never scans or cleans in the background"].exists)
+        XCTAssertEqual(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@ OR value CONTAINS %@", "never scans or cleans", "never scans or cleans")).count, 1,
+                       "Said once, on the Notifications group")
+        XCTAssertTrue(app.staticTexts["CacheDrop checks once a week"].exists)
+        XCTAssertEqual(app.descendants(matching: .any)["startAtLoginToggle"].label, "Start CacheDrop at login", "Sentence case, as the other toggles (#769)")
         // #689 (Decision 156): Settings opens with no field focused; the License key field takes focus when clicked,
         // and opening Settings again clears it.
         let licenseKey = app.textFields["licenseKeyField"]
