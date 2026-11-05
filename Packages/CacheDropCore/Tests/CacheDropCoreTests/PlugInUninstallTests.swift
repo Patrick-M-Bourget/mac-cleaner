@@ -49,7 +49,7 @@ private func receipt(_ id: String, listing paths: [String], in root: URL, prefix
     let mkbom = Process()
     mkbom.executableURL = URL(fileURLWithPath: "/usr/bin/mkbom")
     mkbom.arguments = [staging.appendingPathComponent(String(prefix.drop { $0 == "/" })).path, receipts.appendingPathComponent(id + ".bom").path]
-    try mkbom.run(); mkbom.waitUntilExit()
+    try mkbom.runToEnd()
     #expect(mkbom.terminationStatus == 0)
 }
 
