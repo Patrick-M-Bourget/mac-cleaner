@@ -75,7 +75,7 @@ extension StorageBreakdown.Part {
         case .category(let category): category.overviewTitle
         case .other: "Other you can clean"
         case .goingToTrash: "Goes to the Trash"
-        case .trash: "In Trash"
+        case .trash: "In the Trash"
         }
     }
     /// The category's badge colour; Other and the Trash have quieter meter tokens.

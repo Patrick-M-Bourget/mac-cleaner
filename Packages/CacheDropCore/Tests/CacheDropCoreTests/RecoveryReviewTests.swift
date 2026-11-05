@@ -48,7 +48,7 @@ private func interruptedRun(_ names: [String], started: Set<String>, unknown: Se
     #expect(items.map(\.record.originalURL.lastPathComponent) == ["a.dmg", "b.dmg", "c.dmg", "d.dmg", "e.dmg"])
     #expect(items.map(\.finding) == [.atOriginalLocation, .inTrash, .gone, .unknown, .notStarted])
     #expect(items[1].foundURL?.lastPathComponent == "b 2.dmg")
-    #expect(items.map(\.title) == ["Not removed", "Moved to Trash", "Removed", "Unknown", "Not started"])
+    #expect(items.map(\.title) == ["Not removed", "Moved to the Trash", "Removed", "Unknown", "Not started"])
     #expect(items[4].detail == "It never started. Nothing was changed.")
     #expect(items.filter(\.needsConfirmation).map(\.record.originalURL.lastPathComponent) == ["d.dmg"])
 }
@@ -78,7 +78,7 @@ private func interruptedRun(_ names: [String], started: Set<String>, unknown: Se
     let shown = try #require(history.completedRuns.first)
     #expect(history.completedRuns.count == 1)
     #expect(shown.records.map(\.id) == before.map(\.id))
-    #expect(shown.records.map(\.outcomeTitle) == ["Not removed", "Moved to Trash", "Removed", "Unknown", "Not started"])
+    #expect(shown.records.map(\.outcomeTitle) == ["Not removed", "Moved to the Trash", "Removed", "Unknown", "Not started"])
     #expect(shown.records.map(\.canPutBack) == [false, true, false, false, false])
     #expect(shown.records[1].trashURL?.lastPathComponent == "b 2.dmg")
     #expect(shown.trashHeldAllocatedBytes == shown.records[1].allocatedBytes)

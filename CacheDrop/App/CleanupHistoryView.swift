@@ -207,11 +207,10 @@ struct CleanupHistoryView: View {
                    expanded: Binding(get: { expandedRuns.contains(run.id) }, set: { if $0 { expandedRuns.insert(run.id) } else { expandedRuns.remove(run.id) } }),
                    identifier: "cleanupRun:" + run.id.uuidString) {
             if run.usesApprovalDate { note("Shows when you started the cleanup; this version of CacheDrop didn’t record when it finished.") }
-            if run.isPreview {
-                note("Dry run · Nothing on disk changed. No space was freed.")
-            } else if !run.isPutBack {
+            // A dry run's title already says "Dry run · Nothing changed" (#768).
+            if !run.isPreview && !run.isPutBack {
                 if run.records.contains(where: { $0.cleanupAction == .trash }) {
-                    note("In Trash until you empty it: " + SizeFormatter.text(run.trashHeldAllocatedBytes))
+                    note("In the Trash until you empty it: " + SizeFormatter.text(run.trashHeldAllocatedBytes))
                 }
                 // The row leads with the measured freed space (#569); the estimate it's measured against is here, once, without
                 // what went to the Trash (#587).

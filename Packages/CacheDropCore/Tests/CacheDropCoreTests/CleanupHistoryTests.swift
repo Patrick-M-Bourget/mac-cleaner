@@ -197,7 +197,7 @@ private func historyApproval(_ root: URL, names: [String]) async throws -> Fixtu
     #expect(try journal.claim(batchID: approval.id, records: approval.records) == false)
 }
 /// #569: a History row leads with the figure Results leads with, the measured freed space, noted "Freed"; a run that only
-/// moved items to the Trash leads with what went there, noted "In Trash"; a dry run with what it would affect.
+/// moved items to the Trash leads with what went there, noted "In the Trash"; a dry run with what it would affect.
 @Test func aHistoryRowLeadsWithTheMeasuredFreedSpaceResultsLeadsWith() throws {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropHistory-" + UUID().uuidString)
     let caches = root.appendingPathComponent("caches"), downloads = root.appendingPathComponent("downloads")
@@ -226,7 +226,7 @@ private func historyApproval(_ root: URL, names: [String]) async throws -> Fixtu
     #expect(unmeasured.headline == CleanupHistoryRun.Headline(bytes: nil, note: "Freed"))
 
     let trashed = CleanupHistoryRun(id: id, records: succeeded(fixtureCandidates(downloads, action: .trash), freed: nil))
-    #expect(trashed.headline == CleanupHistoryRun.Headline(bytes: trashed.plannedBytes, note: "In Trash"))
+    #expect(trashed.headline == CleanupHistoryRun.Headline(bytes: trashed.plannedBytes, note: "In the Trash"))
 
     let preview = CleanupHistoryRun(id: id, records: succeeded(fixtureCandidates(caches, action: .delete), freed: nil, dryRun: true))
     #expect(preview.headline == CleanupHistoryRun.Headline(bytes: preview.plannedBytes, note: "Dry run"))

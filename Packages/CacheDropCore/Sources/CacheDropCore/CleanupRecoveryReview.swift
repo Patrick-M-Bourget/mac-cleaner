@@ -38,7 +38,7 @@ extension RecoveryFinding {
         switch self {
         case .notStarted: "Not started"
         case .atOriginalLocation: putBack ? "Put back" : "Not removed"
-        case .inTrash: putBack ? "Not put back" : emptying ? "Not removed" : "Moved to Trash"
+        case .inTrash: putBack ? "Not put back" : emptying ? "Not removed" : "Moved to the Trash"
         case .gone: "Removed"
         case .unknown: "Unknown"
         }

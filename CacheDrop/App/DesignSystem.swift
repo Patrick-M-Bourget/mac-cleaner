@@ -128,7 +128,7 @@ enum CacheDropDesign {
     static var capacityTrack: Color { adaptive(light: 0xECEEF2, dark: 0x33343D) }
     /// The meter's "Other reclaimable" segment: a slate, 5:1 against the track in light and 6:1 in dark (#164).
     static var meterOther: Color { adaptive(light: 0x5F6577, dark: 0xB4B8C5) }
-    /// The meter's "In Trash" segment: subtle, between the used fill and the track (#164).
+    /// The meter's "In the Trash" segment: subtle, between the used fill and the track (#164).
     static var meterTrash: Color { adaptive(light: 0xC4C8D1, dark: 0x5A5D69) }
     /// The sidebar meter's one "Reclaimable" segment.
     static var meterReclaimable: Color { .accentColor }

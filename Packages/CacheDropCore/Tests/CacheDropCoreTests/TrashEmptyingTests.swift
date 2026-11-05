@@ -106,7 +106,7 @@ private func trashedInstallers(_ names: [String] = ["Setup.dmg", "Other.pkg"], d
     #expect(result.measuredFreedBytes == Int64(2 * 4_096))
     let history = try fixture.journal.completedHistory()
     let run = try #require(history.completedRuns.first { $0.isEmptyFromTrash })
-    #expect(run.title == "Emptied from the Trash · 2 items")
+    #expect(run.title == "Deleted from the Trash · 2 items")
     #expect(run.measuredFreedBytes == Int64(2 * 4_096))
     // #569: its History row leads with that freed space, as a cleanup's does.
     #expect(run.headline == CleanupHistoryRun.Headline(bytes: Int64(2 * 4_096), note: "Freed"))
@@ -124,7 +124,7 @@ private func trashedInstallers(_ names: [String] = ["Setup.dmg", "Other.pkg"], d
     defer { try? FileManager.default.removeItem(at: fixture.home) }
     let emptying = fixture.emptying()
     _ = emptying.empty(try emptying.review().items, dryRun: false)
-    #expect(try fixture.journal.completedHistory().completedRuns.first { $0.isEmptyFromTrash }?.title == "Emptied from the Trash · 1 item")
+    #expect(try fixture.journal.completedHistory().completedRuns.first { $0.isEmptyFromTrash }?.title == "Deleted from the Trash · 1 item")
 }
 
 @Test func anItemThatFailsTheChecksWhenEmptyingIsSkippedLeftAloneAndSaysWhy() async throws {
@@ -153,7 +153,7 @@ private func trashedInstallers(_ names: [String] = ["Setup.dmg", "Other.pkg"], d
     var expected = before; expected["Setup.dmg"] = nil
     #expect(try fixture.trashListing() == expected, "Skipped items are left alone")
     #expect(FileManager.default.fileExists(atPath: fixture.home.appendingPathComponent("Gone.zip").path))
-    #expect(try fixture.journal.completedHistory().completedRuns.first { $0.isEmptyFromTrash }?.title == "Emptied from the Trash · 1 item")
+    #expect(try fixture.journal.completedHistory().completedRuns.first { $0.isEmptyFromTrash }?.title == "Deleted from the Trash · 1 item")
 
     // Emptied once, never again.
     let again = emptying.empty([try fixture.record("Setup.dmg")], dryRun: false)

@@ -30,7 +30,7 @@ struct CatalogConfirmationSection: View {
         let groups = ReviewGroup.groups(catalog: catalog, candidates: review.approval.candidates, skipped: Set(held.refusals.keys))
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
             if review.approval.dryRun {
-                StatusRow(text: "Dry run is on. Nothing on disk changes.", symbol: "eye", role: .neutral, identifier: "reviewPreviewNotice")
+                StatusRow(text: "Dry run · Nothing changes", symbol: "eye", role: .neutral, identifier: "reviewPreviewNotice")
             }
             // One line per holder above the groups, covering its rows in every group, its skipped size once on it (#560, #564;
             // Decisions 125, 162).
