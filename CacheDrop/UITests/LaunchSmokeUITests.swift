@@ -231,7 +231,9 @@ final class LaunchSmokeUITests: XCTestCase {
         XCTAssertEqual(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@ OR value CONTAINS %@", "never scans or cleans", "never scans or cleans")).count, 1,
                        "Said once, on the Notifications group")
         XCTAssertTrue(app.staticTexts["Once a week · nothing is downloaded or installed until you choose"].exists)
-        XCTAssertEqual(app.descendants(matching: .any)["startAtLoginToggle"].label, "Start CacheDrop at login", "Sentence case, as the other toggles (#769)")
+        // A grouped Form draws a toggle's title as the row's own text beside an unlabelled switch.
+        XCTAssertTrue(app.switches["startAtLoginToggle"].exists)
+        XCTAssertTrue(app.staticTexts["Start CacheDrop at login"].exists, "Sentence case, as the other toggles (#769)")
         // #689 (Decision 156): Settings opens with no field focused; the License key field takes focus when clicked,
         // and opening Settings again clears it.
         let licenseKey = app.textFields["licenseKeyField"]
