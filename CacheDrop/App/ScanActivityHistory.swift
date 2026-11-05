@@ -44,7 +44,8 @@ import CacheDropCore
     }
 }
 
-/// One compact History row: symbol, title, date and size; details appear when the row is opened.
+/// One compact History row: symbol, title, date and size; details appear when the row is opened. The row is the title of
+/// the one disclosure (#772), so a click anywhere on it opens it.
 struct HistoryRow<Details: View>: View {
     let symbol: String
     let title: String
@@ -55,30 +56,22 @@ struct HistoryRow<Details: View>: View {
     var identifier = ""
     @ViewBuilder var details: () -> Details
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Button { expanded.toggle() } label: {
-                HStack(spacing: CacheDropDesign.Space.md) {
-                    Image(systemName: symbol).foregroundStyle(.secondary).frame(width: CacheDropDesign.Size.rowIcon)
-                    VStack(alignment: .leading, spacing: CacheDropDesign.Space.xs) {
-                        Text(title).font(CacheDropDesign.TypeStyle.rowTitle).lineLimit(1).truncationMode(.middle)
-                        Text(date.formatted(date: .abbreviated, time: .shortened)).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
-                    }.frame(maxWidth: .infinity, alignment: .leading)
-                    VStack(alignment: .trailing, spacing: CacheDropDesign.Space.xs) {
-                        Text(size).monospacedDigit()
-                        if let sizeNote { Text(sizeNote).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary) }
-                    }
-                    Image(systemName: "chevron.right").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
-                        .rotationEffect(.degrees(expanded ? 90 : 0))
-                }.padding(.vertical, CacheDropDesign.Space.md).contentShape(Rectangle())
-            }.buttonStyle(.plain)
-                .accessibilityElement(children: .combine)
-                .accessibilityValue(expanded ? "Expanded" : "Collapsed")
-                .accessibilityIdentifier(identifier)
-            if expanded {
-                VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm, content: details)
-                    .padding(.leading, CacheDropDesign.Size.rowIcon + CacheDropDesign.Space.md).padding(.bottom, CacheDropDesign.Space.md)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
+        ActionDisclosureGroup(isExpanded: $expanded, identifier: identifier) {
+            VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm, content: details)
+                .padding(.leading, CacheDropDesign.Size.rowIcon + CacheDropDesign.Space.md).padding(.bottom, CacheDropDesign.Space.md)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        } label: {
+            HStack(spacing: CacheDropDesign.Space.md) {
+                Image(systemName: symbol).foregroundStyle(.secondary).frame(width: CacheDropDesign.Size.rowIcon)
+                VStack(alignment: .leading, spacing: CacheDropDesign.Space.xs) {
+                    Text(title).font(CacheDropDesign.TypeStyle.rowTitle).lineLimit(1).truncationMode(.middle)
+                    Text(date.formatted(date: .abbreviated, time: .shortened)).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+                }.frame(maxWidth: .infinity, alignment: .leading)
+                VStack(alignment: .trailing, spacing: CacheDropDesign.Space.xs) {
+                    Text(size).font(CacheDropDesign.TypeStyle.note).monospacedDigit()
+                    if let sizeNote { Text(sizeNote).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary) }
+                }
+            }.padding(.vertical, CacheDropDesign.Space.md).contentShape(Rectangle())
         }
     }
 }
@@ -150,7 +143,7 @@ struct HistoryActivityFilterControl: View {
     var body: some View {
         Picker("Activity", selection: $selection) {
             ForEach(HistoryActivityFilter.allCases, id: \.self) { Text($0.rawValue).tag($0) }
-        }.pickerStyle(.menu).labelsHidden().controlSize(.small).fixedSize().accessibilityIdentifier("History activity filter")
+        }.pickerStyle(.menu).labelsHidden().fixedSize().accessibilityIdentifier("History activity filter")
     }
 }
 

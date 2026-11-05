@@ -17,8 +17,8 @@ struct SystemAccessView: View {
             }
             FullDiskAccessDetails(status: model.status)
             if model.status != .granted {
-                Button("Open System Settings") { model.openSettings() }
-                    .buttonStyle(.link).accessibilityIdentifier("systemAccessOpenSettings")
+                // A page body's action is a regular capsule (Decision 65 rule 2), as in the Full Disk Access sheet.
+                Button("Open System Settings") { model.openSettings() }.accessibilityIdentifier("systemAccessOpenSettings")
             }
         }.task { await model.refresh() }
             .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in Task { await model.refresh() } }

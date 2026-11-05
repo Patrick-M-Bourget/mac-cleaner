@@ -893,7 +893,7 @@ final class CatalogCleanupUITests: XCTestCase {
         let denied = app.descendants(matching: .any)["overviewNotAccessible"]
         XCTAssertTrue(denied.waitForExistence(timeout: 10))
         // Safari's cache is one of the places named; others that need access too (sandboxed app caches, #133) add to the count.
-        XCTAssertTrue(denied.staticTexts.matching(NSPredicate(format: "label ENDSWITH 'Full Disk Access ·' AND value CONTAINS 'Safari cache'")).firstMatch.exists)
+        XCTAssertTrue(denied.staticTexts.matching(NSPredicate(format: "label ENDSWITH 'Full Disk Access' AND value CONTAINS 'Safari cache'")).firstMatch.exists)
         // #372 and Decision 62: Safari's cache couldn't be read, so the browser row says "Needs access", never "Empty", and has
         // no Review link.
         XCTAssertFalse(app.buttons["overviewCategory-browser"].exists, "Nothing found, so no browser row to review")
@@ -908,7 +908,7 @@ final class CatalogCleanupUITests: XCTestCase {
         app.typeKey("3", modifierFlags: .command)
         let planDenied = app.descendants(matching: .any)["planNotAccessible"]
         XCTAssertTrue(planDenied.waitForExistence(timeout: 10))
-        let planLine = planDenied.staticTexts.matching(NSPredicate(format: "label ENDSWITH 'Full Disk Access ·' AND value CONTAINS 'Safari cache'")).firstMatch
+        let planLine = planDenied.staticTexts.matching(NSPredicate(format: "label ENDSWITH 'Full Disk Access' AND value CONTAINS 'Safari cache'")).firstMatch
         XCTAssertTrue(planLine.exists, planDenied.debugDescription)
         XCTAssertTrue(planLine.label.hasPrefix("1 location needs") || planLine.label.range(of: #"^\d+ locations need"#, options: .regularExpression) != nil, planLine.label)
         app.terminate()
@@ -1933,9 +1933,8 @@ final class TrashSpaceUITests: XCTestCase {
         XCTAssertEqual(try String(contentsOf: marker, encoding: .utf8), home.appendingPathComponent(".Trash").path)
         XCTAssertTrue(FileManager.default.fileExists(atPath: trashed.path), "Opening the Trash changes nothing in it")
         // #603 (Decision 141): the menu bar menu says Overview's line, word for word. The menu is checked, not clicked (see
-        // the #131 journey). Overview's text ends with the separator before its link ("Trash holds 303 KB ·", `TrashLine`).
-        let trashLine = String(text.dropLast(" ·".count))
-        XCTAssertTrue(text.hasSuffix(" ·"), text)
+        // the #131 journey). Overview's text is the line alone; its links follow it (`TrashLine`'s `StatusRow`, #772).
+        let trashLine = text
         XCTAssertTrue(app.menuItems[trashLine].waitForExistence(timeout: 5), "The menu says Overview’s Trash line: \(trashLine)")
         XCTAssertTrue(app.menuItems["Open Trash"].exists)
     }

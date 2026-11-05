@@ -90,8 +90,8 @@ struct PlanCategoryRow: View {
     }
 }
 
-/// Why a rule can't be cleaned right now: its owner is open. One quiet line with one link, as `TrashLine` is drawn
-/// (Decision 25): "Quit <App>" for an open app, "Check again" for a command-line tool (#138).
+/// Why a rule can't be cleaned right now: its owner is open. One `StatusRow` with one link (#772): "Quit <App>" for an open
+/// app, "Check again" for a command-line tool (#138).
 struct PlanRunningOwners: View {
     let model: CatalogCleanupModel
     let rule: CleanupRule
@@ -99,20 +99,18 @@ struct PlanRunningOwners: View {
     var only: Set<String>? = nil
     var body: some View {
         ForEach(model.runningOwnerNotices(for: rule).filter { only?.contains($0.name) ?? true }, id: \.name) { owner in
+            StatusRow(text: owner.notice.text, symbol: "exclamationmark.circle", role: .caution, identifier: "planRunning-" + rule.id, action: action(owner))
+        }
+    }
+    private func action(_ owner: (name: String, notice: RunningOwnerNotice)) -> StatusAction {
+        switch owner.notice.action {
+        case .quitApp(let title):
             let quitting = model.quitStates[owner.name] == .quitting
-            HStack(alignment: .firstTextBaseline, spacing: CacheDropDesign.Space.xs) {
-                Image(systemName: "exclamationmark.circle").foregroundStyle(StatusRole.caution.color).accessibilityHidden(true)
-                Text(owner.notice.text + " ·").foregroundStyle(.secondary).accessibilityIdentifier("planRunning-" + rule.id)
-                switch owner.notice.action {
-                case .quitApp(let title):
-                    Button(quitting ? "Quitting…" : title) { Task { await model.quitApp(named: owner.name) } }.disabled(quitting)
-                        .buttonStyle(.link).accessibilityIdentifier("planRunningQuit-" + rule.id)
-                case .checkAgain:
-                    Button("Check again") { Task { await model.checkRunningOwnersAgain() } }
-                        .buttonStyle(.link).accessibilityIdentifier("planRunningCheck-" + rule.id)
-                }
-            }.font(CacheDropDesign.TypeStyle.caption).frame(maxWidth: .infinity, alignment: .leading)
-                .accessibilityElement(children: .contain)
+            return StatusAction(title: quitting ? "Quitting…" : title, identifier: "planRunningQuit-" + rule.id, isDisabled: quitting) {
+                Task { await model.quitApp(named: owner.name) }
+            }
+        case .checkAgain:
+            return StatusAction(title: "Check again", identifier: "planRunningCheck-" + rule.id) { Task { await model.checkRunningOwnersAgain() } }
         }
     }
 }
@@ -159,7 +157,7 @@ private struct PlanRuleRows: View {
                 NativeCategoryCheckbox(state: state, label: rule.title, enabled: model.canEdit && !rule.selectedOneByOne, action: { model.toggleCategory([rule]) },
                                       identifier: "planRule-" + rule.id, showsTitle: false).fixedSize()
             }.help(source.map { _ in rule.detail + "\n" + items.map(\.url.path).joined(separator: "\n") } ?? "")
-            PlanRunningOwners(model: model, rule: rule).padding(.leading, CacheDropDesign.Space.xl).padding(.bottom, CacheDropDesign.Space.sm)
+            PlanRunningOwners(model: model, rule: rule).font(CacheDropDesign.TypeStyle.rowLink).padding(.leading, CacheDropDesign.Space.xl).padding(.bottom, CacheDropDesign.Space.sm)
             if rule.choosesItems && !rule.groupsByProject { CatalogItemRows(model: model, rule: rule, listing: listing, sort: sort).padding(.leading, CacheDropDesign.Space.xl) }
             else if items.contains(where: { $0.group != nil }) { CatalogProfileRows(model: model, rule: rule, listing: listing, sort: sort).padding(.leading, CacheDropDesign.Space.xl) }
             // Items something holds (#374) are listed under the rule, each ticked on its own.

@@ -62,7 +62,7 @@ struct CatalogResultsSection: View {
                 if result.movedToTrashBytes > 0 { TrashEmptyHint() }
             }
             VStack(alignment: .leading, spacing: 0) {
-                HStack {
+                HStack(spacing: CacheDropDesign.Space.sm) {
                     Spacer()
                     Button(showsDetails ? "Hide paths and messages" : "Show paths and messages") { showsDetails.toggle() }
                         .buttonStyle(.link).font(CacheDropDesign.TypeStyle.caption).accessibilityIdentifier("resultsDetailsToggle")
@@ -110,7 +110,7 @@ private struct CatalogResultRow: View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.xs) {
             HStack(alignment: .firstTextBaseline, spacing: CacheDropDesign.Space.md) {
                 Image(systemName: record.state == .succeeded ? "checkmark.circle" : record.wasDryRun ? "eye" : "exclamationmark.circle").foregroundStyle(role.color)
-                    .frame(width: CacheDropDesign.Space.lg)
+                    .frame(width: CacheDropDesign.Size.itemIcon)
                 // Docker's rows have no folder of their own to show (#420).
                 (Text(name).font(CacheDropDesign.TypeStyle.rowTitle)
                     + Text(showsFolder ? " · " + PathDisplay.shortLocation(of: record.originalURL, home: CatalogCleanupModel.checkHome) : "").foregroundStyle(.secondary))
@@ -118,7 +118,7 @@ private struct CatalogResultRow: View {
                 Spacer(minLength: CacheDropDesign.Space.md)
                 if record.state == .succeeded, let trashed = record.trashURL {
                     if TrashModel.shared.putBackOutcomes[record.id] == nil, !TrashModel.shared.emptiedIDs.contains(record.id) {
-                        Button("Reveal in Trash") { Finder.reveal([trashed]) }.buttonStyle(.link)
+                        Button("Reveal in Trash") { Finder.reveal([trashed]) }.buttonStyle(.link).font(CacheDropDesign.TypeStyle.rowLink)
                             .accessibilityLabel("Reveal \(record.originalURL.lastPathComponent) in Trash")
                     }
                     PutBackLink(record: record)
@@ -141,7 +141,7 @@ private struct CatalogResultRow: View {
                             .frame(maxWidth: .infinity, alignment: .leading).accessibilityIdentifier("toolOutput-" + (record.ruleID ?? ""))
                     }
                 }
-            }.padding(.leading, CacheDropDesign.Space.lg + CacheDropDesign.Space.md)
+            }.padding(.leading, CacheDropDesign.Size.itemIcon + CacheDropDesign.Space.md)
         }.padding(.vertical, CacheDropDesign.Space.md)
     }
 }
