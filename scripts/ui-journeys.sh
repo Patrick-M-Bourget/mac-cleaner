@@ -14,6 +14,7 @@
 # When no journey reports at all, the runner likely didn't start: that is said, nothing is rerun, and the exit is non-zero.
 # The run drives the screen: use it only when nobody is using this Mac.
 set -uo pipefail
+TMPDIR="${TMPDIR:-/tmp}"
 cd "$(dirname "$0")/.."
 export DEVELOPER_DIR="${DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Developer}"
 
@@ -72,7 +73,7 @@ cleanup() {
 }
 cleanup
 
-log=$(mktemp "${TMPDIR:-/tmp}/cachedrop-ui.XXXXXXXX")
+log=$(mktemp "${TMPDIR%/}/cachedrop-ui.XXXXXXXX")
 project=(-project CacheDrop/CacheDrop.xcodeproj -scheme CacheDrop -destination 'platform=macOS' -derivedDataPath .build/xcode)
 if [ "$build" -eq 1 ]; then
   if ! xcodebuild build-for-testing "${project[@]}" >"$log" 2>&1; then
@@ -115,7 +116,7 @@ fi
 # The runner can restart or stop mid-run and leave journeys without a result (#724): rerun those once on the same build.
 for test in "${missing[@]}"; do echo "No result: $test"; done
 echo "Rerunning ${#missing[@]} without a result once"
-rerun_log=$(mktemp "${TMPDIR:-/tmp}/cachedrop-ui.XXXXXXXX")
+rerun_log=$(mktemp "${TMPDIR%/}/cachedrop-ui.XXXXXXXX")
 only=()
 for test in "${missing[@]}"; do only+=("-only-testing:CacheDropUITests/$test"); done
 run_tests "$rerun_log" "${only[@]}"
