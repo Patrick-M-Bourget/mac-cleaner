@@ -22,6 +22,22 @@ extension CatalogCategory {
         case .apps: "Apps, audio software and their files"
         }
     }
+    /// The short name under a category's badge in onboarding (#784); a category onboarding doesn't show keeps its full title.
+    public var shortTitle: String {
+        switch self {
+        case .developer: "Developer"
+        case .browser: "Browsers"
+        case .system: "App caches"
+        case .downloads: "Downloads"
+        case .audio: "Audio"
+        case .photoVideo: "Photo and video"
+        case .models: "Models"
+        case .updaters: "App updates"
+        case .logs: "Logs"
+        case .leftovers: "Deleted apps"
+        case .icloud, .files, .managed, .apps: overviewTitle
+        }
+    }
     /// Smart clean's title: it takes only downloads untouched for 7 days (#342), so it says so.
     public var smartCleanTitle: String { self == .downloads ? "Old downloads" : overviewTitle }
     /// Smart clean's line for the downloads it takes, which says which ones (#779); every other category uses the plan's line.

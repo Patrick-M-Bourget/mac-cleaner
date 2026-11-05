@@ -4,12 +4,15 @@ import Observation
 import SwiftUI
 import CacheDropCore
 
-/// Share setup progress (Decision 127): the toggle on Welcome and in Settings, and the hooks that record the three events.
+/// Share setup progress (Decisions 127, 174): the toggle on onboarding's Ready and in Settings, and the hooks that record the
+/// three events.
 @MainActor @Observable final class SetupProgressSharing {
     static let shared = SetupProgressSharing()
     static let title = "Share setup progress"
     static let explanation = "CacheDrop shares when you first open, scan and clean up, never what’s on this Mac."
     var binding: Binding<Bool> { Binding(get: { self.isSharing }, set: { self.setSharing($0) }) }
+    /// Onboarding's Ready shows only once the first scan has finished, so ticking it there records that scan too (Decision 174).
+    var readyBinding: Binding<Bool> { Binding(get: { self.isSharing }, set: { self.setSharing($0, firstScanCompleted: true) }) }
     private(set) var isSharing = false
     private let reporter: SetupProgressReporter
 
@@ -30,9 +33,9 @@ import CacheDropCore
         #endif
     }
 
-    func setSharing(_ on: Bool) {
+    func setSharing(_ on: Bool, firstScanCompleted: Bool = false) {
         isSharing = on
-        Task { await reporter.setSharing(on); isSharing = await reporter.isSharing }
+        Task { await reporter.setSharing(on, firstScanCompleted: firstScanCompleted); isSharing = await reporter.isSharing }
     }
     func record(_ event: SetupProgressEvent) { Task { await reporter.record(event) } }
     /// Sends what an earlier launch couldn't.

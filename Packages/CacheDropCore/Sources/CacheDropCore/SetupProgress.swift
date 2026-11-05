@@ -94,13 +94,15 @@ public actor SetupProgressReporter {
     /// The saved choice, read without waiting on the actor, for the toggles' first draw.
     public nonisolated static func savedSharing(in store: SetupProgressStore) -> Bool { (try? store.load())?.sharing ?? false }
 
-    /// Ticking it records first launch for this launch; unticking it drops anything not yet sent.
-    public func setSharing(_ on: Bool) async {
+    /// Ticking it records first launch for this launch, and first scan completed when ticked after it, as on onboarding's
+    /// Ready (Decision 174); unticking it drops anything not yet sent.
+    public func setSharing(_ on: Bool, firstScanCompleted: Bool = false) async {
         guard on != state.sharing else { return }
         state.sharing = on
         if on {
             if state.installID == nil { state.installID = makeInstallID() }
             add(.firstLaunch)
+            if firstScanCompleted { add(.firstScanCompleted) }
         } else {
             state.pending = []
         }

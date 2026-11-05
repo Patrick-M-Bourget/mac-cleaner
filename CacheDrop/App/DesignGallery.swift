@@ -150,9 +150,6 @@ struct DesignGallery: View {
                             StatusRow(text: "Scan completed", symbol: "checkmark.circle", role: .success)
                             StatusRow(text: "Scanned 10:42 · Not fully read", symbol: "exclamationmark.circle", role: .caution)
                             StatusRow(text: "Access unavailable · Choose the folder again", symbol: "lock", role: .failure)
-                            ScanPreparationProgress(text: "Reading files…", fraction: 0.4)
-                            // A heading already says it: the line under the bar takes no room (#573).
-                            ScanPreparationProgress(text: "Your results are ready", fraction: 1, showsText: false)
                             Text("Workspace behind onboarding").frame(maxWidth: .infinity, minHeight: CacheDropDesign.Space.page)
                                 .modifier(OnboardingBackdrop(active: true))
                         }
@@ -293,10 +290,11 @@ struct DesignGallery: View {
         .preferredColorScheme(appearance == .automatic ? nil : appearance == .dark ? .dark : .light)
     }
 }
-/// Onboarding's steps (#783) with synthetic data: Welcome, Scanning with 4 of 10 categories read, Ready and Nothing found.
+/// Onboarding's steps (#783, #784) with synthetic data: Welcome, Scanning with 4 of 10 categories read, the same on later launches,
+/// Ready and Nothing found.
 private struct OnboardingGalleryExamples: View {
     @State private var sharing = false
-    private static let categories: [CatalogCategory] = [.developer, .browser, .system, .downloads, .audio, .photoVideo, .models, .updaters, .logs, .leftovers]
+    private static let categories = Onboarding.categories
     private static let found: [(CatalogCategory, Int64)] = [(.developer, 3_900_000_000), (.browser, 1_600_000_000), (.system, 800_000_000),
                                                              (.downloads, 300_000_000), (.logs, 200_000_000)]
     var body: some View {
@@ -307,10 +305,12 @@ private struct OnboardingGalleryExamples: View {
             example("Scanning · 4 of 10 categories read", "scanning") {
                 step(.scanning(found: 2_700_000_000, finished: Set(Self.categories.prefix(4))))
             }
+            example("Later launches · Scanning, 4 of 10 categories read", "laterLaunch") {
+                OnboardingScanStep(categories: Self.categories, phase: .scanning(found: 2_700_000_000, finished: Set(Self.categories.prefix(4))),
+                                   introduction: false, sharesSetupProgress: $sharing, onStartSmartClean: {}, onViewOverview: {}, onClose: {})
+            }
             example("Ready", "ready") {
                 step(.ready(found: Self.found.reduce(0) { $0 + $1.1 },
-                            breakdown: StorageBreakdown(used: 380_000_000_000, total: 500_000_000_000,
-                                                        categories: Self.found.map { ($0.0, .measured($0.1)) }, trash: .holds(0)),
                             top: Self.found.prefix(3).map { .init(category: $0.0, estimate: .measured($0.1)) }))
             }
             example("Nothing found", "nothingFound") { step(.nothingFound) }
