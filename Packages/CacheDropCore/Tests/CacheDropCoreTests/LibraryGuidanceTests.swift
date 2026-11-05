@@ -91,8 +91,9 @@ private actor RecordingOpener: GuidanceOpening {
     #expect(rule.action == .guidance && rule.guidance?.openTitle == "Open Final Cut Pro")
     #expect(rule.detail.contains("Delete Generated Library Files"))
 
-    // Guidance is never a candidate, so its bytes can never count as freed; opening reports only that it opened.
-    #expect(catalog.discover(fixture: home).isEmpty)
+    // Guidance is never a candidate, so its bytes can never count as freed; opening reports only that it opened. Only the
+    // render files inside a library are offered, by their own rule (#399).
+    #expect(catalog.discover(fixture: home).map(\.ruleID) == [FinalCutGeneratedMedia.renderFilesID])
     let opener = RecordingOpener()
     #expect(await catalog.open(finding, using: opener))
     #expect(await opener.targets == [.app(bundleID: "com.apple.FinalCut")])
