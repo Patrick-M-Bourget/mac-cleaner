@@ -943,6 +943,14 @@ extension CleanupRule {
     var offersFiles: Bool { contents != nil || id == UserFiles.ruleID }
     /// The plan shows its items one row per project (#157).
     var groupsByProject: Bool { id == ProjectBuilds.ruleID }
+    /// The symbol on one of the plan's group rows, by what the group is: a project's folder, an app, a Final Cut library
+    /// as its category's film (#753), or a browser profile's person.
+    func groupSymbol(namesApp: Bool) -> String {
+        if groupsByProject { return "folder" }
+        if namesApp { return "app" }
+        if category == .photoVideo { return category.storageCategory.symbol }
+        return "person.crop.circle"
+    }
 }
 
 extension Candidate {
