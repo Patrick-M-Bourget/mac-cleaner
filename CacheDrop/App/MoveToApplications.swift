@@ -197,8 +197,7 @@ struct MoveToApplicationsView: View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
             AppBrand()
             VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
-                Text("Move CacheDrop to your Applications folder?").font(CacheDropDesign.TypeStyle.sheet).fontWeight(.semibold)
-                    .accessibilityAddTraits(.isHeader).accessibilityIdentifier("moveToApplicationsTitle")
+                SheetHeader(title: "Move CacheDrop to your Applications folder?", identifier: "moveToApplicationsTitle")
                 Text(model.detail).font(CacheDropDesign.TypeStyle.note).foregroundStyle(.secondary)
                     .accessibilityIdentifier("moveToApplicationsDetail")
             }

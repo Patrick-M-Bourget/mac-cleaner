@@ -1247,7 +1247,7 @@ final class RecoveryReviewUITests: XCTestCase {
         let review = app.buttons["Review interrupted cleanup"]
         XCTAssertTrue(review.waitForExistence(timeout: 10), "Overview shows the interrupted cleanup banner")
         review.click()
-        let expected = ["Kept.dmg": "Not removed", "Trashed.dmg": "Moved to Trash", "Gone.dmg": "Removed"]
+        let expected = ["Kept.dmg": "Not removed", "Trashed.dmg": "Moved to the Trash", "Gone.dmg": "Removed"]
         for (name, title) in expected {
             let row = app.staticTexts["recoveryState-" + name]
             XCTAssertTrue(row.waitForExistence(timeout: 10), "\(name) shows its finding")
@@ -1269,7 +1269,7 @@ final class RecoveryReviewUITests: XCTestCase {
         let reader = try SQLiteCleanupJournal(url: state.appendingPathComponent("cleanup.sqlite"), readOnly: true)
         XCTAssertTrue(try CleanupRecoverySnapshot(journal: reader).interruptedBatches.isEmpty)
         XCTAssertEqual(try reader.records().filter { $0.reviewOf == nil }.map(\.state), [.intent, .intent, .intent])
-        XCTAssertEqual(try reader.completedHistory().completedRuns.first?.records.map(\.outcomeTitle), ["Not removed", "Moved to Trash", "Removed"])
+        XCTAssertEqual(try reader.completedHistory().completedRuns.first?.records.map(\.outcomeTitle), ["Not removed", "Moved to the Trash", "Removed"])
     }
 }
 

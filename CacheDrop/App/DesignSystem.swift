@@ -127,7 +127,7 @@ enum CacheDropDesign {
     static var capacityTrack: Color { adaptive(light: 0xECEEF2, dark: 0x33343D) }
     /// The meter's "Other reclaimable" segment: a slate, 5:1 against the track in light and 6:1 in dark (#164).
     static var meterOther: Color { adaptive(light: 0x5F6577, dark: 0xB4B8C5) }
-    /// The meter's "In Trash" segment: subtle, between the used fill and the track (#164).
+    /// The meter's "In the Trash" segment: subtle, between the used fill and the track (#164).
     static var meterTrash: Color { adaptive(light: 0xC4C8D1, dark: 0x5A5D69) }
     /// The sidebar meter's one "Reclaimable" segment.
     static var meterReclaimable: Color { .accentColor }
@@ -267,6 +267,25 @@ struct PageHeader: View {
                 if let subtitle { Text(subtitle).font(CacheDropDesign.TypeStyle.note).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
             }.frame(maxWidth: .infinity, alignment: .leading)
             if let search { search }
+        }
+    }
+}
+/// Every sheet's title (#771): `TypeStyle.sheet`, after an optional badge, with an optional subtitle and the close button on
+/// the right. Sheets never title with a page's `PageHeader`.
+struct SheetHeader: View {
+    let title: String
+    var subtitle: String? = nil
+    var badge: CategoryBadge? = nil
+    var close: CloseButton? = nil
+    var identifier: String? = nil
+    var body: some View {
+        HStack(spacing: CacheDropDesign.Space.md) {
+            if let badge { badge }
+            VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
+                Text(title).font(CacheDropDesign.TypeStyle.sheet).accessibilityAddTraits(.isHeader).modifier(OptionalIdentifier(identifier: identifier))
+                if let subtitle { Text(subtitle).font(CacheDropDesign.TypeStyle.note).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
+            }.frame(maxWidth: .infinity, alignment: .leading)
+            if let close { close }
         }
     }
 }

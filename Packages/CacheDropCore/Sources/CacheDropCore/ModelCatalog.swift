@@ -6,7 +6,7 @@ import Darwin
 extension BuiltInCatalog {
     static let huggingFaceModels = CleanupRule(
         id: "huggingface-models", category: .models, title: "Hugging Face models",
-        detail: "Models downloaded to the Hugging Face cache. Check when each was last used.",
+        detail: "Models downloaded to the Hugging Face cache",
         consequence: "They download again the next time a project uses them.",
         regen: .model, action: .trash, locations: [".cache/huggingface/hub/models--*"],
         // Installed by pip, both run as `python …/bin/hf`, so the script is matched as well as the executable.
@@ -19,7 +19,7 @@ extension BuiltInCatalog {
     /// Older installs used `~/.cache/lm-studio/models`, which LM Studio's documentation doesn't confirm, so it is left out.
     static let lmStudioModels = CleanupRule(
         id: "lmstudio-models", category: .models, title: "LM Studio models",
-        detail: "Models downloaded in LM Studio. Check when each was last used.",
+        detail: "Models downloaded in LM Studio",
         consequence: "You can download them again in LM Studio.",
         regen: .model, action: .trash, locations: [".lmstudio/models/*/*"],
         owner: RuleOwner(name: "LM Studio", bundleIDs: ["ai.elementlabs.lmstudio"]))
@@ -27,7 +27,7 @@ extension BuiltInCatalog {
     /// server to remove the model, so stopping the command doesn't stop the work (daemon-backed, #189).
     static let ollamaModels = CleanupRule(
         id: "ollama-models", category: .models, title: "Ollama models",
-        detail: "Models Ollama downloaded. Sizes count only the files no other model shares. Check when each was last used.",
+        detail: "Models Ollama downloaded · shared files count once",
         consequence: "Each model goes with the files no other model uses; Ollama must be open.",
         regen: .model, action: .tool, locations: [".ollama/models/manifests"], owner: nil,
         tool: ToolCommand(executables: ["/usr/local/bin/ollama", "/opt/homebrew/bin/ollama", "/Applications/Ollama.app/Contents/Resources/ollama"],

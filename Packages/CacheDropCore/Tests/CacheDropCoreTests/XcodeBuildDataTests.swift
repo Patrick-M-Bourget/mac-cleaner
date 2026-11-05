@@ -79,7 +79,7 @@ private struct Processes: RunningAppChecking {
         .execute(CatalogApproval(candidates: [candidate], dryRun: false))
     let record = try #require(result.records.first)
     #expect(record.state == .skipped)
-    #expect(record.message == "Xcode is running. Quit it, then scan again.")
+    #expect(record.message == "Xcode is open. Quit it, then scan again.")
     #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent(derivedData + "/CacheDrop-abc/Build/Intermediates.noindex/entry").path))
     // Once nothing runs, the whole project folder is permanently removed.
     let idle = await CleanupExecutor(journal: journal, check: CandidateCheck(catalog: catalog, running: Processes(commandLines: [])), trash: TrashNeverUsed())

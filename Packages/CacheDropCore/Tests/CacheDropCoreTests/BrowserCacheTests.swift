@@ -82,7 +82,7 @@ private struct Running: RunningAppChecking {
     let cache = try #require(catalog.discover(fixture: home).first)
     let refusal = CandidateCheck(catalog: catalog, running: Running(names: ["Google Chrome"])).check(cache)
     #expect(refusal == .ownerRunning("Google Chrome"))
-    #expect(refusal?.reason == "Google Chrome is running. Quit it, then scan again.")
+    #expect(refusal?.reason == "Google Chrome is open. Quit it, then scan again.")
     // CacheDrop never quits the browser; the user closes it and scans again.
     #expect(CandidateCheck(catalog: catalog, running: Running(names: [])).check(cache) == nil)
 }

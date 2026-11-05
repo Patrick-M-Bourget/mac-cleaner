@@ -543,7 +543,7 @@ final class CatalogCleanupUITests: XCTestCase {
         // The plan says why DerivedData will be refused: this journey runs under xcodebuild or Xcode.
         let running = app.staticTexts["planRunning-xcode-derived-data"]
         XCTAssertTrue(running.waitForExistence(timeout: 5))
-        // "Xcode is running" with Quit Xcode when the app is open, "Quit Xcode to include this" when only its tools run.
+        // "Xcode is open" with Quit Xcode when the app is open, "Quit Xcode to include this" when only its tools run.
         XCTAssertTrue((running.value as? String ?? "").contains("Xcode"), running.debugDescription)
         app.buttons["Review cleanup"].click()
 
@@ -799,7 +799,7 @@ final class CatalogCleanupUITests: XCTestCase {
 
         XCTAssertTrue(reviewLine(app, "permanentlyRemoved", "browser").waitForExistence(timeout: 5))
         // The review lists each copy in a collapsed file list.
-        openDisclosure(app.disclosureTriangles.matching(NSPredicate(format: "label ENDSWITH 'Show files'")).firstMatch, in: app)
+        openDisclosure(app.disclosureTriangles.matching(NSPredicate(format: "label BEGINSWITH 'Show files · '")).firstMatch, in: app)
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'code_sign_clone.old'")).firstMatch.exists)
         XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'code_sign_clone.new'")).firstMatch.exists)
         cleanUpFromReview(app)
@@ -1022,7 +1022,7 @@ final class CatalogCleanupUITests: XCTestCase {
 
         XCTAssertTrue(reviewLine(app, "commandsRun", "developer").waitForExistence(timeout: 5))
         // The exact command shows with the files; only the chosen kind is there.
-        openDisclosure(app.disclosureTriangles.matching(NSPredicate(format: "label ENDSWITH 'Show files'")).firstMatch, in: app)
+        openDisclosure(app.disclosureTriangles.matching(NSPredicate(format: "label BEGINSWITH 'Show files · '")).firstMatch, in: app)
         XCTAssertTrue(app.staticTexts["docker builder prune -a -f"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.staticTexts["docker image prune -a -f"].exists)
         cleanUpFromReview(app)
@@ -1984,7 +1984,7 @@ final class TrashSpaceUITests: XCTestCase {
 
         app.typeKey("5", modifierFlags: .command)
         let run = app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS[c] %@ OR value CONTAINS[c] %@",
-                                                                       "Emptied from the Trash · 2 items", "Emptied from the Trash · 2 items")).firstMatch
+                                                                       "Deleted from the Trash · 2 items", "Deleted from the Trash · 2 items")).firstMatch
         XCTAssertTrue(run.waitForExistence(timeout: 10))
     }
 
@@ -2036,7 +2036,7 @@ final class TrashSpaceUITests: XCTestCase {
         XCTAssertTrue(app.buttons["meterSegment-downloads"].exists)
         let trash = app.descendants(matching: .any)["meterSegment-trash"]
         XCTAssertTrue(trash.waitForExistence(timeout: 10))
-        XCTAssertTrue(trash.label.hasPrefix("In Trash · "), trash.label)
+        XCTAssertTrue(trash.label.hasPrefix("In the Trash · "), trash.label)
         XCTAssertGreaterThan(trash.frame.minX, developer.frame.maxX, "#343: the Trash ends what was found, at the tip")
         XCTAssertFalse(app.buttons["meterSegment-trash"].exists, "The Trash segment opens nothing")
         XCTAssertTrue(app.descendants(matching: .any)["sidebarMeterSegments"].exists, "The sidebar meter shows one reclaimable segment")
@@ -2094,7 +2094,7 @@ final class TrashSpaceUITests: XCTestCase {
     }
 
     /// #359, Decision 68: an installer a run moved to the (fixture) Trash is deleted from it from Results: the bottom bar's
-    /// prominent Empty from Trash… (#782), the review sheet, Empty. Only that item goes; History shows "Emptied from the Trash
+    /// prominent Empty from Trash… (#782), the review sheet, Empty. Only that item goes; History shows "Deleted from the Trash
     /// · 1 item" and the item has no Put back. Debug test runs trash into, and empty from, the fixture home's `.Trash`, never the real one.
     /// The run also deletes the npm cache, so Results and History set the measured figure against an estimate without
     /// the installer's size (#587).
@@ -2146,7 +2146,7 @@ final class TrashSpaceUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'is in the Trash' OR value CONTAINS 'is in the Trash'")).firstMatch.exists)
         empty.click()
 
-        XCTAssertTrue(app.staticTexts["Empty from the Trash"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Empty from Trash"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Deleted permanently. They can’t be put back."].exists)
         XCTAssertTrue(app.descendants(matching: .any)["emptyItem-Setup.dmg"].exists)
         XCTAssertFalse(app.descendants(matching: .any)["emptyItem-Old installer.dmg"].exists, "The user's own trashed file isn't offered")
@@ -2163,11 +2163,11 @@ final class TrashSpaceUITests: XCTestCase {
 
         app.typeKey("5", modifierFlags: .command)
         func run(_ title: String) -> XCUIElement {
-            // Ignoring case: a run that also deleted reads "Deleted and moved to Trash".
+            // Ignoring case: a run that also deleted reads "Deleted and moved to the Trash".
             app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS[c] %@ OR value CONTAINS[c] %@", title, title)).firstMatch
         }
-        XCTAssertTrue(run("Emptied from the Trash · 1 item").waitForExistence(timeout: 10))
-        let cleanup = run("Moved to Trash")
+        XCTAssertTrue(run("Deleted from the Trash · 1 item").waitForExistence(timeout: 10))
+        let cleanup = run("Moved to the Trash")
         XCTAssertTrue(cleanup.waitForExistence(timeout: 10))
         revealAndClick(cleanup, in: app)
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Setup.dmg' OR value BEGINSWITH 'Setup.dmg'")).firstMatch.waitForExistence(timeout: 5))
@@ -2254,7 +2254,7 @@ extension CatalogCleanupUITests {
         XCTAssertTrue(reviewLine(app, "permanentlyRemoved", "developer").waitForExistence(timeout: 10))
         XCTAssertFalse(reviewLine(app, "movedToTrash", "downloads").exists)
         XCTAssertFalse(reviewLine(app, "commandsRun", "developer").exists)
-        XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label == '1 item · Show files'")).firstMatch.exists)
+        XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label == 'Show files · 1'")).firstMatch.exists)
         XCTAssertTrue(app.buttons["Cancel"].exists)
         app.buttons.matching(NSPredicate(format: "label == 'Clean up' AND identifier != 'smartCleanCleanUp'")).firstMatch.click()
 

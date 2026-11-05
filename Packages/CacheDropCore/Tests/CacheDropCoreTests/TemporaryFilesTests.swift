@@ -104,7 +104,7 @@ private func temporaryFiles(_ candidates: [Candidate]) -> [String] {
     // Held by some process, not a known app: the line is the check's own reason (#374), and it is checked again at Clean up.
     let held = try #require(found.first { $0.url.path == open.path })
     #expect(held.hold == CandidateHold(.inUse("An app")))
-    #expect(held.hold?.line == "An app is using it. It is kept.")
+    #expect(held.hold?.line == "An app is using it.")
     #expect(found.first { $0.url.path == idle.path }?.hold == nil)
     #expect(CandidateCheck(catalog: catalog, running: FixtureNothingRunning(), inUse: FakeInUse(open: [open.path]), home: fixtureHome()).check(held) == .inUse("An app"))
     #expect(CandidateCheck(catalog: catalog, running: FixtureNothingRunning(), inUse: FakeInUse(), home: fixtureHome()).check(held) == nil)
@@ -147,7 +147,7 @@ private func temporaryFiles(_ candidates: [Candidate]) -> [String] {
     #expect(check(FakeInUse()) == nil)
     let refusal = check(FakeInUse(open: [candidate.url.path]))
     #expect(refusal == .inUse("An app"))
-    #expect(refusal?.reason == "An app is using it. It is kept.")
+    #expect(refusal?.reason == "An app is using it.")
     #expect(check(FakeInUse(unknown: true)) == .inUseUnknown("An app"))
     // A file written inside after the scan means it's in use again.
     Thread.sleep(forTimeInterval: 0.01)

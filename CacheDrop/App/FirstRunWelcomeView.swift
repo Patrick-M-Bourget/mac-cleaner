@@ -169,8 +169,7 @@ struct FirstRunWelcomeView: View {
                 Spacer()
                 CloseButton(identifier: "welcomeCancel") { model.finish() }
             }
-            Text("Preparation couldn’t finish").font(CacheDropDesign.TypeStyle.sheet).fontWeight(.semibold).accessibilityAddTraits(.isHeader)
-                .accessibilityIdentifier("welcomeFailure")
+            SheetHeader(title: "Preparation couldn’t finish", identifier: "welcomeFailure")
             Text(model.failure).font(CacheDropDesign.TypeStyle.note).foregroundStyle(.secondary)
             Divider()
             SheetFooter {

@@ -15,7 +15,7 @@ public struct RunningOwnerNotice: Sendable, Equatable {
     /// `stillOpen`: the app was asked to quit and is still open (unsaved work, or it refused).
     public init(name: String, appOpen: Bool, stillOpen: Bool = false) {
         if appOpen {
-            text = stillOpen ? "\(name) is still open" : "\(name) is running"
+            text = stillOpen ? "\(name) is still open" : "\(name) is open"
             action = .quitApp("Quit \(name)")
         } else {
             text = "Quit \(name) to include this"

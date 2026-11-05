@@ -25,7 +25,7 @@ private func records(_ actions: [CleanupAction], dryRun: Bool = false) throws ->
     #expect(trash.actionTitle == "Move to Trash")
     delete.state = .succeeded; trash.state = .succeeded
     #expect(delete.outcomeTitle == "Deleted")
-    #expect(trash.outcomeTitle == "Moved to Trash")
+    #expect(trash.outcomeTitle == "Moved to the Trash")
     delete.state = .unknown; trash.state = .intent
     #expect(delete.outcomeTitle == "Unresolved")
     #expect(delete.recoveryStateText == "Unfinished · It may be partly deleted")
@@ -47,8 +47,8 @@ private func records(_ actions: [CleanupAction], dryRun: Bool = false) throws ->
 @Test func downloadsEraRecordsReadAsTrashMoves() throws {
     let legacy = #"{"action":"moveToTrash","approvedAt":0,"batchID":"FD8FB579-0EB5-4CC1-925B-F038F4B44EEB","id":"x","logicalBytes":3,"message":"Moved to Trash","modifiedNanoseconds":0,"modifiedSeconds":0,"observedAt":0,"originalURL":"file:\/\/\/x\/Setup.dmg","policyVersion":1,"resourceID":"1:2","scopeResourceID":"1:1","scopeURL":"file:\/\/\/x\/","state":"succeeded"}"#
     let record = try JSONDecoder().decode(CleanupRecord.self, from: Data(legacy.utf8))
-    #expect(record.outcomeTitle == "Moved to Trash")
-    #expect(record.recoveryStateText == "Finished · Moved to Trash")
+    #expect(record.outcomeTitle == "Moved to the Trash")
+    #expect(record.recoveryStateText == "Finished · Moved to the Trash")
 }
 
 @Test func aDryRunReadsAsADryRunNotAsSkippedOrFailed() async throws {
@@ -89,9 +89,9 @@ private func records(_ actions: [CleanupAction], dryRun: Bool = false) throws ->
     defer { try? FileManager.default.removeItem(at: home) }
     var snapshot = CleanupHistorySnapshot(records: made.map { var r = $0; r.state = .succeeded; return r })
     #expect(snapshot.completedRuns.first?.isPreview == false)
-    #expect(snapshot.completedRuns.first?.title == "Cleanup · Deleted and moved to Trash")
+    #expect(snapshot.completedRuns.first?.title == "Cleanup · Deleted and moved to the Trash")
     snapshot = CleanupHistorySnapshot(records: [made[1]].map { var r = $0; r.state = .succeeded; return r })
-    #expect(snapshot.completedRuns.first?.title == "Cleanup · Moved to Trash")
+    #expect(snapshot.completedRuns.first?.title == "Cleanup · Moved to the Trash")
     snapshot = CleanupHistorySnapshot(records: [made[0]].map { var r = $0; r.state = .succeeded; return r })
     #expect(snapshot.completedRuns.first?.title == "Cleanup · Deleted")
 }
@@ -119,7 +119,7 @@ private func records(_ actions: [CleanupAction], dryRun: Bool = false) throws ->
     trash.state = .succeeded; trash.message = "Moved to Trash"
     delete.state = .succeeded; delete.message = "Permanently removed"
     tool.state = .succeeded; tool.message = "Ran brew"
-    #expect(trash.outcomeLine == "Moved to Trash")
+    #expect(trash.outcomeLine == "Moved to the Trash")
     #expect(delete.outcomeLine == "Deleted")
     #expect(tool.outcomeLine == "Deleted · Ran brew")
     delete.state = .failed; delete.message = "Couldn’t remove it (Permission denied). Left unchanged."
@@ -140,6 +140,17 @@ private func records(_ actions: [CleanupAction], dryRun: Bool = false) throws ->
     #expect(started.message == "Started; outcome not yet recorded", "The stored text is unchanged")
     pending.message = "Ran brew"
     #expect(pending.shownMessage == "Ran brew")
+}
+
+/// #768: Trash moves journaled as "Moved to Trash…" read "Moved to the Trash…"; what's stored stays as it was.
+@Test func storedTrashMessagesReadWithTheTrash() throws {
+    let (home, made) = try records([.trash])
+    defer { try? FileManager.default.removeItem(at: home) }
+    var trash = made[0]
+    trash.state = .succeeded; trash.message = "Moved to Trash with Pixel.ini"
+    #expect(trash.shownMessage == "Moved to the Trash with Pixel.ini")
+    #expect(trash.outcomeLine == "Moved to the Trash · Moved to the Trash with Pixel.ini")
+    #expect(trash.message == "Moved to Trash with Pixel.ini", "The stored text is unchanged")
 }
 
 /// Review: Recovery's detail line says a state once ("Not started · Nothing was changed", never "… · Not started").

@@ -140,7 +140,7 @@ private let nothingRunning = Running(names: [])
     for app in ["com.apple.iphonesimulator", "com.apple.dt.Xcode"] {
         let check = CandidateCheck(catalog: catalog, running: Running(names: [app]))
         let refused = await CleanupExecutor(journal: journal, check: check, trash: TrashNeverUsed()).execute(CatalogApproval(candidates: items, dryRun: false))
-        #expect(refused.records.allSatisfy { $0.state == .skipped && $0.message == "Simulator or Xcode is running. Quit it, then scan again." })
+        #expect(refused.records.allSatisfy { $0.state == .skipped && $0.message == "Simulator or Xcode is open. Quit it, then scan again." })
     }
     #expect(simctlLog(home).isEmpty)
 
@@ -240,7 +240,7 @@ private let watchUDID = "44444444-4444-4444-8444-444444444444"
     #expect(check.check(runtime) == nil)
     try write(home, "fixture/devices.json", text: devicesJSON(adding: watchUDID, on: watchRuntime, available: true))
     #expect(check.check(runtime) == .inUse("A simulator"))
-    #expect(check.check(runtime)?.reason == "A simulator is using it. It is kept.")
+    #expect(check.check(runtime)?.reason == "A simulator is using it.")
     try write(home, "fixture/devices.json", text: devicesJSON)
     try write(home, "fixture/runtimes.json", text: runtimesJSON.replacingOccurrences(of: #""identifier" : "\#(unusedRuntime)""#, with: #""identifier" : "\#(bundledRuntime)x""#))
     #expect(check.check(runtime) == .missing)
@@ -337,7 +337,7 @@ private final class FixtureTrash: TrashMoving, @unchecked Sendable {
     for process in ["emulator", "qemu-system-aarch64", "com.google.android.studio"] {
         let check = CandidateCheck(catalog: catalog, running: Running(names: [process]), home: home)
         let result = await CleanupExecutor(journal: journal, check: check, trash: TrashNeverUsed()).execute(CatalogApproval(candidates: items, dryRun: false))
-        #expect(result.records.allSatisfy { $0.state == .skipped && $0.message == "Android Studio or the emulator is running. Quit it, then scan again." }, "\(process)")
+        #expect(result.records.allSatisfy { $0.state == .skipped && $0.message == "Android Studio or the emulator is open. Quit it, then scan again." }, "\(process)")
     }
     #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent(avdHome + "/Pixel.avd/userdata-qemu.img").path))
     #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent(images + "/android-30/default/x86_64/system.img").path))

@@ -30,7 +30,7 @@ struct CatalogConfirmationSection: View {
         let groups = ReviewGroup.groups(catalog: catalog, candidates: review.approval.candidates, skipped: Set(held.refusals.keys))
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
             if review.approval.dryRun {
-                StatusRow(text: "Dry run is on. Nothing on disk changes.", symbol: "eye", role: .neutral, identifier: "reviewPreviewNotice")
+                StatusRow(text: "Dry run · Nothing changes", symbol: "eye", role: .neutral, identifier: "reviewPreviewNotice")
             }
             // One line per holder above the groups, covering its rows in every group, its skipped size once on it (#560, #564;
             // Decisions 125, 162).
@@ -64,7 +64,7 @@ struct CatalogConfirmationSection: View {
                                 if !line.cleansNothing { Text(line.estimate.text(upperBound: line.isUpperBound)).monospacedDigit() }
                             }.font(CacheDropDesign.TypeStyle.note).accessibilityElement(children: .combine).accessibilityIdentifier("reviewLine-\(group.consequence)-\(line.id)")
                         }
-                        ActionDisclosureGroup(CacheDropDesign.items(group.candidates.count) + " · Show files") {
+                        ActionDisclosureGroup("Show files · \(group.candidates.count)") {
                             VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
                                 ForEach(group.lines) { line in ForEach(line.rules) { rule in files(rule, line.candidates(for: rule)) } }
                             }.padding(.top, CacheDropDesign.Space.sm)
@@ -86,7 +86,7 @@ struct CatalogConfirmationSection: View {
     }
     /// "Google Chrome is open, so its caches will be skipped · 2.3 GB"; a row skipped for its own reason names itself and the reason.
     private func skippedText(_ line: ReviewHeldItems.Line) -> String {
-        guard let text = line.text else { return line.items[0].displayName + " will be skipped: " + line.refusal.reason }
+        guard let text = line.text else { return line.items[0].displayName + " will be skipped: " + line.refusal.clause }
         return text + " · " + line.size.text(upperBound: line.isUpperBound)
     }
     private func files(_ rule: CleanupRule, _ items: [Candidate]) -> some View {

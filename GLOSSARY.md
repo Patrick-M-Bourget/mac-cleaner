@@ -75,7 +75,7 @@ The names CacheDrop shows, what they mean, and where they live in code. Copy fol
 |---|---|---|
 | Clean up (verb), cleanup (noun) | Run what's ticked; one cleanup is one run | `CatalogApproval`, `CleanupExecutor`, `CleanupRecord` |
 | Delete permanently → Deleted | Removed for good (deletes and cleanup commands) | actions `delete`, `tool` |
-| Move to Trash → Put back | Goes to the Trash and can come back | action `trash`, `TrashPutBack` |
+| Move to Trash → Moved to the Trash, Put back | Goes to the Trash and can come back; what is there reads **In the Trash** (#768) | action `trash`, `TrashPutBack` |
 | Empty from Trash → Deleted from the Trash | Deletes only what CacheDrop moved to the Trash | `TrashEmptying` |
 | Empty Trash → Deleted from the Trash | Deletes everything in the Trash that was there when its sheet opened, including your own trashed files; Finder's own word (#605) | `TrashEmptying.emptyWholeTrash` |
 | Remove local copies | Frees iCloud files' space on this Mac | action `evict` |
@@ -91,7 +91,7 @@ The names CacheDrop shows, what they mean, and where they live in code. Copy fol
 | View Overview | Onboarding's one button when the first scan found nothing to clean (#783) | `OnboardingScanStep` |
 | Scan again | Any action that scans: Overview's and Storage trends' bar, Locations, a location's recovery, onboarding's failure and the Protected items notice (#767) | `CatalogCleanupModel`, `ExploreStorage` |
 | Add folder… | Pick a folder to remember and scan now and at each launch; on Overview and Locations (#767) | `chooseFolderForScan`, `RememberedLocations` |
-| Dry run | Runs the whole flow; nothing changes | `dryRun` |
+| Dry run | Runs the whole flow; nothing changes. **Dry run · Nothing changes** before a run, **Dry run · Nothing changed** after; the Settings toggle reads **Dry run** (#768) | `dryRun`, `DryRunToggle` |
 | Measured freed space, Freed | Free space measured around each item, not the estimate; History rows note it **Freed** | `MeasuredFreedSpace`, `CleanupHistoryRun.headline` |
 | Free up | Smart clean's card title over what its ticked items release; its button reads **Clean up X** with the same X; the Cleanup plan's card says **Ready to clean** (Decision 173) | `SmartCleanSummary` |
 | Up to, About | A size that's an upper bound or an estimate | `SizeEstimate` |
