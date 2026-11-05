@@ -22,4 +22,11 @@ public struct CategorySelection: Sendable {
         state = chosen.isEmpty ? .unchecked : full.isSubset(of: selected) ? .checked : .mixed
         toggle = !together.isSubset(of: selected) ? .choose(together) : !chosen.isEmpty ? .clear(all) : .showItems
     }
+    /// A group whose `candidates` are never ticked together, such as Worth a look's apps (#781): its checkbox opens the list
+    /// to tick them one by one, or clears what's ticked.
+    public init(oneByOne candidates: [Candidate], selected: Set<String>) {
+        let all = Set(candidates.map(\.id)), chosen = all.intersection(selected)
+        state = chosen.isEmpty ? .unchecked : all.isSubset(of: selected) ? .checked : .mixed
+        toggle = chosen.isEmpty ? .showItems : .clear(all)
+    }
 }

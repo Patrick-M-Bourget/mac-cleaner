@@ -2851,6 +2851,63 @@ extension CatalogCleanupUITests {
         XCTAssertTrue(FileManager.default.fileExists(atPath: file.path))
     }
 
+    /// #781, Decision 188: an app not opened in 6 months is under Worth a look, unticked, with the month it was last opened;
+    /// one opened lately, or whose last-opened date is unknown, isn't. Ticked there, it is ticked on Applications too and joins
+    /// Smart clean's review, going to the Trash as an uninstall does.
+    @MainActor func testSmartCleanSuggestsAnAppNotOpenedInSixMonths() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        let state = try configureIsolatedState(app)
+        let home = try configureCatalogHome(app)
+        turnOnDryRun(app)
+        defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
+        let old = try addApp("Old Synth", id: "com.maker.oldsynth", bytes: 50_000, in: home)
+        let fresh = try addApp("Fresh Pad", id: "com.maker.freshpad", bytes: 50_000, in: home)
+        let unknown = try addApp("Mystery Tool", id: "com.maker.mystery", bytes: 50_000, in: home)
+        // What Spotlight would say (a DEBUG seam): Old Synth last opened 400 days ago, Fresh Pad 10; Mystery Tool unknown.
+        let opened = Date().addingTimeInterval(-400 * 86_400), iso = ISO8601DateFormatter()
+        try "com.maker.oldsynth \(iso.string(from: opened))\ncom.maker.freshpad \(iso.string(from: Date().addingTimeInterval(-10 * 86_400)))\n"
+            .write(to: home.appendingPathComponent(".cachedrop-test-last-opened"), atomically: true, encoding: .utf8)
+        let month = DateFormatter()
+        month.locale = Locale(identifier: "en_US_POSIX"); month.dateFormat = "MMMM yyyy"
+        app.launch()
+        waitForCatalogScan(app)
+        app.typeKey("2", modifierFlags: .command)
+
+        XCTAssertTrue(app.descendants(matching: .any)["smartCleanWorthALook"].waitForExistence(timeout: 10))
+        let group = app.checkBoxes["smartCleanSuggestion-apps"]
+        XCTAssertTrue(group.exists)
+        XCTAssertEqual(group.value as? Int, 0, "Never ticked for you")
+        XCTAssertEqual(app.staticTexts.matching(NSPredicate(format: "label == %@ OR value == %@", "Apps you haven’t opened in 6 months", "Apps you haven’t opened in 6 months")).count, 1)
+        let count = app.staticTexts["smartCleanSummary"], total = app.staticTexts["smartCleanSummaryValue"]
+        let read = { (element: XCUIElement) in element.value as? String ?? element.label }
+        let countBefore = read(count), totalBefore = read(total)
+        // Its checkbox never ticks every app at once: it opens them, to tick one by one.
+        revealAndClick(group, in: app)
+        let row = app.checkBoxes["smartCleanSuggestedApp-" + old.path]
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        XCTAssertEqual(row.value as? Int, 0)
+        XCTAssertFalse(app.checkBoxes["smartCleanSuggestedApp-" + fresh.path].exists, "Opened lately")
+        XCTAssertFalse(app.checkBoxes["smartCleanSuggestedApp-" + unknown.path].exists, "Unknown is never taken as old")
+        let line = "Last opened " + month.string(from: opened)
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label == %@ OR value == %@", line, line)).firstMatch.exists, line)
+
+        revealAndClick(row, in: app)
+        XCTAssertEqual(row.value as? Int, 1)
+        XCTAssertNotEqual(read(count), countBefore, "Ticked, it is in Smart clean's selection")
+        XCTAssertEqual(read(total), totalBefore, "It goes to the Trash, so Free up X is as it was")
+        app.buttons["smartCleanCleanUp"].click()
+        XCTAssertTrue(reviewLine(app, "movedToTrash", "apps").waitForExistence(timeout: 10), "The review includes it")
+        app.buttons["Cancel"].click()
+
+        // One selection: Applications shows it ticked.
+        app.typeKey("4", modifierFlags: .command)
+        let summary = app.staticTexts["applicationsSummary"]
+        XCTAssertTrue(summary.waitForExistence(timeout: 10))
+        XCTAssertTrue(read(summary).contains("1 item"), read(summary))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: old.path))
+    }
+
     /// #306, #375: a Smart clean run rescans by itself. While that scan runs, with its progress in the bar, the page keeps
     /// the rows the run left, dimmed (#308), never skeleton rows, and what the run cleaned is gone at once; then the page
     /// fills again and can be cleaned once more.

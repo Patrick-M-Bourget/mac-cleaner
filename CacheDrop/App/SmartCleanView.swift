@@ -18,6 +18,8 @@ struct SmartCleanView: View {
     @State private var nothingToClean = false
     /// Worth a look's open rows, this page's own (Decision 48: each screen keeps its open state).
     @State private var worthALookOpen: Set<CatalogCategory> = []
+    /// Whether Worth a look's apps row shows its apps (#781), this page's own too.
+    @State private var unopenedAppsOpen = false
     private var model: CatalogCleanupModel { selection.catalog }
 
     var body: some View {
@@ -115,17 +117,22 @@ struct SmartCleanView: View {
     }
 
     /// Worth a look (#780, Decision 178): a quiet group under the rows, above the caption, of the files from deleted apps the
-    /// recommended plan doesn't take, never ticked for you, their ticks shared with Applications. Nothing in it, no header.
+    /// recommended plan doesn't take, and the apps not opened in 6 months (#781, Decision 188), never ticked for you, their
+    /// ticks shared with Applications. Nothing in it, no header.
     @ViewBuilder private var worthALook: some View {
-        let items = model.worthALookCandidates
+        let items = model.worthALookCandidates, apps = model.worthALookApps
         let rows = WorthALook.rows(items, catalog: model.catalog)
-        if model.hasScanned, !rows.isEmpty {
+        if model.hasScanned, !rows.isEmpty || !apps.isEmpty {
             VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
                 Text(WorthALook.title).font(CacheDropDesign.TypeStyle.section).accessibilityAddTraits(.isHeader)
                     .accessibilityIdentifier("smartCleanWorthALook")
                 VStack(alignment: .leading, spacing: 0) {
                     ForEach(rows) { row in
                         suggestion(row, items: items)
+                        Divider().padding(.vertical, CacheDropDesign.Space.md)
+                    }
+                    if !apps.isEmpty {
+                        unopenedApps(apps)
                         Divider().padding(.vertical, CacheDropDesign.Space.md)
                     }
                 }.waitingForScan(model.isScanning)
@@ -149,6 +156,32 @@ struct SmartCleanView: View {
         } items: {
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(row.rules) { rule in CatalogItemRows(model: model, rule: rule, only: Set(found.map(\.id))) }
+            }
+        }
+    }
+
+    /// Apps you haven't opened in 6 months (#781, Decision 188): one category row with the Apps badge, its apps behind
+    /// "Choose apps · N", largest first, each the row Applications draws with "Last opened <month year>". Its checkbox never
+    /// ticks every app at once: it opens the apps, or clears what's ticked. Ticking an app ticks it and its files as on Applications.
+    private func unopenedApps(_ apps: [Candidate]) -> some View {
+        let selection = model.oneByOneSelection(model.worthALookAppItems)
+        let sized = apps.compactMap { app in app.uninstall.map { (target: $0, size: model.uninstallSize(ofRow: $0.path) ?? SizeEstimate(app)) } }
+            .sorted { ($0.size.sortBytes, $1.target.name) > ($1.size.sortBytes, $0.target.name) }
+        let expanded = $unopenedAppsOpen
+        return CategoryRow(category: .apps, state: selection.state, title: WorthALook.appsTitle, detail: "", size: SizeEstimate(sum: sized.map(\.size)).text,
+                           enabled: model.canEdit, identifier: "smartCleanSuggestion-apps", itemCount: sized.count, chooseNoun: "apps", expanded: expanded,
+                           toggle: { if model.toggle(selection) { expanded.wrappedValue = true } }) {
+            EmptyView()
+        } items: {
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(sized, id: \.target.path) { app in
+                    CategoryRow(category: .apps, state: model.selectionState(ofRow: app.target.path), title: app.target.name,
+                                detail: app.target.lastOpened.map { WorthALook.lastOpenedText($0) } ?? "", size: app.size.text,
+                                enabled: model.canChoose(model.uninstallItems(ofRow: app.target.path)), identifier: "smartCleanSuggestedApp-" + app.target.path,
+                                itemCount: nil, icon: AppIcon.of(app.target.path), expanded: .constant(false),
+                                toggle: { _ = model.toggleRow(app.target.path) }) { EmptyView() } items: { EmptyView() }
+                    if app.target.path != sized.last?.target.path { Divider().padding(.vertical, CacheDropDesign.Space.md) }
+                }
             }
         }
     }

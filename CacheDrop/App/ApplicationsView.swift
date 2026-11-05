@@ -445,8 +445,7 @@ struct ApplicationsView: View {
     /// The size a row shows, and Size sorts by: shared items count on no product's row, so the page counts them once
     /// (#288, Decisions 51 and 52).
     private func size(of entry: InventoryEntry) -> SizeEstimate {
-        let uninstall = catalog.uninstallItems(ofRow: entry.id)
-        return uninstall.isEmpty ? entry.size : SizeEstimate(sum: uninstall.filter(\.sharedBy.isEmpty).map(SizeEstimate.init))
+        catalog.uninstallSize(ofRow: entry.id) ?? entry.size
     }
 
     /// A row; an app CacheDrop can uninstall (#177) has a checkbox for the app and its files, the rest have none. One that

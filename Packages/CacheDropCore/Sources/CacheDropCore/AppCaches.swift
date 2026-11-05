@@ -296,8 +296,10 @@ public struct InstalledApp: Sendable, Hashable {
     public let path: String
     /// Who made it, as its bundle says (a plug-in's Audio Unit maker or copyright line); nil when it doesn't say.
     public let maker: String?
-    public init(name: String, bundleID: String, path: String, maker: String? = nil) {
-        self.name = name; self.bundleID = bundleID; self.path = path; self.maker = maker
+    /// When it was last opened, as Spotlight keeps it (`kMDItemLastUsedDate`, #781); nil when unknown, never "never opened".
+    public let lastOpened: Date?
+    public init(name: String, bundleID: String, path: String, maker: String? = nil, lastOpened: Date? = nil) {
+        self.name = name; self.bundleID = bundleID; self.path = path; self.maker = maker; self.lastOpened = lastOpened
     }
 }
 

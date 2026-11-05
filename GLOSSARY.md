@@ -42,7 +42,8 @@ The names CacheDrop shows, what they mean, and where they live in code. Copy fol
 | item | One thing a rule found on disk | `Candidate` |
 | recommended | Items Smart clean ticks by default | `RecommendedPlan` |
 | Old downloads | Smart clean's row for the downloads it takes, those nothing opened or changed in 7 days; its line says so (#342, #779) | `CatalogCategory.smartCleanTitle`, `CatalogCategory.oldDownloadsDetail` |
-| Worth a look | Smart clean's quiet group between its ticked categories and its caption: the files from deleted apps it doesn't take, never ticked for you; shown only when it found something (#780) | `WorthALook` |
+| Worth a look | Smart clean's quiet group between its ticked categories and its caption: the files from deleted apps it doesn't take, and the apps you haven’t opened in 6 months, never ticked for you; shown only when it found something (#780, #781) | `WorthALook` |
+| Apps you haven’t opened in 6 months, Last opened <month year> | Worth a look's row of the apps CacheDrop can uninstall that Spotlight says were last opened 180 days or more ago, ticked one by one; each app's line reads **Last opened March 2026**. Unknown is never "never opened" (#781, Decision 188) | `WorthALook.unopenedApps`, `WorthALook.lastOpenedText` |
 | Weekly reminder | The opt-in weekly notification of what Smart clean had at the last scan | `WeeklyReminderController`, `WeeklyReminderSchedule` |
 | ticked / selection | What will be cleaned; shared by Smart clean, the plan and Applications | `CleanupSelections` |
 | scanned location | A folder CacheDrop scans; Downloads is **Built in** | `ScannedLocation`, `RememberedLocations` |
