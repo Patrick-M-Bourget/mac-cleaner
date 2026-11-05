@@ -207,7 +207,7 @@ public enum BuiltInCatalog {
     /// The catalog as the app uses it, with installed apps found through LaunchServices.
     public static let rules: [CleanupRule] = rules(apps: SystemAppLookup())
     /// The catalog with installed apps found by `apps`. Tests pass a fake, so they never depend on this Mac's apps.
-    public static func rules(apps: any AppLookup) -> [CleanupRule] { fixedRules + BrowserCaches.rules + AppDataCaches.rules(apps: apps) + AppCaches.rules(apps: apps) + dockerRules + developerDeviceRules + guidanceRules
+    public static func rules(apps: any AppLookup) -> [CleanupRule] { fixedRules + BrowserCaches.rules + AppDataCaches.rules(apps: apps) + FinalCutGeneratedMedia.rules(apps: apps) + AppCaches.rules(apps: apps) + dockerRules + developerDeviceRules + guidanceRules
         + TemporaryFiles.rules(apps: apps) + AITools.rules
         + AppRuleFamily.rules }
     private static let fixedRules: [CleanupRule] = [
@@ -482,6 +482,8 @@ public struct Catalog: Sendable {
         var dockerUsage: [String: Result<[DockerStorageCategory], ToolDryRunError>] = [:]
         // simctl's lists are read once per scan for both simulator rules (#134).
         var simulators: [String: Result<SimulatorInventory, ToolDryRunError>] = [:]
+        // Final Cut Pro libraries are searched for once per scan, for all three of its rules (#399).
+        var finalCutLibraries: [URL]?
         let overridden = Set(overriddenRules(home: home, systemRoot: systemRoot).map(\.id))
         // Guidance rules are sized by `guidance(home:)` and never become candidates.
         let checked = rulesToRead.filter { $0.action != .guidance && !overridden.contains($0.id) && ($0.base == .home || userBase != nil) }
@@ -495,6 +497,14 @@ public struct Catalog: Sendable {
             guard rule.action != .tool || toolURL != nil else { return remnants.map { $0.found(under: base) } }
             scanned.append(rule.id)
             for location in rule.locations where Self.cantRead(location, under: base) { notMeasured[rule.id, default: []].insert(location) }
+            // Final Cut Pro's generated media is in each library the library search finds, renamed or external (#178, #399).
+            if FinalCutGeneratedMedia.ruleIDs.contains(rule.id) {
+                guard access != .notGranted else { return [] }
+                let libraries = finalCutLibraries ?? LibrarySearch.find(extensions: [FinalCutGeneratedMedia.libraryExtension], home: base, systemRoot: systemRoot,
+                                                                        sizer: sizer, sizesLibraries: false).found[FinalCutGeneratedMedia.libraryExtension]?.map(\.url) ?? []
+                finalCutLibraries = libraries
+                return finalCutGeneratedMedia(rule, in: libraries, sizer: sizer)
+            }
             if case .docker = rule.items, let toolURL {
                 let usage = dockerUsage[toolURL.path] ?? DockerDiskUsage.read(toolURL)
                 if dockerUsage[toolURL.path] == nil, case .failure(let error) = usage { notes.append(CatalogNote(ruleID: rule.id, text: DockerDiskUsage.notice(error))) }

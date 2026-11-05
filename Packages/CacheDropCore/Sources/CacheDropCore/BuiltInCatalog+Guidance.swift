@@ -35,10 +35,11 @@ extension BuiltInCatalog {
                      locations: [], protected: true,
                      Guidance(sizing: .libraries(extension: "photoslibrary"), place: .app(bundleID: "com.apple.Photos"), placeName: "Photos",
                               learnMore: URL(string: "https://support.apple.com/en-au/108345"))),
-        // Every Final Cut Pro library, renamed or external (#178). Generated media is removed in Final Cut itself:
-        // File > Delete Generated Library Files (Apple Support 119610). Bundle identifier `com.apple.FinalCut`.
+        // Every Final Cut Pro library, renamed or external (#178). The generated media inside one is offered under Photo and
+        // video (`FinalCutGeneratedMedia`, #399); any stored outside a library is removed in Final Cut itself: File > Delete
+        // Generated Library Files (Apple Support 119610). Bundle identifier `com.apple.FinalCut`.
         guidanceRule("final-cut-libraries", "Final Cut Pro libraries",
-                     detail: "Your Final Cut Pro libraries, with the media Final Cut generated. To remove generated media, select a library in Final Cut Pro, then choose File › Delete Generated Library Files. Render files are made again as you work; optimized and proxy media must be created again, and that needs the original media online.",
+                     detail: "Your Final Cut Pro libraries; Photo and video offers the generated media inside them, and File › Delete Generated Library Files in Final Cut Pro removes any stored outside one.",
                      locations: [], protected: true,
                      Guidance(sizing: .libraries(extension: "fcpbundle"), place: .app(bundleID: "com.apple.FinalCut"), placeName: "Final Cut Pro",
                               learnMore: URL(string: "https://support.apple.com/en-au/119610"), onlyWhenInstalled: true)),

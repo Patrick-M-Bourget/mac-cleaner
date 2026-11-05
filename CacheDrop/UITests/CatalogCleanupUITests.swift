@@ -16,6 +16,37 @@ import AppKit
     return home
 }
 
+/// An app bundle in the fixture home's Applications folder.
+func addApp(_ name: String, id: String, bytes: Int, copyright: String? = nil, in home: URL) throws -> URL {
+    let bundle = home.appendingPathComponent("Applications/\(name).app")
+    try FileManager.default.createDirectory(at: bundle.appendingPathComponent("Contents/MacOS"), withIntermediateDirectories: true)
+    var info: [String: Any] = ["CFBundleIdentifier": id, "CFBundleExecutable": "main"]
+    if let copyright { info["NSHumanReadableCopyright"] = copyright }
+    try PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0).write(to: bundle.appendingPathComponent("Contents/Info.plist"))
+    try Data(repeating: 1, count: bytes).write(to: bundle.appendingPathComponent("Contents/MacOS/main"))
+    return bundle
+}
+
+/// #719's Audio software rows in the fixture home: Splice sounds; Waves' sample libraries with Waves Central installed, and
+/// Arturia's resources without Arturia Software Center (the home stands in for the system root); Reason's Pangea device; and
+/// the Loopback driver, at `Library/Audio/Plug-Ins/HAL/Loopback.driver`.
+func addAudioSoftware(in home: URL) throws {
+    func write(_ relative: String, bytes: Int = 20_000) throws {
+        let file = home.appendingPathComponent(relative)
+        try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data(repeating: 1, count: bytes).write(to: file)
+    }
+    try write("Splice/sounds/kick.wav")
+    try write("Applications/Waves/Data/Instrument Data/Waves Sample Libraries/piano.wav")
+    try write("Library/Arturia/Presets/lead.preset")
+    _ = try addApp("Waves Central", id: "com.wavesaudio.wavescentral", bytes: 10_000, in: home)
+    try write("Library/Application Support/Propellerhead Software/Optional REs/Pangea/data.bin", bytes: 60_000)
+    let driver = home.appendingPathComponent("Library/Audio/Plug-Ins/HAL/Loopback.driver")
+    try FileManager.default.createDirectory(at: driver.appendingPathComponent("Contents"), withIntermediateDirectories: true)
+    try PropertyListSerialization.data(fromPropertyList: ["CFBundleIdentifier": "com.loop.back"], format: .xml, options: 0)
+        .write(to: driver.appendingPathComponent("Contents/Info.plist"))
+}
+
 /// Turns on the Settings dry run for this launch through the DEBUG-only test seam, for journeys that assert nothing changed.
 @MainActor func turnOnDryRun(_ app: XCUIApplication) {
     app.launchEnvironment["CACHEDROP_TEST_DRY_RUN"] = "1"
@@ -178,10 +209,10 @@ func waitForOverview(_ app: XCUIApplication, file: StaticString = #filePath, lin
 @MainActor func applicationsSection(_ app: XCUIApplication, _ section: String) -> XCUIElement {
     app.disclosureTriangles.matching(NSPredicate(format: "label BEGINSWITH %@", "Choose \(section) · ")).firstMatch
 }
-/// An element by an identifier longer than XCUITest's 128-character limit for identifier queries: a fixture folder's
-/// path makes `overviewLocation:` identifiers that long.
-@MainActor func element(identifier: String, in app: XCUIApplication) -> XCUIElement {
-    app.descendants(matching: .any).matching(NSPredicate(format: "identifier == %@", identifier)).firstMatch
+/// An element by identifier, of any type unless one is named. Identifiers carrying a fixture path (Applications' rows, #271;
+/// `overviewLocation:`) run longer than the 128 characters a subscript query allows, so this matches with a predicate (#273).
+@MainActor func element(_ app: XCUIApplication, _ identifier: String, _ type: XCUIElement.ElementType = .any) -> XCUIElement {
+    app.descendants(matching: type).matching(NSPredicate(format: "identifier == %@", identifier)).firstMatch
 }
 
 @MainActor func revealAndClick(_ element: XCUIElement, in app: XCUIApplication) {
@@ -668,7 +699,7 @@ final class CatalogCleanupUITests: XCTestCase {
         // #350: the installer goes to the Trash, so the total doesn't count it, and nothing on the page moves.
         let total = app.staticTexts["liveSelectionSummaryValue"], before = total.value as? String
         // #481: nothing is selected on Applications, so the count stands alone.
-        XCTAssertFalse(element(identifier: "liveSelectionSummaryElsewhere", in: app).exists)
+        XCTAssertFalse(element(app, "liveSelectionSummaryElsewhere").exists)
         // #484, Decision 92: the card's title is "Ready to clean", as on Smart clean.
         XCTAssertTrue(app.staticTexts["Ready to clean"].exists)
         XCTAssertFalse(app.staticTexts["Potential space released"].exists)
@@ -1674,7 +1705,9 @@ final class AppManagedStorageUITests: XCTestCase {
     }
 
     /// #178: Final Cut Pro libraries, renamed and external, are listed with Final Cut's own steps; opening it reports
-    /// only that it would open, never cleanup done, and nothing in a library changes.
+    /// only that it would open, never cleanup done, and nothing in a library changes. #399: the generated media inside
+    /// each library is offered under Photo and video, render files ticked and optimized and proxy media not, never its
+    /// original media.
     @MainActor func testFinalCutLibrariesAreListedAndOpeningFinalCutCleansNothing() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
@@ -1682,7 +1715,9 @@ final class AppManagedStorageUITests: XCTestCase {
         let home = try configureCatalogHome(app)
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
         let render = home.appendingPathComponent("Movies/Untitled.fcpbundle/Event 1/Render Files/a.mov")
-        for file in [render, home.appendingPathComponent("Volumes/Shuttle/Client Cut.fcpbundle/Event 1/Transcoded Media/b.mov")] {
+        let original = home.appendingPathComponent("Movies/Untitled.fcpbundle/Event 1/Original Media/clip.mov")
+        for file in [render, original, home.appendingPathComponent("Movies/Untitled.fcpbundle/Event 1/Transcoded Media/High Quality Media/c.mov"),
+                     home.appendingPathComponent("Volumes/Shuttle/Client Cut.fcpbundle/Event 1/Transcoded Media/Proxy Media/b.mov")] {
             try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
             try Data(repeating: 4, count: 60_000).write(to: file)
         }
@@ -1706,6 +1741,25 @@ final class AppManagedStorageUITests: XCTestCase {
         XCTAssertEqual(app.staticTexts["guidanceStatus"].value as? String, "Test run: would open Final Cut Pro.")
         XCTAssertFalse(app.descendants(matching: .any)["planRule-final-cut-libraries"].exists)
         XCTAssertTrue(FileManager.default.fileExists(atPath: render.path))
+
+        app.buttons["appManagedBack"].click()
+        waitForCatalogScan(app)
+        revealAndClick(app.buttons["overviewCategory-photo-video"], in: app)
+        let renderRule = app.checkBoxes["planRule-final-cut-render-files"]
+        XCTAssertTrue(renderRule.waitForExistence(timeout: 10))
+        XCTAssertEqual(renderRule.value as? Int, 1, "Smart clean's render files start ticked")
+        reveal(renderRule, in: app, nearTop: true)
+        XCTAssertTrue(app.checkBoxes["planProfile-final-cut-render-files-Untitled"].waitForExistence(timeout: 5), "Grouped per library")
+        for (rule, item) in [("final-cut-optimized-media", "Untitled · Event 1"), ("final-cut-proxy-media", "Client Cut · Event 1")] {
+            XCTAssertEqual(app.checkBoxes["planRule-" + rule].value as? Int, 0, rule)
+            reveal(app.checkBoxes["planRule-" + rule], in: app, nearTop: true)
+            let row = app.checkBoxes["planItem-" + item]
+            if !row.waitForExistence(timeout: 2) { expandDisclosures(in: app) }
+            XCTAssertTrue(row.waitForExistence(timeout: 5), item)
+            XCTAssertEqual(row.value as? Int, 0, "\(rule) is offered, never ticked by default")
+        }
+        XCTAssertFalse(app.descendants(matching: .any)["planItem-Original Media"].exists)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: original.path))
     }
 
     /// #179: Lightroom Classic's previews and Smart Previews are separate rows, counted by catalog, each with its own

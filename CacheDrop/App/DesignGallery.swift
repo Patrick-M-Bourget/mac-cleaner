@@ -232,10 +232,9 @@ struct DesignGallery: View {
                                 identifier: "galleryShowGroup", itemCount: 3, chooseVerb: "Show", chooseNoun: "sounds", expanded: .constant(false), toggle: {}) { EmptyView() } items: { EmptyView() }
                     // A read-only sound row; its vendor's installed manager can remove or move it (Decision 157).
                     InspectableItemRow(name: "Example sample library", detail: "Example maker", size: "4.1 GB", symbol: "waveform", inspected: false, inspect: nil,
-                                       reveal: {}, revealIdentifier: "gallerySoundReveal") { EmptyView() }
-                    StatusRow(text: "Example manager can remove or move it", symbol: "shippingbox", identifier: "gallerySoundManager",
-                              action: StatusAction(title: "Open Example manager", identifier: "gallerySoundOpen") {})
-                        .padding(.leading, CacheDropDesign.Space.md * 2 + CacheDropDesign.Size.itemIcon).padding(.bottom, CacheDropDesign.Space.md)
+                                       reveal: {}, revealIdentifier: "gallerySoundReveal",
+                                       status: StatusRow(text: "Example manager can remove or move it", symbol: "shippingbox", identifier: "gallerySoundManager",
+                                                         action: StatusAction(title: "Open Example manager", identifier: "gallerySoundOpen") {})) { EmptyView() }
                     // A driver the user can move: its place and Reveal in Finder before it's ticked (Decision 158).
                     CategoryRow(category: .audioSoftware, state: .unchecked, title: "Example driver", detail: "Example maker", size: "4 MB", enabled: true,
                                 identifier: "galleryDriverRow", itemCount: nil, expanded: .constant(false), toggle: {}) {

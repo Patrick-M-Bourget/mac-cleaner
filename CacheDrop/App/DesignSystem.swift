@@ -94,6 +94,9 @@ enum CacheDropDesign {
         static let badgeIcon = Font.system(size: 16, weight: .regular)
         /// A list row's name, explanations under a heading, captions and secondary lines, and command or tool output.
         static let rowTitle = Font.body.weight(.medium); static let note = Font.callout; static let caption = Font.caption; static let code = Font.caption.monospaced()
+        /// A link in a list row (#718): an item's Reveal in Finder, and a status line's Open <tool> or Reveal in Finder under a
+        /// row's name, all one size.
+        static let rowLink = Font.caption
     }
     /// Reference colours belong here, never in individual screens. Keep system text/focus colours.
     static func adaptive(light: UInt32, dark: UInt32) -> Color {
@@ -938,9 +941,10 @@ struct CategoryRow<Notice: View, Items: View>: View {
             // below the badge (#298).
             CategorySelectionHeader(category: category, state: state, title: title, detail: detail, size: size, enabled: enabled,
                                     identifier: identifier, icon: icon, action: toggle) {
-                if detail.isEmpty { notice() }
+                if detail.isEmpty { notice().font(CacheDropDesign.TypeStyle.rowLink) }
             }
-            if !detail.isEmpty { notice().padding(.leading, CacheDropDesign.Size.categoryContentIndent) }
+            // Its status lines keep their own text style; their links take the row's link size (#718).
+            if !detail.isEmpty { notice().font(CacheDropDesign.TypeStyle.rowLink).padding(.leading, CacheDropDesign.Size.categoryContentIndent) }
             if let itemCount {
                 ActionDisclosureGroup("\(chooseVerb) \(chooseNoun) · \(itemCount)" + (staying == 1 ? " · 1 stays" : staying > 1 ? " · \(staying) stay" : ""), isExpanded: $expanded) {
                     items().padding(.top, CacheDropDesign.Space.sm)
@@ -1037,9 +1041,18 @@ struct InspectableItemRow<Selection: View>: View {
     /// Shows the item in Finder: its own "Reveal in Finder" link after the size, never a row click (Decision 72).
     var reveal: (() -> Void)? = nil
     var revealIdentifier = ""
+    /// A line under the name of a row with no selection, such as a sound's "<tool> can remove or move it" (#714, #718).
+    var status: StatusRow? = nil
     @ViewBuilder var selection: () -> Selection
     private var summary: String { detail.isEmpty ? size : detail + ", " + size }
     var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            row
+            // In the name's column: past the row's padding, the icon and the gap after it.
+            if let status { status.font(CacheDropDesign.TypeStyle.rowLink).padding(.leading, CacheDropDesign.Space.md * 2 + CacheDropDesign.Size.itemIcon).padding(.bottom, CacheDropDesign.Space.md) }
+        }.background(inspected ? CacheDropDesign.focus.opacity(CacheDropDesign.Opacity.inspectedItem) : .clear, in: RoundedRectangle(cornerRadius: CacheDropDesign.Radius.row))
+    }
+    private var row: some View {
         HStack(alignment: .center, spacing: CacheDropDesign.Space.md) {
             selection()
             if let inspect {
@@ -1051,12 +1064,11 @@ struct InspectableItemRow<Selection: View>: View {
             }
             if let reveal {
                 // An inert row's link is its one control, so it carries the detail and size too (#207).
-                Button("Reveal in Finder", action: reveal).buttonStyle(.link).font(CacheDropDesign.TypeStyle.caption)
+                Button("Reveal in Finder", action: reveal).buttonStyle(.link).font(CacheDropDesign.TypeStyle.rowLink)
                     .accessibilityLabel("Reveal \(name) in Finder").accessibilityValue(inspect == nil ? summary : "")
                     .accessibilityIdentifier(revealIdentifier)
             }
         }.padding(CacheDropDesign.Space.md)
-            .background(inspected ? CacheDropDesign.focus.opacity(CacheDropDesign.Opacity.inspectedItem) : .clear, in: RoundedRectangle(cornerRadius: CacheDropDesign.Radius.row))
     }
     private var content: some View {
         HStack(spacing: CacheDropDesign.Space.md) {

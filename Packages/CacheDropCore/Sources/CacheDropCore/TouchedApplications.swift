@@ -58,7 +58,7 @@ extension CatalogExecutionResult {
             if item.uninstall != nil { touch(item) } else if AppRuleFamily.of(ruleID: item.ruleID) == .removedAppLeftovers, !touchLeftover(item) { return nil }
         }
         // A product is read again against the inventory it was found in; a Reason device, as the full scan reads it (#716).
-        let products = Set(shown.compactMap { $0.uninstall?.plugIn == nil ? nil : $0.uninstall?.path }.filter { !AudioSoftware.isDevice($0) }
+        let products = Set(shown.filter { $0.uninstall?.plugIn != nil && !AudioSoftware.isDevice($0) }.compactMap(\.uninstall?.path)
                            + shown.flatMap(\.sharedBy))
         guard touched.rows.intersection(products).isSubset(of: Set(plugIns?.products.map(\.id) ?? [])) else { return nil }
         return touched
@@ -77,21 +77,25 @@ extension TouchedApplications {
         guard !rows.isEmpty else { return kept }
         let installed = apps.installedApps() ?? [], read = ReadReceipts(receipts, home: home)
         let products = Set(plugIns?.products.map(\.id) ?? []).intersection(rows)
-        let appItems = ApplicationsInventory.withUninstallers(installed, excluding: own, home: home)
+        let readApps = ApplicationsInventory.withUninstallers(installed, excluding: own, home: home)
             .filter { rows.contains(URL(fileURLWithPath: $0.app.path).standardizedFileURL.path) }
-            .flatMap { app, uninstaller in
-                AppUninstall.scan(app, uninstaller: uninstaller, excluding: own, home: home, apps: apps, receipts: read, leftovers: leftovers, offered: offered,
-                                  exclusions: exclusions)
-            }
+        let appItems = readApps.flatMap { app, uninstaller in
+            AppUninstall.scan(app, uninstaller: uninstaller, excluding: own, home: home, apps: apps, receipts: read, leftovers: leftovers, offered: offered,
+                              exclusions: exclusions)
+        }
         let plugInItems = plugIns.map { inventory in
             products.isEmpty ? [] : PlugInUninstall.scan(inventory, home: home, systemRoot: systemRoot, installed: installed, receipts: receipts,
                                                          offered: offered + leftovers + kept.filter { $0.uninstall?.plugIn == nil } + appItems,
                                                          exclusions: exclusions, only: products)
         } ?? []
-        // A driver or Reason device read again (#716): its item, as the full scan finds it now; nothing once it is gone.
-        let audioItems = AudioSoftware.uninstallItems(home: home, systemRoot: systemRoot, exclusions: exclusions, only: rows)
+        // A driver or Reason device read again (#716): its item, as the full scan finds it now; nothing once it is gone. Their
+        // folders are read only when a touched row may be one (#718).
+        let audio = audioRows(apps: Set(readApps.map { URL(fileURLWithPath: $0.app.path).standardizedFileURL.path }), products: products)
+        let audioItems = audio.isEmpty ? [] : AudioSoftware.uninstallItems(home: home, systemRoot: systemRoot, exclusions: exclusions, only: audio)
         return kept + appItems + plugInItems + audioItems
     }
+    /// The touched rows that may be a driver or Reason device: neither an app read again (`apps`) nor a plug-in product.
+    func audioRows(apps: Set<String>, products: Set<String>) -> Set<String> { rows.subtracting(apps).subtracting(products) }
 }
 
 extension PlugInUninstall {

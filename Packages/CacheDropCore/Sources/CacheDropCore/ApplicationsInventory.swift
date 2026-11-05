@@ -121,7 +121,7 @@ public enum ApplicationsInventory {
     /// The maker's own tool, when it is among `apps` (Decision 41): tied to the entry by its bundle ID's vendor, never by name.
     public static func vendorTool(for entry: InventoryEntry, among apps: [InventoryEntry]) -> InventoryEntry? {
         guard let tool = VendorTool.known.first(where: { $0.makes(entry.bundleID) }) else { return nil }
-        return apps.first { $0 != entry && $0.bundleID?.lowercased() == tool.bundleID }
+        return tool.installed(among: apps.filter { $0 != entry })
     }
 
     /// The app's own uninstaller, or its maker's tool (Decision 41, #177, #281): an "Uninstall…" app in the app's own folder (not
@@ -182,6 +182,8 @@ public struct VendorTool: Sendable, Equatable {
                                VendorTool(vendor: "com.arturia", bundleID: "com.arturia.arturiasoftwarecenter"),
                                VendorTool(vendor: "com.softube", bundleID: "com.softube.softubecentral")]
 
+    /// The tool, when it is among `apps`: the app with exactly its bundle ID, never one by name (Decision 41).
+    public func installed(among apps: [InventoryEntry]) -> InventoryEntry? { apps.first { $0.bundleID?.lowercased() == bundleID } }
     /// Whether a bundle ID is this vendor's.
     func makes(_ bundleID: String?) -> Bool { bundleID.map { RemovedAppLeftovers.vendor(of: $0) == vendor } ?? false }
 }

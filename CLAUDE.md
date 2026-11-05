@@ -15,13 +15,13 @@ Run StorageAlerts alone with `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Dev
 
 Verify on this Mac, not by pushing to CI. Tests touch only temp fixture folders, never real user paths.
 
-UI tests drive the screen, so run them only when the user isn't using it. Run only the journeys you changed with `scripts/ui-journeys.sh <testName>...` (`--all` for the suite): it resolves each test's class, clears leftover fixtures, stops on a failed build, keeps failure diagnostics off (they would save system logs that may include other apps' activity) and prints one line per test. Before writing or changing a journey, read `docs/agents/ui-testing.md`: how SwiftUI views appear to XCUITest, and the sandboxed runner's limits and the opt-in window comparison tool.
+UI tests drive the screen, so run them only when the user isn't using it. Run only the journeys you changed with `scripts/ui-journeys.sh <testName>...` (`--all` for the suite): it resolves each test's class, clears leftover fixtures, stops on a failed build, keeps failure diagnostics off (they would save system logs that may include other apps' activity), prints one line per test, and names and reruns once any journey that never reported a result. Before writing or changing a journey, read `docs/agents/ui-testing.md`: how SwiftUI views appear to XCUITest, and the sandboxed runner's limits and the opt-in window comparison tool.
 
 The scheme keeps no test attachments and never records the screen (#153). Never take full-screen screenshots; capture only CacheDrop's window.
 
 ## Workflow
 
-- One logical change per commit and about 500 lines or less per PR. Run `scripts/check.sh` before every commit: a full pass records the pass stamp (`scripts/check-stamp.sh`), and a hook in the owner's settings refuses a commit whose content it didn't pass on. Merge `main` in with `--no-commit`, check, then commit.
+- One logical change per commit and about 500 lines or less per PR. Run `scripts/check.sh` before every commit: a full pass records the pass stamp (`scripts/check-stamp.sh`), and a hook in the owner's settings refuses a commit whose content it didn't pass on. Merge `main` in with `--no-commit`, run `scripts/order-decisions.py` (the union merge of `docs/RESET.md` can leave Decisions out of order), check, then commit.
 - Push a branch, open a PR (`/pr`) based on `main`, and say what to smoke-test locally. After creating or editing a PR and immediately before merging, validate its closing references as `docs/agents/issue-tracker.md` describes. Merge only after the user confirms. A PR based on another PR's branch closes when that branch is deleted on merge.
 - Commit no screenshots, evidence reports or session essays. A finding that matters goes into `docs/RESET.md` (Decisions) or an issue.
 
