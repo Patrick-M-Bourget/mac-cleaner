@@ -25,6 +25,12 @@ class CaptureArgumentTests(unittest.TestCase):
         self.assertEqual(args.scenario, 'audio-software')
         self.assertEqual(args.destination, Path('/tmp/after'))
 
+    def test_each_named_scenario_is_accepted(self):
+        self.assertEqual(visual_check.SCENARIOS, ('overview', 'audio-software', 'photo-video'))
+        for scenario in visual_check.SCENARIOS:
+            with self.subTest(scenario=scenario):
+                self.assertEqual(self.parse('--scenario', scenario).scenario, scenario)
+
     def test_an_unknown_scenario_is_refused_before_building(self):
         with self.assertRaises(SystemExit):
             self.parse('--scenario', 'nowhere')

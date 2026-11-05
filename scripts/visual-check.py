@@ -13,7 +13,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 # Each is a `case` in VisualCaptureUITests, which builds its fixtures and the pages it captures (#728).
-SCENARIOS = ("overview", "audio-software")
+SCENARIOS = ("overview", "audio-software", "photo-video")
 
 
 def output_folder(destination):
