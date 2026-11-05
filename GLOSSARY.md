@@ -53,7 +53,7 @@ The names CacheDrop shows, what they mean, and where they live in code. Copy fol
 | DAWs and apps, Sounds and samples, Drivers, Other makers | Audio software's groups on Applications beside Plug-ins: audio apps by bundle ID; vendor and Apple sound libraries, Splice's sounds and Rack Extensions (read-only); audio and MIDI drivers; under Plug-ins, the last group, of products with no maker (Decision 151) | — |
 | Reason's additional devices | Reason 13's Humana, Pangea, Klang and Radical Piano (`Optional REs`), listed with the plug-ins and moved to the Trash one by one; Reason Companion installs them again (Decision 154) | `AudioSoftware.optionalDevices` |
 | Rack Extensions, Splice sounds | Sounds and samples' read-only rows for the shop Rack Extensions folder and Splice's sounds folder (Decision 154) | `AudioSoftware.sounds` |
-| Show … · N | A category row's disclosure where nothing inside can be ticked ("Show sounds · 3"); Choose … · N where something can (Decision 154) | `CategoryRow.chooseVerb` |
+| Show … · N | A category row's disclosure where nothing inside can be ticked ("Show sounds · 3"), or that opens to groups (Audio software's "Show groups · 4", Decision 175); Choose … · N where something can (Decision 154) | `CategoryRow.chooseVerb` |
 | plug-in product, vendor content | A plug-in and its formats; content shared by a vendor's products | `PlugInInventory`, `PlugInUninstall` |
 | local copies | iCloud files kept on this Mac; removing them keeps them in iCloud | `ICloudCopies`, action `evict` |
 | "X is open" | An app or tool is using an item, so it's skipped; **Quit X** may free it | `CandidateHold` |
@@ -95,6 +95,7 @@ The names CacheDrop shows, what they mean, and where they live in code. Copy fol
 | Free up | Smart clean's card title over what its ticked items release; its button reads **Clean up X** with the same X; the Cleanup plan's card says **Ready to clean** (Decision 173) | `SmartCleanSummary` |
 | Up to, About | A size that's an upper bound or an estimate | `SizeEstimate` |
 | Unknown | A size CacheDrop couldn't read, never shown as zero or empty | `SizeEstimate.unknown`, `SizeFormatter` |
+| Empty | In the size column, muted: an Overview category or an Applications section or Audio software group that found nothing, one row with nothing under it (Decisions 76, 176); never for what couldn't be read | `CatalogOverview.Row.isEmpty`, `ApplicationsSectionContent.empty` |
 | Needs Full Disk Access | Something macOS keeps from CacheDrop without Full Disk Access | `GuidanceSize.notAccessible`, `CatalogOverview.Row.needsAccess` |
 | Rebuildable | Deleted, and its app or tool makes it again (an Overview row's note) | `CleanupAction.delete` |
 | Can be cleaned, Other you can clean | The storage bar's found space, and its fold of smaller categories; Overview's header over its categories and their total (#764) | `StorageMeter`, `StorageBreakdown` |

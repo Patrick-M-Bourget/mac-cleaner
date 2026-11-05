@@ -217,7 +217,8 @@ func waitForOverview(_ app: XCUIApplication, file: StaticString = #filePath, lin
 
 /// Opens Applications with ⌘4 and what's named: "apps" (Apps, and Audio software's DAWs and apps once it is open),
 /// "audio software", "plug-ins" (Audio software's plug-ins and each maker; it opens Audio software too). They start closed and
-/// stay as left until CacheDrop quits (Decision 151), each behind its "Choose" (Decision 153).
+/// stay as left until CacheDrop quits (Decision 151), each behind its "Choose" (Decision 153); Audio software behind "Show groups"
+/// (Decision 175).
 @MainActor func openApplications(_ app: XCUIApplication, _ sections: [String] = []) {
     app.typeKey("4", modifierFlags: .command)
     openApplicationsSections(app, sections)
@@ -230,17 +231,19 @@ func waitForOverview(_ app: XCUIApplication, file: StaticString = #filePath, lin
         XCTAssertTrue(applicationsSection(app, noun).waitForExistence(timeout: 60), "Applications lists its \(noun)")
         // Opening one can show another of the same noun (a maker inside Plug-ins), so look again after each click.
         for _ in 0..<20 {
-            let closed = app.disclosureTriangles.matching(NSPredicate(format: "label BEGINSWITH %@ AND value != 1", "Choose \(noun) · ")).firstMatch
+            let closed = app.disclosureTriangles.matching(NSPredicate(format: "label BEGINSWITH %@ AND value != 1", applicationsDisclosure(noun))).firstMatch
             // A row a click just opened can take a moment to show what is inside it.
             guard closed.waitForExistence(timeout: 1) else { break }
             revealAndClick(closed, in: app)
         }
     }
 }
-/// The first "Choose apps · N" / "Choose plug-ins · N" / "Choose audio software · N" disclosure.
+/// The first "Choose apps · N" / "Choose plug-ins · N" / Audio software's "Show groups · N" disclosure.
 @MainActor func applicationsSection(_ app: XCUIApplication, _ section: String) -> XCUIElement {
-    app.disclosureTriangles.matching(NSPredicate(format: "label BEGINSWITH %@", "Choose \(section) · ")).firstMatch
+    app.disclosureTriangles.matching(NSPredicate(format: "label BEGINSWITH %@", applicationsDisclosure(section))).firstMatch
 }
+/// What a section's disclosure starts with: Audio software opens to its groups (Decision 175).
+private func applicationsDisclosure(_ section: String) -> String { section == "audio software" ? "Show groups · " : "Choose \(section) · " }
 /// An element by identifier, of any type unless one is named. Identifiers carrying a fixture path (Applications' rows, #271;
 /// `overviewLocation:`) run longer than the 128 characters a subscript query allows, so this matches with a predicate (#273).
 @MainActor func element(_ app: XCUIApplication, _ identifier: String, _ type: XCUIElement.ElementType = .any) -> XCUIElement {
