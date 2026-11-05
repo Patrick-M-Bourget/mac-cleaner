@@ -973,11 +973,13 @@ enum CatalogScanStep: Sendable {
 struct CatalogScanProgress {
     var phase = CatalogScanPhase.starting
     var finished = 0
+    /// The last rule discovery finished, for onboarding's badges (#784).
+    var lastFinishedRuleID: String?
     var found: [Candidate] = []
     mutating func apply(_ step: CatalogScanStep) {
         switch step {
         case .discovery(.checking(_, let title, let number, let total)): phase = .location(title: title, number: number, total: total)
-        case .discovery(.finished(_, let number, _, let found)): finished = number; self.found += found
+        case .discovery(.finished(let ruleID, let number, _, let found)): finished = number; lastFinishedRuleID = ruleID; self.found += found
         case .phase(let next): phase = next
         }
     }

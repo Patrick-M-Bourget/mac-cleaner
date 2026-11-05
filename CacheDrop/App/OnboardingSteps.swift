@@ -3,7 +3,7 @@ import SwiftUI
 import CacheDropCore
 
 /// Onboarding's two steps (#783): Welcome shows what CacheDrop looks at, and one sheet then scans, lighting each category's
-/// badge as it finishes, and shows what it found. Plain inputs only, designed in the Design gallery; #784 wires them in.
+/// badge as it finishes, and shows what it found. Plain inputs, designed in the Design gallery; `FirstRunWelcomeView` drives them (#784).
 
 /// The cleanable categories' badges, each over its short name, in rows of five (#783, #784). Welcome shows them all lit;
 /// while scanning, a category still being read stays dimmed and lights up when it finishes, at once with Reduce Motion.
@@ -95,7 +95,7 @@ struct OnboardingScanStep: View {
                 OnboardingIdentity(categories: categories, finished: finished)
                 // The bar's own spinner, so a long category never reads as frozen; the total shows once something is found.
                 HStack(spacing: CacheDropDesign.Space.sm) {
-                    ProgressView().controlSize(.small).accessibilityHidden(true)
+                    ProgressView().controlSize(.small).accessibilityIdentifier("welcomeScanProgress") // VoiceOver hears it busy
                     if found > 0 {
                         Text("Found " + SizeFormatter.text(found) + " so far").font(CacheDropDesign.TypeStyle.note).foregroundStyle(.secondary)
                             .monospacedDigit().accessibilityIdentifier("welcomeFoundSoFar")

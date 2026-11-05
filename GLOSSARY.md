@@ -82,11 +82,8 @@ The names CacheDrop shows, what they mean, and where they live in code. Copy fol
 | Check for updates automatically | The Settings toggle for Sparkle's weekly check, on by default; it never downloads or installs by itself | `AutomaticUpdateChecks`, `ManualUpdater` |
 | Cancel update | Stop waiting for installation while current cleanup and maintenance keep running | `UpdateInstallation.cancel` |
 | Move to Applications | Copy CacheDrop opened from a disk image into Applications, open that copy and quit; **Not now** keeps it where it is for this launch | `MoveToApplicationsModel`, `ApplicationsMove`, `AppBundleLocation` |
-| Request access… | Request the existing basic access before initial preparation | `WelcomeModel.requestAccess` |
-| Scan with current access | Begin preparation without the explicit basic-access setup request | `WelcomeModel.begin` |
-| View results | Open Overview after initial preparation is ready | `WelcomeModel` |
 | Close (onboarding) | Dismiss the guide while preparation continues | `WelcomeModel.finish` |
-| Start scan | Onboarding's one button on Welcome: begins the first scan (#783) | `OnboardingWelcomeStep` |
+| Start scan | Onboarding's one button on Welcome: asks for basic access, then begins the first scan (#783, #784) | `OnboardingWelcomeStep`, `WelcomeModel.start` |
 | Start Smart clean | Onboarding's one button once the first scan is ready: opens Smart clean (#783) | `OnboardingScanStep` |
 | View Overview | Onboarding's one button when the first scan found nothing to clean (#783) | `OnboardingScanStep` |
 | Scan again | Any action that scans | `CatalogCleanupModel`, `ExploreStorage` |
@@ -106,7 +103,7 @@ The names CacheDrop shows, what they mean, and where they live in code. Copy fol
 | Enter license | On a review sheet over the trial's cap, opens Settings, where the License section takes a key | `CleanupAllowance` |
 | Buy | Opens cachedrop.io/buy in the browser; shown beside the price, 29.99 struck through, then 19.99 | `LicensePrice` |
 | Remove from this Mac | Forgets the license key on this Mac; the license itself is unchanged | `LicenseController.remove` |
-| Share setup progress | The opt-in toggle on Welcome and in Settings that sends setup progress | `SetupProgressSharing` |
+| Share setup progress | The opt-in toggle on onboarding's Ready and in Settings that sends setup progress (Decision 174) | `SetupProgressSharing` |
 
 ## Not shown to users
 

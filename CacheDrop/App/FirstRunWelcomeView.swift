@@ -6,17 +6,18 @@ import SwiftUI
 
 /// Owns the initial preparation task independently of the sheet, so Close never stops a scan (#478).
 @MainActor @Observable final class WelcomeModel {
-    enum Step { case welcome, access, scanning, ready, failed }
+    enum Step { case welcome, scanning, ready, failed }
     static let shared = WelcomeModel()
     var isShowing = false
     private(set) var step = Step.welcome
     private(set) var requestingAccess = false
-    private(set) var preparingInventory = false
     private(set) var failure = ""
+    /// Start Smart clean closes the guide onto Smart clean; every other way out opens Overview (#784).
+    private(set) var opensSmartClean = false
     private var introduction = true
     private var catalog: CatalogCleanupModel?
     private var preparation: Task<Void, Never>?
-    var waitsForAccess: Bool { isShowing && (step == .welcome || step == .access) }
+    var waitsForAccess: Bool { isShowing && (step == .welcome || requestingAccess) }
 
     func decideAtLaunch(migration: LegacyStillMigration.Outcome?, stateExisted: Bool) {
         #if DEBUG
@@ -38,34 +39,35 @@ import SwiftUI
         self.catalog = catalog
         if !waitsForAccess { begin() }
     }
-    func showAccess() { step = .access }
-    func reopen() { introduction = true; step = .welcome; isShowing = true }
+    func reopen() { introduction = true; step = .welcome; opensSmartClean = false; isShowing = true }
+    /// Start scan: today's basic access request, then the scan, with the scanning step on screen at once (#784).
+    func start() {
+        step = .scanning
+        Task { await requestAccess() }
+    }
 
-    func requestAccess() async {
-        guard !requestingAccess, let home = CatalogCleanupModel.home else { return }
+    private func requestAccess() async {
+        guard !requestingAccess else { return }
         requestingAccess = true
-        await Task.detached { Self.requestBasicAccess(home: home) }.value
+        if let home = CatalogCleanupModel.home { await Task.detached { Self.requestBasicAccess(home: home) }.value }
         requestingAccess = false
         begin()
     }
     func begin(retry: Bool = false) {
         step = .scanning
         guard preparation == nil, let catalog else { return }
-        preparingInventory = false
         preparation = Task {
             if catalog.isScanning { await catalog.waitForScanCompletion() }
             if retry || catalog.preparedScan == nil { await catalog.rescan() }
             else { await catalog.rescanIfFullDiskAccessGranted() }
             var problem: String?
             while true {
-                preparingInventory = false
                 if catalog.isScanning { await catalog.waitForScanCompletion() }
                 guard let scanID = catalog.preparedScan else {
                     problem = catalog.settingsUnreadable ? CatalogCleanupModel.settingsUnreadableText : "The scan couldn’t finish. Try again or continue with available results."
                     break
                 }
                 let apps = ApplicationsModel.shared
-                preparingInventory = true
                 await apps.load(plugIns: catalog.plugInInventory, scanID: scanID)
                 // Returning from System Settings can start another scan while inventory loads.
                 // Only inventory prepared for the current completed catalog can unlock the workspace.
@@ -82,9 +84,11 @@ import SwiftUI
         }
     }
 
-    /// Also used by View results and Continue with available results. Existing preparation is left running.
-    func finish() {
-        let needsScan = preparation == nil && (step == .welcome || step == .access) && catalog?.hasScanned == false
+    /// Close, View Overview, Start Smart clean (`openingSmartClean`) and Continue with available results. Existing
+    /// preparation, and an access request under way, are left running.
+    func finish(openingSmartClean: Bool = false) {
+        let needsScan = preparation == nil && step == .welcome && catalog?.hasScanned == false
+        opensSmartClean = openingSmartClean
         isShowing = false
         #if DEBUG
         if LocalStateLocation.isDisposableTest {
@@ -121,104 +125,60 @@ import SwiftUI
     #endif
 }
 
+/// The guide (#478, #784): Welcome, then one sheet that scans and shows what it found. Later launches show only the scanning
+/// step, which closes by itself once preparation is ready. A failure keeps its own state.
 struct FirstRunWelcomeView: View {
     let model: WelcomeModel
     let catalog: CatalogCleanupModel
-    @State private var access = FullDiskAccessModel()
     @State private var sharing = SetupProgressSharing.shared
-    @State private var furthestProgress = 0.0
 
     var body: some View {
+        Group {
+            switch model.step {
+            case .welcome:
+                OnboardingWelcomeStep(categories: Onboarding.categories, onStart: { model.start() }, onClose: { model.finish() })
+            case .scanning, .ready:
+                OnboardingScanStep(categories: Onboarding.categories, phase: phase, sharesSetupProgress: sharing.readyBinding,
+                                   onStartSmartClean: { model.finish(openingSmartClean: true) }, onViewOverview: { model.finish() },
+                                   onClose: { model.finish() })
+            case .failed:
+                failed
+            }
+        }.interactiveDismissDisabled()
+    }
+
+    private var phase: OnboardingScanStep.Phase {
+        guard model.step == .ready else { return .scanning(found: Onboarding.found(catalog.overview), finished: finished) }
+        guard let ready = Onboarding.ready(catalog.overview) else { return .nothingFound }
+        return .ready(found: ready.found, top: ready.top.map { .init(category: $0.category, estimate: $0.estimate) })
+    }
+    /// Lit as the scan reads each category; all of them once it has finished and Applications is being prepared, none before.
+    private var finished: Set<CatalogCategory> {
+        if let progress = catalog.scanProgress {
+            return Onboarding.finished(in: catalog.catalog, phase: progress.phase, lastFinishedRuleID: progress.lastFinishedRuleID)
+        }
+        return catalog.hasScanned && !model.requestingAccess ? Set(Onboarding.categories) : []
+    }
+
+    /// Preparation couldn't finish: today's state (Decision 108).
+    private var failed: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
             HStack {
                 AppBrand()
                 Spacer()
-                CloseButton(identifier: "welcomeCancel") { model.finish() }.disabled(model.requestingAccess)
+                CloseButton(identifier: "welcomeCancel") { model.finish() }
             }
-            VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
-                Text(title).font(CacheDropDesign.TypeStyle.sheet).fontWeight(.semibold).accessibilityAddTraits(.isHeader)
-                    .accessibilityIdentifier(model.step == .failed ? "welcomeFailure" : "welcomeStepTitle")
-                // Said once, on the first step (#573).
-                if model.step == .welcome {
-                    Text("Nothing is cleaned until you review it.")
-                        .font(CacheDropDesign.TypeStyle.note).foregroundStyle(.secondary).accessibilityIdentifier("welcomeSubtitle")
-                }
-            }
-            switch model.step {
-            case .welcome:
-                Text("CacheDrop finds space you can safely get back, and cleans only what you choose.")
-                    .font(CacheDropDesign.TypeStyle.note).foregroundStyle(.secondary)
-                StatusRow(text: "It never touches your logins or your Photos, Mail and Messages data, and changes your files only when you ask.",
-                          symbol: "hand.raised", identifier: "welcomeNeverTouches")
-                Toggle(isOn: sharing.binding) {
-                    VStack(alignment: .leading, spacing: CacheDropDesign.Space.xs) {
-                        Text(SetupProgressSharing.title)
-                        Text(SetupProgressSharing.explanation).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
-                    }
-                }.toggleStyle(.checkbox).accessibilityIdentifier("welcomeShareSetupProgress")
-            case .access:
-                Text("CacheDrop can request access to Downloads and app data. macOS may ask you to allow access. Full Disk Access is optional.")
-                    .font(CacheDropDesign.TypeStyle.note).foregroundStyle(.secondary)
-                FullDiskAccessLink(title: "Learn more about Full Disk Access", model: access)
-            case .scanning, .ready:
-                ScanPreparationProgress(text: progressText, fraction: model.step == .ready ? 1 : furthestProgress, identifier: "welcomeScanProgress",
-                                        showsText: model.step != .ready) // The heading says it once (#546).
-            case .failed:
-                Text(model.failure).font(CacheDropDesign.TypeStyle.note).foregroundStyle(.secondary)
-            }
-            if model.step != .scanning {
-                Divider()
-                SheetFooter {
-                    EmptyView()
-                } actions: {
-                    switch model.step {
-                    case .welcome:
-                        Button("Continue") { model.showAccess() }.keyboardShortcut(.defaultAction).accessibilityIdentifier("welcomeContinue")
-                    case .access:
-                        Button("Scan with current access") { model.begin() }.disabled(model.requestingAccess).accessibilityIdentifier("welcomeCurrentAccess")
-                        Button(model.requestingAccess ? "Requesting access…" : "Request access…") { Task { await model.requestAccess() } }
-                            .disabled(model.requestingAccess).keyboardShortcut(.defaultAction).accessibilityIdentifier("welcomeRequestAccess")
-                    case .ready:
-                        Button("View results") { model.finish() }.keyboardShortcut(.defaultAction).accessibilityIdentifier("welcomeDone")
-                    case .failed:
-                        Button("Continue with available results") { model.finish() }.accessibilityIdentifier("welcomeAvailableResults")
-                        Button("Retry") { model.begin(retry: true) }.keyboardShortcut(.defaultAction).accessibilityIdentifier("welcomeRetry")
-                    case .scanning:
-                        EmptyView()
-                    }
-                }
+            Text("Preparation couldn’t finish").font(CacheDropDesign.TypeStyle.sheet).fontWeight(.semibold).accessibilityAddTraits(.isHeader)
+                .accessibilityIdentifier("welcomeFailure")
+            Text(model.failure).font(CacheDropDesign.TypeStyle.note).foregroundStyle(.secondary)
+            Divider()
+            SheetFooter {
+                EmptyView()
+            } actions: {
+                Button("Continue with available results") { model.finish() }.accessibilityIdentifier("welcomeAvailableResults")
+                Button("Retry") { model.begin(retry: true) }.keyboardShortcut(.defaultAction).accessibilityIdentifier("welcomeRetry")
             }
         }
         .padding(CacheDropDesign.Space.xl).frame(width: CacheDropDesign.Size.sheetNarrow).background(CacheDropDesign.reading).cacheDropButtonRule()
-        .interactiveDismissDisabled()
-        .onChange(of: fraction, initial: true) { _, value in furthestProgress = max(furthestProgress, value) }
-        .onChange(of: model.step) { _, step in if step == .scanning { furthestProgress = fraction } }
-    }
-    private var title: String {
-        switch model.step {
-        case .welcome: "Welcome to CacheDrop"
-        case .access: "Choose access"
-        case .scanning: "Preparing your results"
-        case .ready: "Your results are ready"
-        case .failed: "Preparation couldn’t finish"
-        }
-    }
-    private var progressText: String {
-        model.step == .ready ? "Your results are ready" : catalog.isScanning ? catalog.scanProgressText : "Preparing Applications…"
-    }
-    /// A visual stage estimate, not a work/time percentage. Only actual readiness reaches the end.
-    private var fraction: Double {
-        if model.step == .ready { return 1 }
-        if model.preparingInventory { return 0.98 }
-        switch catalog.scanProgress?.phase ?? .starting {
-        case .starting: return 0.02
-        case .location(_, _, let total):
-            return 0.03 + 0.72 * min(1, Double(catalog.scanProgress?.finished ?? 0) / Double(max(1, total)))
-        case .removedAppLeftovers: return 0.80
-        case .appsAndPlugIns: return 0.86
-        case .openApps: return 0.90
-        case .storageTrends: return 0.93
-        case .appManagedStorage: return 0.96
-        }
     }
 }

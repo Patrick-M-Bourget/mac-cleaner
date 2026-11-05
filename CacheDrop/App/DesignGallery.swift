@@ -149,9 +149,6 @@ struct DesignGallery: View {
                             StatusRow(text: "Scan completed", symbol: "checkmark.circle", role: .success)
                             StatusRow(text: "Scanned 10:42 · Not fully read", symbol: "exclamationmark.circle", role: .caution)
                             StatusRow(text: "Access unavailable · Choose the folder again", symbol: "lock", role: .failure)
-                            ScanPreparationProgress(text: "Reading files…", fraction: 0.4)
-                            // A heading already says it: the line under the bar takes no room (#573).
-                            ScanPreparationProgress(text: "Your results are ready", fraction: 1, showsText: false)
                             Text("Workspace behind onboarding").frame(maxWidth: .infinity, minHeight: CacheDropDesign.Space.page)
                                 .modifier(OnboardingBackdrop(active: true))
                         }

@@ -1390,27 +1390,6 @@ struct CloseButton: View {
     }
 }
 
-/// One native linear bar with the current phase below it (#478).
-struct ScanPreparationProgress: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    let text: String
-    var fraction: Double? = nil
-    var identifier = ""
-    /// False shows nothing under the bar, and takes no room for it, when a heading already says the same (#546, #573).
-    var showsText = true
-    var body: some View {
-        VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
-            ProgressView(value: fraction).progressViewStyle(.linear).controlSize(.small)
-                .accessibilityLabel(text).accessibilityValue(text).accessibilityIdentifier(identifier)
-                .animation(reduceMotion ? nil : .easeInOut(duration: CacheDropDesign.Motion.waiting), value: fraction)
-            if showsText {
-                Text(text).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
-                    .lineLimit(2).frame(minHeight: CacheDropDesign.Space.xl, alignment: .topLeading)
-            }
-        }
-    }
-}
-
 /// Keeps unfinished workspace content quiet behind onboarding, then reveals it when the flow closes (#478).
 struct OnboardingBackdrop: ViewModifier {
     let active: Bool

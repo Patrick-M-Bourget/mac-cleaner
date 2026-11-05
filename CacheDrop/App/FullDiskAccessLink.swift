@@ -3,13 +3,12 @@ import SwiftUI
 /// Opens the shared Full Disk Access explanation. Every "not accessible" place uses this.
 struct FullDiskAccessLink: View {
     let title: String
-    var model: FullDiskAccessModel?
     @State private var showing = false
     var body: some View {
         Button(title) { showing = true }
             .buttonStyle(.link)
             .accessibilityIdentifier("fullDiskAccessLink")
-            .sheet(isPresented: $showing) { FullDiskAccessSheet(model: model ?? FullDiskAccessModel()) { showing = false } }
+            .sheet(isPresented: $showing) { FullDiskAccessSheet(model: FullDiskAccessModel()) { showing = false } }
     }
 }
 

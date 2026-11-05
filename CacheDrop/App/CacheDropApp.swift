@@ -349,7 +349,7 @@ private struct WorkspaceView: View {
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in if !welcome.waitsForAccess { Task { await selection.catalog.rescanIfFullDiskAccessGranted() } } }
         .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didWakeNotification)) { _ in Task { await alerts.activated() } }
         .toolbar { contextToolbar }
-        .onChange(of: welcome.isShowing) { _, showing in if !showing { navigate(.overview) } }
+        .onChange(of: welcome.isShowing) { _, showing in if !showing { navigate(welcome.opensSmartClean ? .smartClean : .overview) } }
         .sheet(isPresented: Binding(get: { welcome.isShowing && !moveOffer.holdsOnboarding }, set: { welcome.isShowing = $0 })) { FirstRunWelcomeView(model: welcome, catalog: selection.catalog) }
     }
 
