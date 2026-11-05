@@ -1108,7 +1108,7 @@ final class ScannedLocationsUITests: XCTestCase {
         app.launch()
         waitForOverview(app)
         // Downloads is built in (#342): listed and scanned with no picking, and says so.
-        let downloads = element(identifier: "overviewLocation:" + home.appendingPathComponent("Downloads").path, in: app)
+        let downloads = element(app, "overviewLocation:" + home.appendingPathComponent("Downloads").path)
         XCTAssertTrue(downloads.waitForExistence(timeout: 20))
         XCTAssertTrue((downloads.value as? String ?? "").contains("Built in"), downloads.value as? String ?? "")
         chooseFolderToScan(app)
@@ -1119,12 +1119,12 @@ final class ScannedLocationsUITests: XCTestCase {
         panel.buttons["Scan folder"].click()
         waitForScannedFolder(app)
 
-        let row = element(identifier: "overviewLocation:" + folder.path, in: app)
+        let row = element(app, "overviewLocation:" + folder.path)
         XCTAssertTrue((row.value as? String ?? "").contains(folder.lastPathComponent), row.value as? String ?? "")
-        let problem = element(identifier: "overviewLocationProblem:" + folder.path, in: app)
+        let problem = element(app, "overviewLocationProblem:" + folder.path)
         XCTAssertTrue(problem.waitForExistence(timeout: 5))
         XCTAssertEqual(problem.value as? String, "1 folder couldn’t be read")
-        let help = element(identifier: "overviewLocationAccess:" + folder.path, in: app)
+        let help = element(app, "overviewLocationAccess:" + folder.path)
         XCTAssertEqual(help.label, "Locations")
         help.click()
         XCTAssertTrue(app.staticTexts["Folders CacheDrop scans at launch and when you scan again."].waitForExistence(timeout: 5))
@@ -1169,7 +1169,7 @@ final class ScannedLocationsUITests: XCTestCase {
         // #342: a Downloads picked in an earlier version is quietly forgotten; the built-in one replaces it, with no row.
         XCTAssertEqual(texts, ["Projects · Access unavailable", "Work · Access unavailable"])
         XCTAssertEqual(app.links.matching(identifier: "overviewChooseAgain").count, 2)
-        XCTAssertTrue(element(identifier: "overviewLocation:" + home.appendingPathComponent("Downloads").path, in: app).waitForExistence(timeout: 20))
+        XCTAssertTrue(element(app, "overviewLocation:" + home.appendingPathComponent("Downloads").path).waitForExistence(timeout: 20))
         XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'can’t be reached'")).firstMatch.exists)
     }
 }
