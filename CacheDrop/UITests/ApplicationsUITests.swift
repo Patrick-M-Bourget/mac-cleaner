@@ -151,7 +151,7 @@ final class ApplicationsUITests: XCTestCase {
         XCTAssertFalse(element(app, "applicationsApp-" + live.path).exists, "The DAW isn't under Apps")
 
         let audio = applicationsSection(app, "audio software")
-        XCTAssertEqual(audio.label, "Show groups · 2", "DAWs and apps, and Plug-ins")
+        XCTAssertEqual(audio.label, "Show groups · 4", "All four groups, two of them empty")
         XCTAssertFalse(app.checkBoxes["applicationsSection-audio"].exists, "A section is never ticked whole")
         // A search opens the section, the group and the maker its match is in.
         let beta = element(app, "applicationsPlugIn-" + home.appendingPathComponent("Library/Audio/Plug-Ins/Components/Beta.component").path)
@@ -163,6 +163,9 @@ final class ApplicationsUITests: XCTestCase {
         openApplicationsSections(app, ["audio software"])
         XCTAssertTrue(element(app, "applicationsGroup-apps").waitForExistence(timeout: 5), "Opening Audio software shows its groups")
         XCTAssertTrue(element(app, "applicationsGroup-plug-ins").exists)
+        // Decision 176: a group that found nothing is one row reading Empty.
+        XCTAssertTrue(element(app, "applicationsGroup-drivers").staticTexts["Empty"].waitForExistence(timeout: 5), "No drivers: Empty")
+        XCTAssertFalse(element(app, "applicationsGroup-plug-ins").staticTexts["Empty"].exists)
         openApplicationsSections(app, ["apps", "plug-ins"])
         XCTAssertTrue(element(app, "applicationsApp-" + live.path).waitForExistence(timeout: 5), "DAWs and apps lists it")
         XCTAssertTrue(element(app, "applicationsGroup-maker:Maker Audio Inc").waitForExistence(timeout: 5), "Two products of one maker make a group")
@@ -281,8 +284,7 @@ final class ApplicationsUITests: XCTestCase {
         search.click(); search.typeText("zzqx")
         let none = app.descendants(matching: .any)["applicationsNoMatches"]
         XCTAssertTrue(none.waitForExistence(timeout: 5))
-        XCTAssertFalse(app.staticTexts["No apps to list"].exists)
-        XCTAssertFalse(app.staticTexts["No files from deleted apps"].exists)
+        XCTAssertFalse(app.staticTexts["Empty"].exists, "No section reads Empty under it")
         revealAndClick(none.buttons["Clear search"], in: app)
         XCTAssertTrue(rows[1].waitForExistence(timeout: 5), "Clear search shows everything again")
     }
@@ -563,7 +565,7 @@ final class ApplicationsUITests: XCTestCase {
         waitForCatalogScan(app)
         openApplications(app, ["drivers", "plug-ins"])
 
-        XCTAssertEqual(applicationsSection(app, "audio software").label, "Show groups · 2", "Plug-ins and Drivers")
+        XCTAssertEqual(applicationsSection(app, "audio software").label, "Show groups · 4", "All four groups")
         func box(_ id: String) -> XCUIElement { element(app, id, .checkBox) }
         let driverBox = box("applicationsDriver-" + driver.path)
         let pangea = box("applicationsPlugIn-" + devices.appendingPathComponent("Pangea").path)
@@ -580,7 +582,7 @@ final class ApplicationsUITests: XCTestCase {
         XCTAssertTrue(progress.waitForExistence(timeout: 10), "The run rescans")
         XCTAssertTrue(driverBox.waitForNonExistence(timeout: 5), "The driver's row is gone at once")
         XCTAssertFalse(pangea.exists, "So is the device's")
-        XCTAssertEqual(applicationsSection(app, "audio software").label, "Show groups · 1", "Drivers leaves at once with its one driver")
+        XCTAssertTrue(element(app, "applicationsGroup-drivers").staticTexts["Empty"].waitForExistence(timeout: 5), "Drivers reads Empty at once")
         XCTAssertTrue(app.disclosureTriangles["Choose plug-ins · 1"].exists, "Plug-ins' count drops at once")
         XCTAssertTrue(humana.waitForExistence(timeout: 5), "The other device stays listed")
         XCTAssertTrue(progress.exists, "Still rescanning: the held rescan reads only the touched rows")
@@ -732,7 +734,8 @@ final class ApplicationsUITests: XCTestCase {
         XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Uninstalled Pro Synth · 1 item")).firstMatch.waitForExistence(timeout: 10))
     }
 
-    /// #270, #308: while the scan runs each section shows skeleton rows; a section that finds nothing says so.
+    /// #270, #308: while the scan runs each section shows skeleton rows. Decision 176: a section that finds nothing is one row
+    /// reading Empty, with no second line saying so.
     @MainActor func testSectionsShowLoadingThenEmptyStates() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
@@ -747,8 +750,11 @@ final class ApplicationsUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["applicationsLoading-leftovers"].exists)
         XCTAssertTrue(app.descendants(matching: .any)["applicationsSummary"].exists, "While the lists load, the summary waits with them")
         for section in ["apps", "audio", "leftovers"] {
-            XCTAssertTrue(app.descendants(matching: .any)["applicationsEmpty-" + section].waitForExistence(timeout: 120), "\(section) says nothing was found")
+            let row = element(app, "applicationsSection-" + section)
+            XCTAssertTrue(row.staticTexts["Empty"].waitForExistence(timeout: 120), "\(section) reads Empty")
         }
+        XCTAssertEqual(app.staticTexts.matching(NSPredicate(format: "label == 'Empty'")).count, 3, "One Empty per section")
+        XCTAssertFalse(app.staticTexts["No files from deleted apps"].exists, "No second row saying so")
         XCTAssertFalse(app.descendants(matching: .any)["applicationsLoading-apps"].exists)
         // #575: nothing on the page can be ticked, so no card reading "—" and "0 items selected".
         XCTAssertFalse(app.descendants(matching: .any)["applicationsSummary"].exists)
@@ -770,7 +776,7 @@ final class ApplicationsUITests: XCTestCase {
         openApplications(app)
         let notice = element(app, "applicationsUnreadable")
         XCTAssertTrue(notice.waitForExistence(timeout: 60), "Apps say the list couldn't be read")
-        XCTAssertFalse(element(app, "applicationsEmpty-apps").exists, "Never \"Only Apple's apps\"")
+        XCTAssertFalse(element(app, "applicationsSection-apps").staticTexts["Empty"].exists, "Couldn't read is never Empty")
 
         try FileManager.default.removeItem(at: unreadable)
         element(app, "applicationsUnreadableAction", .button).click()

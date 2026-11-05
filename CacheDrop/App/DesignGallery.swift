@@ -226,10 +226,13 @@ struct DesignGallery: View {
                         CategoryRow(category: .apps, state: nil, title: "Example app in a section", detail: "Example maker", size: "800 MB", enabled: true,
                                     identifier: "galleryApplicationsSectionRow", itemCount: nil, expanded: .constant(false), toggle: {}) { EmptyView() } items: { EmptyView() }
                     }
+                    // A section that found nothing is one row, Empty muted in its size column, as on Overview (Decision 176).
+                    CategoryRow(category: .leftovers, state: nil, title: "Example empty section", detail: "Settings and data they left behind", size: "Empty", enabled: true,
+                                identifier: "galleryEmptySection", itemCount: nil, mutedSize: true, expanded: .constant(false), toggle: {}) { EmptyView() } items: { EmptyView() }
                     // Audio software opens straight to its groups, behind "Show groups · N"; its groups and makers are category rows with
                     // no checkbox and no badge, their titles on the rows' text column (Decisions 151, 153, 175).
                     CategoryRow(category: .audioSoftware, state: nil, title: "Example audio section", detail: "DAWs and apps, plug-ins, sounds and drivers", size: "8.7 GB",
-                                enabled: true, identifier: "galleryAudioSection", itemCount: 2, chooseVerb: "Show", chooseNoun: "groups",
+                                enabled: true, identifier: "galleryAudioSection", itemCount: 3, chooseVerb: "Show", chooseNoun: "groups",
                                 expanded: $audioSectionExpanded, toggle: {}) { EmptyView() } items: {
                         VStack(alignment: .leading, spacing: 0) {
                             CategoryRow(category: .audioSoftware, state: nil, title: "Example maker", detail: "", size: "2.4 GB", enabled: true,
@@ -243,6 +246,11 @@ struct DesignGallery: View {
                             // A group where nothing can be ticked says Show (Decision 154).
                             CategoryRow(category: .audioSoftware, state: nil, title: "Example read-only group", detail: "", size: "6.3 GB", enabled: true,
                                         identifier: "galleryShowGroup", itemCount: 3, chooseVerb: "Show", chooseNoun: "sounds", showsBadge: false,
+                                        expanded: .constant(false), toggle: {}) { EmptyView() } items: { EmptyView() }
+                            Divider().padding(.vertical, CacheDropDesign.Space.md)
+                            // A group that found nothing reads Empty, with no disclosure (Decision 176).
+                            CategoryRow(category: .audioSoftware, state: nil, title: "Example empty group", detail: "", size: "Empty", enabled: true,
+                                        identifier: "galleryEmptyGroup", itemCount: nil, showsBadge: false, mutedSize: true,
                                         expanded: .constant(false), toggle: {}) { EmptyView() } items: { EmptyView() }
                         }
                     }

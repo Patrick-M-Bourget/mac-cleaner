@@ -49,3 +49,29 @@ private struct NoReceipts: InstallerReceiptReading { func receipts() -> [Install
     #expect(matched("Other") == ["com.other.pad.plist"], "By its maker")
     #expect(matched("").count == 2)
 }
+
+/// Decision 176: a section that found nothing is one row reading Empty; one that couldn't be read says so (Decision 62),
+/// even while a scan runs; one the search has no match in says No matches; skeletons only while nothing is listed yet.
+@Test func aSectionThatFoundNothingIsEmpty() {
+    let listing = ApplicationsListing(), searching = ApplicationsListing(search: "zebra")
+    #expect(listing.section(listed: 0, shown: 0, loading: false) == .empty)
+    #expect(searching.section(listed: 0, shown: 0, loading: false) == .empty, "Empty is true whatever the search")
+    #expect(searching.section(listed: 3, shown: 0, loading: false) == .noMatches)
+    #expect(listing.section(listed: 3, shown: 3, loading: false) == .rows)
+    #expect(listing.section(listed: 3, shown: 3, loading: true) == .rows, "A rescan keeps the rows, dimmed")
+    #expect(listing.section(listed: 0, shown: 0, loading: true) == .loading)
+    #expect(listing.section(listed: 0, shown: 0, loading: false, unreadable: true) == .unreadable)
+    #expect(listing.section(listed: 0, shown: 0, loading: true, unreadable: true) == .unreadable, "Couldn't read is said, never a skeleton")
+}
+
+/// Decision 176: Audio software shows all four groups, one that found nothing as a row reading Empty; one whose list
+/// couldn't be read (DAWs and apps, when the list of apps couldn't be) says so. A search shows only the groups it matches in.
+@Test func anAudioGroupThatFoundNothingIsEmptyAndASearchShowsOnlyGroupsWithAMatch() {
+    let listing = ApplicationsListing(), searching = ApplicationsListing(search: "zebra")
+    #expect(listing.group(listed: 0, shown: 0) == .empty)
+    #expect(listing.group(listed: 2, shown: 2) == .rows)
+    #expect(listing.group(listed: 0, shown: 0, unreadable: true) == .unreadable)
+    #expect(searching.group(listed: 2, shown: 1) == .rows)
+    #expect(searching.group(listed: 2, shown: 0) == nil, "No match: left out")
+    #expect(searching.group(listed: 0, shown: 0) == nil, "Empty, and so no match")
+}

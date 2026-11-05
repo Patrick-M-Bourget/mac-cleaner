@@ -94,6 +94,7 @@ The names CacheDrop shows, what they mean, and where they live in code. Copy fol
 | Free up | Smart clean's card title over what its ticked items release; its button reads **Clean up X** with the same X; the Cleanup plan's card says **Ready to clean** (Decision 173) | `SmartCleanSummary` |
 | Up to, About | A size that's an upper bound or an estimate | `SizeEstimate` |
 | Unknown | A size CacheDrop couldn't read, never shown as zero or empty | `SizeEstimate.unknown`, `SizeFormatter` |
+| Empty | In the size column, muted: an Overview category or an Applications section or Audio software group that found nothing, one row with nothing under it (Decisions 76, 176); never for what couldn't be read | `CatalogOverview.Row.isEmpty`, `ApplicationsSectionContent.empty` |
 | Needs Full Disk Access | Something macOS keeps from CacheDrop without Full Disk Access | `GuidanceSize.notAccessible`, `CatalogOverview.Row.needsAccess` |
 | Rebuildable | Deleted, and its app or tool makes it again (an Overview row's note) | `CleanupAction.delete` |
 | Can be cleaned, Other you can clean | The storage bar's found space, and its fold of smaller categories | `StorageMeter`, `StorageBreakdown` |

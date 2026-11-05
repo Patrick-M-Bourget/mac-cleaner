@@ -188,39 +188,29 @@ struct ApplicationsView: View {
             } else {
             // Nothing listed yet: no Name and Size over empty states (#427).
             if !(model.apps + model.audioApps + model.plugIns + model.reasonDevices + model.drivers + model.sounds).isEmpty || catalog.leftoversRow != nil { columnHeader }
-            section("Apps", id: .apps, detail: "Apps in your Applications folders", noun: "apps", entries: listed(model.apps), category: .apps,
-                    identifier: "applicationsApp-", empty: ("No apps to list", "Only Apple’s apps are in the Applications folders."))
+            appsSection
             audioSection
             leftovers
             }
         }.padding(CacheDropDesign.Space.page).frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// Files from deleted apps: the plan's category row (Decision 51), its "Choose items" the section's open state (Decision 153),
-    /// or its heading and why nothing is listed.
+    /// Files from deleted apps: the plan's category row (Decision 51), its "Choose items" the section's open state (Decision 153);
+    /// one row reading Empty when it found nothing (Decision 176); or its row and why nothing is listed.
     @ViewBuilder private var leftovers: some View {
-        if let row = catalog.leftoversRow, !model.listing.isSearching || leftoversMatch {
-            PlanCategoryRow(model: catalog, row: row, expanded: sectionOpen(.leftovers), listing: model.listing).waitingForScan(catalog.isScanning)
-        } else {
-            VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
-                sectionHeading(.leftovers, category: .leftovers, title: CatalogCategory.leftovers.overviewTitle,
-                               detail: CatalogCategory.leftovers.overviewDetail)
-                leftoversEmpty
+        let listed = catalog.leftoversRow == nil ? 0 : 1
+        let heading = { (empty: Bool) in sectionHeading(.leftovers, category: .leftovers, title: CatalogCategory.leftovers.overviewTitle,
+                                                        detail: CatalogCategory.leftovers.overviewDetail, empty: empty) }
+        switch model.listing.section(listed: listed, shown: !model.listing.isSearching || leftoversMatch ? listed : 0,
+                                     loading: !catalog.hasScanned || catalog.isScanning, unreadable: catalog.settingsUnreadable) {
+        case .rows:
+            if let row = catalog.leftoversRow {
+                PlanCategoryRow(model: catalog, row: row, expanded: sectionOpen(.leftovers), listing: model.listing).waitingForScan(catalog.isScanning)
             }
-        }
-    }
-    /// Why Files from deleted apps lists nothing.
-    @ViewBuilder private var leftoversEmpty: some View {
-        if catalog.leftoversRow != nil {
-            noMatches("leftovers")
-        } else if catalog.settingsUnreadable {
-            EmptyView() // The notice above says why nothing was read (#310).
-        } else if catalog.hasScanned && !catalog.isScanning && model.listing.isSearching {
-            noMatches("leftovers")
-        } else if catalog.hasScanned && !catalog.isScanning {
-            state("No files from deleted apps", "Apps you removed left nothing behind that CacheDrop can tie to them.", symbol: "checkmark.circle", id: "applicationsEmpty-leftovers")
-        } else {
-            loading("leftovers")
+        case .empty: heading(true)
+        case .unreadable: heading(false) // The notice above says why nothing was read (#310).
+        case .loading: VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) { heading(false); loading("leftovers") }
+        case .noMatches: VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) { heading(false); noMatches("leftovers") }
         }
     }
     /// Whether the search matches a file from deleted apps; during a rescan, one from the last scan (its row stays, dimmed).
@@ -291,46 +281,37 @@ struct ApplicationsView: View {
     /// apps always does (Decision 123).
     private var appsWaitForScan: Bool { catalog.applicationsWaitForScan }
 
-    @ViewBuilder private func section(_ title: String, id section: ApplicationsSection, detail: String, noun: String, entries: [InventoryEntry], category: StorageCategory, identifier: String,
-                                      empty: (title: String, detail: String)) -> some View {
-        let shown = model.listing.arranged(entries, name: \.name, maker: \.maker, bytes: { size(of: $0).sortBytes })
-        if shown.isEmpty {
+    /// Apps: a category row like the plan's (Decision 153), with no checkbox: a section is never ticked whole (Decision 51).
+    /// During a rescan it keeps its rows and its open state, dimmed (#308). One that found nothing is one row reading Empty
+    /// (Decision 176).
+    @ViewBuilder private var appsSection: some View {
+        let entries = listed(model.apps), shown = arranged(entries), detail = "Apps in your Applications folders"
+        let heading = { (empty: Bool) in sectionHeading(.apps, category: .apps, title: "Apps", detail: detail, empty: empty) }
+        switch model.listing.section(listed: entries.count, shown: shown.count, loading: listsLoading, unreadable: model.appsUnreadable) {
+        case .rows:
+            CategoryRow(category: .apps, state: nil, title: "Apps", detail: detail, size: total(shown), enabled: true,
+                        identifier: "applicationsSection-apps", itemCount: shown.count, chooseNoun: "apps",
+                        expanded: sectionOpen(.apps), toggle: {}) { EmptyView() } items: {
+                rows(shown, category: .apps, identifier: "applicationsApp-")
+            }
+        case .empty: heading(true)
+        case .loading: VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) { heading(false); loading("apps") }
+        case .noMatches: VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) { heading(false); noMatches("apps") }
+        case .unreadable:
             VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
-                sectionHeading(section, category: category, title: title, detail: detail)
-                sectionBody(id: section, entries: entries, shown: shown, category: category, identifier: identifier, empty: empty)
-            }
-        } else {
-            // A category row like the plan's (Decision 153), with no checkbox: a section is never ticked whole (Decision 51). During
-            // a rescan it keeps its rows and its open state, dimmed (#308).
-            CategoryRow(category: category, state: nil, title: title, detail: detail, size: SizeEstimate(sum: shown.map(size(of:))).text, enabled: true,
-                        identifier: "applicationsSection-" + section.rawValue, itemCount: shown.count, chooseNoun: noun,
-                        expanded: sectionOpen(section), toggle: {}) { EmptyView() } items: {
-                sectionBody(id: section, entries: entries, shown: shown, category: category, identifier: identifier, empty: empty)
-            }
-        }
-    }
-    /// A section's category row while it lists nothing: no size and no "Choose"; why follows it.
-    private func sectionHeading(_ section: ApplicationsSection, category: StorageCategory, title: String, detail: String) -> some View {
-        CategoryRow(category: category, state: nil, title: title, detail: detail, size: "", enabled: true, identifier: "applicationsSection-" + section.rawValue,
-                    itemCount: nil, expanded: .constant(false), toggle: {}) { EmptyView() } items: { EmptyView() }
-    }
-    @ViewBuilder private func sectionBody(id section: ApplicationsSection, entries: [InventoryEntry], shown: [InventoryEntry], category: StorageCategory, identifier: String,
-                                          empty: (title: String, detail: String)) -> some View {
-        let id = section.rawValue
-        if entries.isEmpty {
-            if listsLoading { loading(id) }
-            else if model.listing.isSearching, !(section == .apps && model.appsUnreadable) { noMatches(id) }
-            else if section == .apps, model.appsUnreadable {
-                // Spotlight didn't answer: unknown, never "Only Apple’s apps" (#310), as the one empty state (#321). Scan again
-                // scans again, so uninstalls are read too.
+                heading(false)
+                // Spotlight didn't answer: unknown, never empty (#310), as the one empty state (#321). Scan again scans again, so
+                // uninstalls are read too (Decision 62).
                 EmptyState(title: "CacheDrop couldn’t read the list of apps", detail: "Spotlight didn’t answer.", symbol: "exclamationmark.triangle",
                            action: EmptyStateAction("Scan again") { Task { await catalog.rescan() } }, identifier: "applicationsUnreadable")
-            } else { state(empty.title, empty.detail, symbol: "tray", id: "applicationsEmpty-" + id) }
-        } else if shown.isEmpty {
-            noMatches(id)
-        } else {
-            rows(shown, category: category, identifier: identifier)
+            }
         }
+    }
+    /// A section's category row with nothing behind it: **Empty**, muted, in its size column when it found nothing, as
+    /// Overview's empty categories (Decisions 76, 176); otherwise no size, and what it waits for or why follows it.
+    private func sectionHeading(_ section: ApplicationsSection, category: StorageCategory, title: String, detail: String, empty: Bool) -> some View {
+        CategoryRow(category: category, state: nil, title: title, detail: detail, size: empty ? "Empty" : "", enabled: true, identifier: "applicationsSection-" + section.rawValue,
+                    itemCount: nil, mutedSize: empty, expanded: .constant(false), toggle: {}) { EmptyView() } items: { EmptyView() }
     }
     /// Rows from the last scan stay, dimmed, until the rescan says what can go with each (#303, #308); after a run, only
     /// the rows it reads again (Decision 134).
@@ -347,42 +328,40 @@ struct ApplicationsView: View {
     /// Audio software (Decisions 151, 153): DAWs and apps, plug-ins by maker (Reason's additional devices among them), sounds and
     /// samples, and drivers, each group a category row with no checkbox.
     @ViewBuilder private var audioSection: some View {
-        let apps = arranged(listed(model.audioApps)), plugIns = arranged(listed(model.plugIns + model.reasonDevices))
-        let sounds = arranged(model.sounds), drivers = arranged(listed(model.drivers)), all = apps + plugIns + sounds + drivers
-        let detail = "DAWs and apps, plug-ins, sounds and drivers"
-        if all.isEmpty {
-            VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
-                sectionHeading(.audio, category: .audioSoftware, title: "Audio software", detail: detail)
-                appsUnreadableNote
-                sectionBody(id: .audio, entries: listed(model.audioApps + model.plugIns + model.reasonDevices + model.drivers) + model.sounds, shown: [],
-                            category: .audioSoftware, identifier: "",
-                            empty: ("No audio software to list", "No DAWs, plug-ins, sounds or drivers other than Apple’s were found."))
-            }
-        } else {
+        let listedApps = listed(model.audioApps), listedPlugIns = listed(model.plugIns + model.reasonDevices), listedDrivers = listed(model.drivers)
+        let apps = arranged(listedApps), plugIns = arranged(listedPlugIns), sounds = arranged(model.sounds), drivers = arranged(listedDrivers)
+        let all = apps + plugIns + sounds + drivers, detail = "DAWs and apps, plug-ins, sounds and drivers"
+        let heading = { (empty: Bool) in sectionHeading(.audio, category: .audioSoftware, title: "Audio software", detail: detail, empty: empty) }
+        switch model.listing.section(listed: listedApps.count + listedPlugIns.count + model.sounds.count + listedDrivers.count, shown: all.count,
+                                     loading: listsLoading, unreadable: model.appsUnreadable) {
+        case .rows:
+            // All four groups, each Empty when it found nothing; a search shows the ones it matches in (Decision 176). DAWs and apps
+            // aren't known when the list of apps couldn't be read: no size, the section's line says why (Decision 62).
+            let listing = model.listing
+            let contents = (apps: listing.group(listed: listedApps.count, shown: apps.count, unreadable: model.appsUnreadable),
+                            plugIns: listing.group(listed: listedPlugIns.count, shown: plugIns.count),
+                            sounds: listing.group(listed: model.sounds.count, shown: sounds.count),
+                            drivers: listing.group(listed: listedDrivers.count, shown: drivers.count))
+            let groups = [contents.apps, contents.plugIns, contents.sounds, contents.drivers].compactMap { $0 }.count
             // Opening it shows its groups straight away, behind "Show groups · N" (Decision 175).
-            let groups = [apps, plugIns, sounds, drivers].filter { !$0.isEmpty }.count
             CategoryRow(category: .audioSoftware, state: nil, title: "Audio software", detail: detail, size: total(all), enabled: true,
                         identifier: "applicationsSection-audio", itemCount: groups, chooseVerb: "Show", chooseNoun: "groups",
                         expanded: sectionOpen(.audio), toggle: {}) { appsUnreadableNote } items: {
                 VStack(alignment: .leading, spacing: 0) {
-                    if !apps.isEmpty {
-                        group("DAWs and apps", .apps, noun: "apps", entries: apps) { rows(apps, category: .apps, identifier: "applicationsApp-") }
-                    }
-                    if !plugIns.isEmpty {
-                        group("Plug-ins", .plugIns, noun: "plug-ins", entries: plugIns) { makers(plugIns) }
-                    }
-                    if !sounds.isEmpty {
-                        // Read-only (#705 decides removing them): "Show", never "Choose" (Decision 154).
-                        group("Sounds and samples", .sounds, verb: "Show", noun: "sounds", entries: sounds) { soundRows(sounds) }
-                    }
-                    if !drivers.isEmpty {
-                        let tickable = drivers.contains { !catalog.uninstallItems(ofRow: $0.id).isEmpty }
-                        group("Drivers", .drivers, verb: tickable ? "Choose" : "Show", noun: "drivers", entries: drivers) {
-                            rows(drivers, category: .audioSoftware, identifier: "applicationsDriver-", revealsPlace: true)
-                        }
+                    group("DAWs and apps", .apps, contents.apps, noun: "apps", entries: apps) { rows(apps, category: .apps, identifier: "applicationsApp-") }
+                    group("Plug-ins", .plugIns, contents.plugIns, noun: "plug-ins", entries: plugIns) { makers(plugIns) }
+                    // Read-only (#705 decides removing them): "Show", never "Choose" (Decision 154).
+                    group("Sounds and samples", .sounds, contents.sounds, verb: "Show", noun: "sounds", entries: sounds) { soundRows(sounds) }
+                    let tickable = drivers.contains { !catalog.uninstallItems(ofRow: $0.id).isEmpty }
+                    group("Drivers", .drivers, contents.drivers, verb: tickable ? "Choose" : "Show", noun: "drivers", entries: drivers) {
+                        rows(drivers, category: .audioSoftware, identifier: "applicationsDriver-", revealsPlace: true)
                     }
                 }
             }
+        case .empty: heading(true)
+        case .unreadable: VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) { heading(false); appsUnreadableNote }
+        case .loading: VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) { heading(false); loading("audio") }
+        case .noMatches: VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) { heading(false); noMatches("audio") }
         }
     }
     /// Sounds and samples: each with who it is from and its size, revealed in Finder, never chosen (Decision 151); one its
@@ -416,24 +395,28 @@ struct ApplicationsView: View {
                 if maker.products.count == 1, maker.maker != nil {
                     rows(maker.products, category: .audioSoftware, identifier: "applicationsPlugIn-")
                 } else {
-                    group(maker.maker ?? "Other makers", .maker(maker.maker), noun: "plug-ins", entries: maker.products) {
+                    group(maker.maker ?? "Other makers", .maker(maker.maker), .rows, noun: "plug-ins", entries: maker.products) {
                         rows(maker.products, category: .audioSoftware, identifier: "applicationsPlugIn-")
                     }
                 }
             }
         }
     }
-    /// One of Audio software's groups, or a maker: a category row with no checkbox, its rows behind "Choose <noun> · N". The
+    /// One of Audio software's groups, or a maker: a category row with no checkbox, its rows behind "Choose <noun> · N"; one
+    /// that found nothing reads Empty, with no disclosure (Decision 176), and one a search has no match in is left out. The
     /// section shows the badge once: a group's place for it stays empty, so its title keeps the rows' text column (Decision 175).
-    private func group<Rows: View>(_ title: String, _ group: AudioGroup, verb: String = "Choose", noun: String, entries: [InventoryEntry],
-                                   @ViewBuilder rows: @escaping () -> Rows) -> some View {
+    @ViewBuilder private func group<Rows: View>(_ title: String, _ group: AudioGroup, _ content: ApplicationsSectionContent?, verb: String = "Choose", noun: String,
+                                                entries: [InventoryEntry], @ViewBuilder rows: @escaping () -> Rows) -> some View {
         let open = Binding(get: { model.openGroups.contains(group) }, set: { if $0 { model.openGroups.insert(group) } else { model.openGroups.remove(group) } })
-        return VStack(alignment: .leading, spacing: 0) {
-            CategoryRow(category: .audioSoftware, state: nil, title: title, detail: "", size: total(entries), enabled: true,
-                        identifier: "applicationsGroup-" + group.key, itemCount: entries.count, chooseVerb: verb, chooseNoun: noun, showsBadge: false,
-                        expanded: open, toggle: {}) { EmptyView() } items: { rows() }
-            // Open, its last row's divider ends it.
-            if !open.wrappedValue { Divider().padding(.vertical, CacheDropDesign.Space.md) }
+        if let content {
+            let listsRows = content == .rows
+            VStack(alignment: .leading, spacing: 0) {
+                CategoryRow(category: .audioSoftware, state: nil, title: title, detail: "", size: listsRows ? total(entries) : content == .empty ? "Empty" : "", enabled: true,
+                            identifier: "applicationsGroup-" + group.key, itemCount: listsRows ? entries.count : nil, chooseVerb: verb, chooseNoun: noun, showsBadge: false,
+                            mutedSize: content == .empty, expanded: open, toggle: {}) { EmptyView() } items: { rows() }
+                // Open, its last row's divider ends it.
+                if !(listsRows && open.wrappedValue) { Divider().padding(.vertical, CacheDropDesign.Space.md) }
+            }
         }
     }
     /// Audio software's groups and makers a search has a match in.
