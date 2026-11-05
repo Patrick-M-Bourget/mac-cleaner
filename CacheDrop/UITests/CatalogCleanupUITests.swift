@@ -47,6 +47,38 @@ func addAudioSoftware(in home: URL) throws {
         .write(to: driver.appendingPathComponent("Contents/Info.plist"))
 }
 
+/// #399's Final Cut Pro libraries in the fixture home: Untitled in Movies, with render files, optimized media and its original
+/// media, and Client Cut on a connected volume (`<home>/Volumes` here), with proxy media. Returns Untitled's render file and clip.
+@discardableResult func addFinalCutLibraries(in home: URL) throws -> (render: URL, original: URL) {
+    let render = home.appendingPathComponent("Movies/Untitled.fcpbundle/Event 1/Render Files/a.mov")
+    let original = home.appendingPathComponent("Movies/Untitled.fcpbundle/Event 1/Original Media/clip.mov")
+    // Optimized and proxy media in one event share the name "Untitled · Event 1" (#744).
+    for file in [render, original, home.appendingPathComponent("Movies/Untitled.fcpbundle/Event 1/Transcoded Media/High Quality Media/c.mov"),
+                 home.appendingPathComponent("Movies/Untitled.fcpbundle/Event 1/Transcoded Media/Proxy Media/d.mov"),
+                 home.appendingPathComponent("Volumes/Shuttle/Client Cut.fcpbundle/Event 1/Transcoded Media/Proxy Media/b.mov")] {
+        try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data(repeating: 4, count: 60_000).write(to: file)
+    }
+    return (render, original)
+}
+
+/// #730's and #400's Adobe rows in the fixture home: the media cache in its default folder, a media cache moved in Adobe's
+/// settings to a connected volume (`<home>/Volumes` here) holding Peak Files, and Premiere Pro's and After Effects' caches for 26.0.
+func addAdobeCaches(in home: URL) throws {
+    let moved = home.appendingPathComponent("Volumes/Edit/Adobe Cache")
+    for relative in ["Library/Application Support/Adobe/Common/Media Cache Files/clip.ims", "Library/Application Support/Adobe/Common/Media Cache/db.mcdb",
+                     "Volumes/Edit/Adobe Cache/Peak Files/clip 48000.pek", "Library/Caches/Adobe/Premiere Pro/26.0/cache.bin",
+                     "Library/Caches/Adobe/After Effects/26.0/Disk Cache/frame.bin"] {
+        let file = home.appendingPathComponent(relative)
+        try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data(repeating: 6, count: 40_000).write(to: file)
+    }
+    // Written as Premiere writes it once the cache is moved.
+    let settings = home.appendingPathComponent("Library/Preferences/com.Adobe.Common 26.0.plist")
+    try FileManager.default.createDirectory(at: settings.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try PropertyListSerialization.data(fromPropertyList: ["Media Cache": ["FolderPath": moved.path + "/"]], format: .binary, options: 0).write(to: settings)
+}
+
 /// Turns on the Settings dry run for this launch through the DEBUG-only test seam, for journeys that assert nothing changed.
 @MainActor func turnOnDryRun(_ app: XCUIApplication) {
     app.launchEnvironment["CACHEDROP_TEST_DRY_RUN"] = "1"
@@ -489,12 +521,12 @@ final class CatalogCleanupUITests: XCTestCase {
         for (rule, name) in [("simulator-runtimes", "watchOS 11.0 (22R349)"), ("android-virtual-devices", "Pixel"), ("simulator-devices", "iPhone 16 (iOS 18.0)")] {
             // Items are drawn lazily: bring the rule's list into view first.
             reveal(app.checkBoxes["planRule-" + rule], in: app, nearTop: true)
-            let item = app.checkBoxes["planItem-" + name]
+            let item = app.checkBoxes["planItem-\(rule)-\(name)"]
             if !item.waitForExistence(timeout: 2) { expandDisclosures(in: app) }
             XCTAssertTrue(item.waitForExistence(timeout: 5), name)
             XCTAssertEqual(item.value as? Int, 0, name)
         }
-        revealAndClick(app.checkBoxes["planItem-iPhone 16 (iOS 18.0)"], in: app)
+        revealAndClick(app.checkBoxes["planItem-simulator-devices-iPhone 16 (iOS 18.0)"], in: app)
 
         for rule in ["xcode-derived-data", "xcode-simulators"] {
             let box = app.checkBoxes["planRule-" + rule]
@@ -692,7 +724,7 @@ final class CatalogCleanupUITests: XCTestCase {
         let category = app.checkBoxes["planCategory-downloads"]
         XCTAssertTrue(category.waitForExistence(timeout: 5))
         XCTAssertEqual(category.value as? Int, 0)
-        let item = app.checkBoxes["planItem-Setup.dmg"]
+        let item = app.checkBoxes["planItem-downloads-Setup.dmg"]
         if !item.waitForExistence(timeout: 2) { expandDisclosures(in: app) }
         XCTAssertTrue(item.waitForExistence(timeout: 5))
         XCTAssertEqual(item.value as? Int, 0)
@@ -706,7 +738,7 @@ final class CatalogCleanupUITests: XCTestCase {
         let below = app.checkBoxes["planCategory-developer"], top = below.frame.minY
         revealAndClick(item, in: app)
         XCTAssertEqual(item.value as? Int, 1)
-        XCTAssertEqual(app.checkBoxes["planItem-Other.pkg"].value as? Int, 0)
+        XCTAssertEqual(app.checkBoxes["planItem-downloads-Other.pkg"].value as? Int, 0)
         // The installer goes to Trash, so the summary says how much of the total does.
         XCTAssertEqual(total.value as? String, before, "The Trash-bound installer releases nothing until the Trash is emptied")
         XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "value ENDSWITH 'of this goes to Trash'")).firstMatch.exists)
@@ -1088,10 +1120,10 @@ final class ICloudCleanupUITests: XCTestCase {
         let header = app.checkBoxes["planCategory-icloud"]
         XCTAssertTrue(header.waitForExistence(timeout: 5))
         XCTAssertEqual(header.value as? Int, 0)
-        let item = app.checkBoxes["planItem-Report.pdf"]
+        let item = app.checkBoxes["planItem-icloud-local-copies-Report.pdf"]
         if !item.waitForExistence(timeout: 2) { expandDisclosures(in: app) }
         XCTAssertTrue(item.waitForExistence(timeout: 5))
-        XCTAssertFalse(app.checkBoxes["planItem-Pinned.pdf"].exists, "Keep Downloaded files are never offered")
+        XCTAssertFalse(app.checkBoxes["planItem-icloud-local-copies-Pinned.pdf"].exists, "Keep Downloaded files are never offered")
         XCTAssertFalse(app.checkBoxes["planRule-icloud-local-copies"].exists)
         revealAndClick(item, in: app)
         app.buttons["Review cleanup"].click()
@@ -1707,20 +1739,14 @@ final class AppManagedStorageUITests: XCTestCase {
     /// #178: Final Cut Pro libraries, renamed and external, are listed with Final Cut's own steps; opening it reports
     /// only that it would open, never cleanup done, and nothing in a library changes. #399: the generated media inside
     /// each library is offered under Photo and video, render files ticked and optimized and proxy media not, never its
-    /// original media.
+    /// original media. #744: one event's optimized and proxy media share a name, and each row has its own identifier.
     @MainActor func testFinalCutLibrariesAreListedAndOpeningFinalCutCleansNothing() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
         let state = try configureIsolatedState(app)
         let home = try configureCatalogHome(app)
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
-        let render = home.appendingPathComponent("Movies/Untitled.fcpbundle/Event 1/Render Files/a.mov")
-        let original = home.appendingPathComponent("Movies/Untitled.fcpbundle/Event 1/Original Media/clip.mov")
-        for file in [render, original, home.appendingPathComponent("Movies/Untitled.fcpbundle/Event 1/Transcoded Media/High Quality Media/c.mov"),
-                     home.appendingPathComponent("Volumes/Shuttle/Client Cut.fcpbundle/Event 1/Transcoded Media/Proxy Media/b.mov")] {
-            try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try Data(repeating: 4, count: 60_000).write(to: file)
-        }
+        let (render, original) = try addFinalCutLibraries(in: home)
         app.launch()
 
         let entry = app.buttons["overviewAppManaged"]
@@ -1750,15 +1776,22 @@ final class AppManagedStorageUITests: XCTestCase {
         XCTAssertEqual(renderRule.value as? Int, 1, "Smart clean's render files start ticked")
         reveal(renderRule, in: app, nearTop: true)
         XCTAssertTrue(app.checkBoxes["planProfile-final-cut-render-files-Untitled"].waitForExistence(timeout: 5), "Grouped per library")
-        for (rule, item) in [("final-cut-optimized-media", "Untitled · Event 1"), ("final-cut-proxy-media", "Client Cut · Event 1")] {
+        for (rule, item) in [("final-cut-optimized-media", "Untitled · Event 1"), ("final-cut-proxy-media", "Untitled · Event 1"),
+                             ("final-cut-proxy-media", "Client Cut · Event 1")] {
             XCTAssertEqual(app.checkBoxes["planRule-" + rule].value as? Int, 0, rule)
             reveal(app.checkBoxes["planRule-" + rule], in: app, nearTop: true)
-            let row = app.checkBoxes["planItem-" + item]
+            let row = app.checkBoxes["planItem-\(rule)-\(item)"]
             if !row.waitForExistence(timeout: 2) { expandDisclosures(in: app) }
             XCTAssertTrue(row.waitForExistence(timeout: 5), item)
             XCTAssertEqual(row.value as? Int, 0, "\(rule) is offered, never ticked by default")
         }
-        XCTAssertFalse(app.descendants(matching: .any)["planItem-Original Media"].exists)
+        // #744: the same-named rows are two elements: ticking the optimized media leaves the proxy media unticked.
+        let optimized = app.checkBoxes["planItem-final-cut-optimized-media-Untitled · Event 1"]
+        let proxy = app.checkBoxes["planItem-final-cut-proxy-media-Untitled · Event 1"]
+        revealAndClick(optimized, in: app)
+        XCTAssertEqual(optimized.value as? Int, 1)
+        XCTAssertEqual(proxy.value as? Int, 0, "Its own identifier, so its own tick")
+        XCTAssertFalse(app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH 'planItem-' AND identifier ENDSWITH '-Original Media'")).firstMatch.exists)
         XCTAssertTrue(FileManager.default.fileExists(atPath: original.path))
     }
 
@@ -3188,7 +3221,7 @@ extension CatalogCleanupUITests {
         XCTAssertTrue(size.waitForExistence(timeout: 5))
         expandDisclosures(in: app)
         let npm = app.checkBoxes["planRule-npm-cache"], yarn = app.checkBoxes["planRule-yarn-cache"]
-        let alpha = app.checkBoxes["planItem-Alpha.dmg"], zulu = app.checkBoxes["planItem-Zulu.dmg"]
+        let alpha = app.checkBoxes["planItem-downloads-Alpha.dmg"], zulu = app.checkBoxes["planItem-downloads-Zulu.dmg"]
         let developer = app.checkBoxes["planCategory-developer"], downloads = app.checkBoxes["planCategory-downloads"]
         XCTAssertTrue(npm.exists && yarn.exists && alpha.exists && zulu.exists)
         XCTAssertLessThan(downloads.frame.minY, developer.frame.minY)

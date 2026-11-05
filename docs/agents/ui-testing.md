@@ -10,6 +10,7 @@ Query an element the way the view exposes it. Check the view's modifiers before 
 - **`.accessibilityElement(children: .combine)` merges its children into one element.** Its child texts can't be queried, and its `label` may be empty. Assert on a known identifier inside a non-combined view, or search the window (`app.staticTexts.matching(...)`). Example: Smart clean's `smartCleanHeader`.
 - **An identifier on a plain container spreads to its children.** A query for it matches several elements, and reading `frame` or `value` fails with "Multiple matching elements". Give the container `.accessibilityElement(children: .contain)` before its identifier (`explorerInspector`), or query `.firstMatch` when any one will do.
 - **A `StatusRow` or `SelectionSummary` text carries its words in `value` or `label`.** Read both: `element.value as? String ?? element.label`.
+- **A plan item is `planItem-<rule ID>-<name>`** (its Reveal link `planItemReveal-<rule ID>-<name>`), so same-named items of two rules stay apart (#744). A subscript query allows 128 characters; match a longer identifier with a predicate, as `overviewLocation:` does.
 - **Off-screen rows may not exist.** Use `revealAndClick` and the existing wait helpers (`waitForCatalogScan`, `waitForScannedFolder`) rather than bare `exists`.
 
 ## Fixtures
@@ -29,6 +30,7 @@ When checking layout-preserving changes, run `scripts/visual-check.py capture --
 
 - `overview` (the default): Overview, then the Cleanup plan.
 - `audio-software`: #719's Audio software rows (`addAudioSoftware`). `sounds` is Applications with Show sounds open near the top of the page; `drivers` scrolls on to the opened Drivers group. Scroll a page with `reveal(_:in:nearTop:)`, which finds its scroll view through `app.scrollViews`; `window.scrollViews` matched nothing when #719 was captured.
+- `photo-video`: #733's Photo and video rows: Adobe's media cache, default and moved (#730), and Premiere Pro's and After Effects' caches (#400) (`addAdobeCaches`), and Final Cut Pro's libraries (#399, `addFinalCutLibraries`). `overview` is Overview with its Photo and video row; `smart-clean` is Smart clean with Photo and video's Choose items open; `plan` is the Cleanup plan opened from Overview's row, Photo and video open at the top; `plan-final-cut` scrolls on to Final Cut Pro's render files.
 
 Without DIR, the captures go to a fresh folder in the temp directory, and the command prints it. A DIR must be new and outside the checkout; an existing folder is refused.
 
