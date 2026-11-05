@@ -6,7 +6,7 @@ How to run a batch of tickets with one implementer agent per ticket. The orchest
 
 1. **Branches.** Create the batch branch (`ship/batch-N`) from `origin/main`, then one worktree per ticket beside the repo: `git worktree add ../mac-cleaner-<ticket> -b fix/<ticket>-<slug> ship/batch-N`.
 2. **Decision numbers.** Give each ticket the next free Decision number, in batch order, and note in the hand-off which number the next batch or parked work starts at.
-3. **Overlap.** When two tickets touch the same code, tell each agent which part the other owns.
+3. **Overlap.** List the files each ticket will touch, UI test files and docs included. Tickets that share a UI test file run one after the other; for other shared code, tell each agent which part the other owns.
 4. **Prompts.** Spawn the agents in parallel. Each prompt carries the brief below, filled in, plus the session's commit trailer lines.
 5. **Merge.** Merge each finished branch into the batch branch (`--no-ff`, with the trailer lines). `docs/RESET.md` merges by union, so put its Decisions back in order with `scripts/order-decisions.py`. Decisions are append-only: a change to an earlier Decision is a new Decision that says "amends N".
 6. **Verify.** Run the core tests, the strict pool and `build-for-testing` on the batch branch. Then run `scripts/ui-journeys.sh` with every journey the agents named, once nobody is using the screen.
