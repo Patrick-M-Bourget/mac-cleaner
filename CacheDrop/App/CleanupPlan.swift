@@ -571,7 +571,7 @@ struct ReviewSheetFrame<Content: View, Actions: View>: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var body: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
-            PageHeader(title: title, subtitle: subtitle)
+            SheetHeader(title: title, subtitle: subtitle)
             ScrollView {
                 VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) { content() }.frame(maxWidth: .infinity, alignment: .leading)
                     .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }

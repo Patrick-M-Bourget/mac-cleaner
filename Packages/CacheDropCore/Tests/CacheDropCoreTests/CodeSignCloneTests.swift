@@ -113,7 +113,7 @@ private func day(_ n: Double) -> Date { Date(timeIntervalSince1970: 1_790_000_00
     #expect(CandidateCheck(catalog: catalog, running: FixtureNothingRunning(), inUse: FakeInUse()).check(candidate) == nil)
     let refusal = CandidateCheck(catalog: catalog, running: FixtureNothingRunning(), inUse: FakeInUse(open: [old.path])).check(candidate)
     #expect(refusal == .inUse("Google Chrome"))
-    #expect(refusal?.reason == "Google Chrome is using it. It is kept.")
+    #expect(refusal?.reason == "Google Chrome is using it.")
     #expect(CandidateCheck(catalog: catalog, running: FixtureNothingRunning(), inUse: FakeInUse(unknown: true)).check(candidate) == .inUseUnknown("Google Chrome"))
 }
 

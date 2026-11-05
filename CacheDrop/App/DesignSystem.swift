@@ -271,6 +271,25 @@ struct PageHeader: View {
         }
     }
 }
+/// Every sheet's title (#771): `TypeStyle.sheet`, after an optional badge, with an optional subtitle and the close button on
+/// the right. Sheets never title with a page's `PageHeader`.
+struct SheetHeader: View {
+    let title: String
+    var subtitle: String? = nil
+    var badge: CategoryBadge? = nil
+    var close: CloseButton? = nil
+    var identifier: String? = nil
+    var body: some View {
+        HStack(spacing: CacheDropDesign.Space.md) {
+            if let badge { badge }
+            VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
+                Text(title).font(CacheDropDesign.TypeStyle.sheet).accessibilityAddTraits(.isHeader).modifier(OptionalIdentifier(identifier: identifier))
+                if let subtitle { Text(subtitle).font(CacheDropDesign.TypeStyle.note).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
+            }.frame(maxWidth: .infinity, alignment: .leading)
+            if let close { close }
+        }
+    }
+}
 /// A page's one search field (#295): under its header's description (#352), or on the header's right (`PageHeader.search`). 210 wide,
 /// a capsule, a 1-point border and room around the text. As a Mac search field: a magnifying glass, a clear button
 /// once something is typed, and Esc clears it. The accent ring shows while typing in it. Clicking anywhere in it types there.

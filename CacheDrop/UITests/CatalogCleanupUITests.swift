@@ -542,7 +542,7 @@ final class CatalogCleanupUITests: XCTestCase {
         // The plan says why DerivedData will be refused: this journey runs under xcodebuild or Xcode.
         let running = app.staticTexts["planRunning-xcode-derived-data"]
         XCTAssertTrue(running.waitForExistence(timeout: 5))
-        // "Xcode is running" with Quit Xcode when the app is open, "Quit Xcode to include this" when only its tools run.
+        // "Xcode is open" with Quit Xcode when the app is open, "Quit Xcode to include this" when only its tools run.
         XCTAssertTrue((running.value as? String ?? "").contains("Xcode"), running.debugDescription)
         app.buttons["Review cleanup"].click()
 
@@ -798,7 +798,7 @@ final class CatalogCleanupUITests: XCTestCase {
 
         XCTAssertTrue(reviewLine(app, "permanentlyRemoved", "browser").waitForExistence(timeout: 5))
         // The review lists each copy in a collapsed file list.
-        openDisclosure(app.disclosureTriangles.matching(NSPredicate(format: "label ENDSWITH 'Show files'")).firstMatch, in: app)
+        openDisclosure(app.disclosureTriangles.matching(NSPredicate(format: "label BEGINSWITH 'Show files · '")).firstMatch, in: app)
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'code_sign_clone.old'")).firstMatch.exists)
         XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'code_sign_clone.new'")).firstMatch.exists)
         cleanUpFromReview(app)
@@ -1021,7 +1021,7 @@ final class CatalogCleanupUITests: XCTestCase {
 
         XCTAssertTrue(reviewLine(app, "commandsRun", "developer").waitForExistence(timeout: 5))
         // The exact command shows with the files; only the chosen kind is there.
-        openDisclosure(app.disclosureTriangles.matching(NSPredicate(format: "label ENDSWITH 'Show files'")).firstMatch, in: app)
+        openDisclosure(app.disclosureTriangles.matching(NSPredicate(format: "label BEGINSWITH 'Show files · '")).firstMatch, in: app)
         XCTAssertTrue(app.staticTexts["docker builder prune -a -f"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.staticTexts["docker image prune -a -f"].exists)
         cleanUpFromReview(app)
@@ -2253,7 +2253,7 @@ extension CatalogCleanupUITests {
         XCTAssertTrue(reviewLine(app, "permanentlyRemoved", "developer").waitForExistence(timeout: 10))
         XCTAssertFalse(reviewLine(app, "movedToTrash", "downloads").exists)
         XCTAssertFalse(reviewLine(app, "commandsRun", "developer").exists)
-        XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label == '1 item · Show files'")).firstMatch.exists)
+        XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label == 'Show files · 1'")).firstMatch.exists)
         XCTAssertTrue(app.buttons["Cancel"].exists)
         app.buttons.matching(NSPredicate(format: "label == 'Clean up' AND identifier != 'smartCleanCleanUp'")).firstMatch.click()
 

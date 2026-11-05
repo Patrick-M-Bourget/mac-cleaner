@@ -31,13 +31,13 @@ public enum CheckRefusal: Sendable, Hashable {
         switch self {
         case .missing: "No longer exists."
         case .changed: "Changed since the scan."
-        case .ownerRunning(let name): "\(name) is running. Quit it, then scan again."
+        case .ownerRunning(let name): "\(name) is open. Quit it, then scan again."
         case .ownerUnknown(let name): "Couldn’t check whether \(name) is running."
         case .protected(let name): "Contains protected data (\(name))."
         case .excluded: "In Protected items, in Locations."
-        case .notPermitted: "CacheDrop can’t change it without admin rights."
+        case .notPermitted: "Changing it needs your password."
         case .cloud: "Stored in iCloud."
-        case .inUse(let name): "\(name) is using it. It is kept."
+        case .inUse(let name): "\(name) is using it."
         case .inUseUnknown(let name): "Couldn’t check whether \(name) is using it, so it is kept."
         case .keptDownloaded: "Set to Keep Downloaded. Its local copy stays."
         case .notUploaded: "Not fully uploaded to iCloud yet. Its local copy stays."
@@ -45,16 +45,27 @@ public enum CheckRefusal: Sendable, Hashable {
         case .notDownloaded: "No local copy to remove."
         case .cloudUnknown: "Couldn’t read its iCloud status. Its local copy stays."
         case .guidanceOnly: "Guidance only: CacheDrop shows the size and where to manage it, and never changes it."
-        case .projectOpen: "Its project is open in an app or tool. It is kept."
+        case .projectOpen: "Its project is open in an app or tool."
         case .projectUnchecked: "Couldn’t check whether its project is in use, so it is kept."
-        case .recentlyEdited: "Its project changed in the last \(ProjectBuilds.recentDays) days. It is kept."
-        case .uncommittedChanges: "Its project has uncommitted changes. It is kept."
-        case .trackedByGit: "Git tracks files in it. It is kept."
-        case .appInstalled(let name): "\(name) is installed again, or CacheDrop couldn’t check. It is kept."
+        case .recentlyEdited: "Its project changed in the last \(ProjectBuilds.recentDays) days."
+        case .uncommittedChanges: "Its project has uncommitted changes."
+        case .trackedByGit: "Git tracks files in it."
+        case .appInstalled(let name): "\(name) is installed again, or CacheDrop couldn’t check."
         case .receiptsUnread: "Couldn’t read every installer receipt, so it is kept."
         case .unrecognised(let name): "Holds files CacheDrop doesn’t recognize (\(name)), so it is kept."
         case .notACache(let reason): reason
         }
+    }
+    /// The reason after the review's "X will be skipped:" (#771): no full stop, and lower-case unless it starts with a name.
+    public var clause: String {
+        let text = reason.hasSuffix(".") ? String(reason.dropLast()) : reason
+        let startsWithName: Bool = switch self {
+        case .ownerRunning, .appInstalled, .notACache: true
+        // "A simulator is using it" starts with an article, not a name.
+        case .inUse(let name): !(name.hasPrefix("A ") || name.hasPrefix("An "))
+        default: false
+        }
+        return startsWithName ? text : text.prefix(1).lowercased() + text.dropFirst()
     }
 }
 

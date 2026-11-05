@@ -102,7 +102,7 @@ private struct FakeInUse: InUseChecking {
     // Visible, never as free space: each held with why (#374).
     #expect(found.compactMapValues(\.hold) == ["dirty/node_modules": CandidateHold(.uncommittedChanges), "recent/node_modules": CandidateHold(.recentlyEdited),
                                                 "open/node_modules": CandidateHold(.projectOpen)])
-    #expect(found["open/node_modules"]?.hold?.line == "Its project is open in an app or tool. It is kept.")
+    #expect(found["open/node_modules"]?.hold?.line == "Its project is open in an app or tool.")
 
     // Ticking is the override for the policy guards; a project in use is still skipped while it is, and cleaned once it isn't.
     let check = { (item: Candidate?, inUse: any InUseChecking) in

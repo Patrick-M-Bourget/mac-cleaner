@@ -362,7 +362,7 @@ private struct ButtonRuleGalleryExamples: View {
             Text("Sheet footer · Large capsules, Cancel then the primary button").font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
             SummarySurface {
                 VStack(alignment: .leading, spacing: CacheDropDesign.Space.md) {
-                    HStack { Text("Example sheet").font(CacheDropDesign.TypeStyle.section); Spacer(); CloseButton {} }
+                    SheetHeader(title: "Example sheet", subtitle: "Every sheet titles with SheetHeader", close: CloseButton {})
                     Divider()
                     SheetFooter { Button("Cancel") {}; Button("Clean up") {}.buttonStyle(.borderedProminent) }
                 }
