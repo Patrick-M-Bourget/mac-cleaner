@@ -25,16 +25,23 @@ public enum Onboarding {
         }
     }
 
-    /// Found X so far, and Found X you can clean: Overview's recommended figure, what the scan found that releases space.
+    /// Found X so far: Overview's recommended figure for the locations read so far, what they found that releases space.
     public static func found(_ overview: CatalogOverview?) -> Int64 { max(0, overview?.recommended.sortBytes ?? 0) }
 
-    /// What Ready shows: the total and the three largest categories. Nil when nothing can be cleaned (Nothing to clean up).
+    /// What Ready shows: the figure and the three largest categories of what it counts.
     public struct Ready {
         public let found: Int64
         public let top: [CatalogOverview.Row]
     }
-    public static func ready(_ overview: CatalogOverview?) -> Ready? {
-        guard let overview, found(overview) > 0 else { return nil }
-        return Ready(found: found(overview), top: Array(overview.visibleRows.filter { !$0.isEmpty }.prefix(3)))
+    /// Ready follows Smart clean (`smartClean`, its ticked items): Found X you can clean is its Free up figure, what those items
+    /// release, or, when none releases space, what they move to the Trash (as Results reports such a run, Decision 132).
+    /// Nil, Nothing to clean up, only when Smart clean has nothing to clean.
+    public static func ready(smartClean: [Candidate], catalog: Catalog) -> Ready? {
+        guard !smartClean.isEmpty else { return nil }
+        let releasing = smartClean.filter(\.releasesSpace)
+        let counted = releasing.isEmpty ? smartClean : releasing
+        let overview = CatalogOverview(catalog: catalog, candidates: counted)
+        return Ready(found: max(0, SizeEstimate(sum: counted.map(SizeEstimate.init)).sortBytes),
+                     top: Array(overview.visibleRows.filter { !$0.isEmpty }.prefix(3)))
     }
 }

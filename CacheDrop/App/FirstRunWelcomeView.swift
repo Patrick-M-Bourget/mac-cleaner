@@ -14,7 +14,8 @@ import SwiftUI
     private(set) var failure = ""
     /// Start Smart clean closes the guide onto Smart clean; every other way out opens Overview (#784).
     private(set) var opensSmartClean = false
-    private var introduction = true
+    /// First use, or reopened from Help; later launches show only the scanning step, without the welcome's icon.
+    private(set) var introduction = true
     private var catalog: CatalogCleanupModel?
     private var preparation: Task<Void, Never>?
     var waitsForAccess: Bool { isShowing && (step == .welcome || requestingAccess) }
@@ -138,7 +139,7 @@ struct FirstRunWelcomeView: View {
             case .welcome:
                 OnboardingWelcomeStep(categories: Onboarding.categories, onStart: { model.start() }, onClose: { model.finish() })
             case .scanning, .ready:
-                OnboardingScanStep(categories: Onboarding.categories, phase: phase, sharesSetupProgress: sharing.readyBinding,
+                OnboardingScanStep(categories: Onboarding.categories, phase: phase, introduction: model.introduction, sharesSetupProgress: sharing.readyBinding,
                                    onStartSmartClean: { model.finish(openingSmartClean: true) }, onViewOverview: { model.finish() },
                                    onClose: { model.finish() })
             case .failed:
@@ -149,7 +150,7 @@ struct FirstRunWelcomeView: View {
 
     private var phase: OnboardingScanStep.Phase {
         guard model.step == .ready else { return .scanning(found: Onboarding.found(catalog.overview), finished: finished) }
-        guard let ready = Onboarding.ready(catalog.overview) else { return .nothingFound }
+        guard let ready = Onboarding.ready(smartClean: catalog.smartCleanCandidates, catalog: catalog.catalog) else { return .nothingFound }
         return .ready(found: ready.found, top: ready.top.map { .init(category: $0.category, estimate: $0.estimate) })
     }
     /// Lit as the scan reads each category; all of them once it has finished and Applications is being prepared, none before.

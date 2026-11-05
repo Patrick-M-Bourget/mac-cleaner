@@ -40,28 +40,43 @@ private func write(_ bytes: Int, at relative: String, in home: URL) throws {
     try Data(repeating: 1, count: bytes).write(to: file)
 }
 
-@Test func readyShowsWhatCanBeCleanedAndTheThreeLargestCategories() throws {
+// Ready follows Smart clean: its Free up figure over what it would clean, the three largest of those categories.
+@Test func readyShowsSmartCleansFreeUpFigureAndItsThreeLargestCategories() throws {
     let home = try onboardingHome()
     defer { try? FileManager.default.removeItem(at: home) }
     try write(8192, at: "d/f", in: home)
     try write(4096, at: "b/f", in: home)
     try write(16384, at: "l/f", in: home)
     try write(4096 * 3, at: "m/f", in: home)
-    let catalog = Catalog(rules: [rule("d", .developer), rule("b", .browser), rule("l", .logs), rule("m", .models)])
-    let overview = CatalogOverview(catalog: catalog, candidates: catalog.discover(fixture: home))
-    #expect(Onboarding.found(overview) == 40960)
-    let ready = try #require(Onboarding.ready(overview))
-    #expect(ready.found == 40960)
+    try write(4096 * 10, at: "t/f", in: home)
+    let catalog = Catalog(rules: [rule("d", .developer), rule("b", .browser), rule("l", .logs), rule("m", .models), rule("t", .downloads, .trash)])
+    let ready = try #require(Onboarding.ready(smartClean: catalog.discover(fixture: home), catalog: catalog))
+    #expect(ready.found == 40960, "What goes to the Trash isn't freed space")
     #expect(ready.top.map(\.category) == [.logs, .models, .developer])
     #expect(ready.top.map(\.estimate) == [.measured(16384), .measured(12288), .measured(8192)])
 }
 
-@Test func readyIsNothingFoundWhenNothingCanBeCleaned() throws {
+// Decision 132's precedent: a run that only moves items to the Trash reports what it moved.
+@Test func readyWithOnlyTrashBoundItemsShowsTheirTotal() throws {
     let home = try onboardingHome()
     defer { try? FileManager.default.removeItem(at: home) }
-    let catalog = Catalog(rules: [rule("d", .developer)])
-    let overview = CatalogOverview(catalog: catalog, candidates: catalog.discover(fixture: home))
-    #expect(Onboarding.ready(overview) == nil)
-    #expect(Onboarding.ready(nil) == nil)
+    try write(4096 * 10, at: "t/f", in: home)
+    let catalog = Catalog(rules: [rule("t", .downloads, .trash)])
+    let ready = try #require(Onboarding.ready(smartClean: catalog.discover(fixture: home), catalog: catalog))
+    #expect(ready.found == 40960)
+    #expect(ready.top.map(\.category) == [.downloads])
+}
+
+@Test func readyIsNothingFoundOnlyWhenSmartCleanHasNothingToClean() {
+    #expect(Onboarding.ready(smartClean: [], catalog: Catalog(rules: [rule("d", .developer)])) == nil)
+}
+
+@Test func foundSoFarIsOverviewsRecommendedFigure() throws {
+    let home = try onboardingHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    try write(8192, at: "d/f", in: home)
+    try write(4096, at: "t/f", in: home)
+    let catalog = Catalog(rules: [rule("d", .developer), rule("t", .downloads, .trash)])
+    #expect(Onboarding.found(CatalogOverview(catalog: catalog, candidates: catalog.discover(fixture: home))) == 8192)
     #expect(Onboarding.found(nil) == 0, "Nothing so far before the first location finishes")
 }

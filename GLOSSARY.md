@@ -64,7 +64,8 @@ The names CacheDrop shows, what they mean, and where they live in code. Copy fol
 | What CacheDrop cleans | Onboarding's row of the cleanable categories' badges; while scanning, each lights up as its category finishes (#783) | `CategoryBadgeRow`, `OnboardingWelcomeStep` |
 | Developer, Browsers, App caches, Downloads, Audio, Photo and video, Models, App updates, Logs, Deleted apps | The categories' short names, under their badges in onboarding (#784) | `CatalogCategory.shortTitle`, `Onboarding.categories` |
 | Never touches | Onboarding's muted line naming what CacheDrop never cleans: **Never touches: Photos · Mail · Messages · passwords** (#783) | `OnboardingWelcomeStep` |
-| Found X so far, Found X you can clean | Onboarding's running total while scanning, then what the scan found (#783) | `OnboardingScanStep` |
+| Found X so far, Found X you can clean | Onboarding's running total while scanning (Overview's recommended figure so far), then Smart clean's Free up figure, or what it moves to the Trash when nothing it cleans frees space (#783, Decision 174) | `OnboardingScanStep`, `Onboarding.found`, `Onboarding.ready` |
+| Scanning | The spoken name of onboarding's spinner while the scan runs (#784) | `OnboardingScanStep` |
 
 ## Actions and outcomes
 

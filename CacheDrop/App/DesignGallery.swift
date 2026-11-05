@@ -266,7 +266,8 @@ struct DesignGallery: View {
         .preferredColorScheme(appearance == .automatic ? nil : appearance == .dark ? .dark : .light)
     }
 }
-/// Onboarding's steps (#783) with synthetic data: Welcome, Scanning with 4 of 10 categories read, Ready and Nothing found.
+/// Onboarding's steps (#783, #784) with synthetic data: Welcome, Scanning with 4 of 10 categories read, the same on later launches,
+/// Ready and Nothing found.
 private struct OnboardingGalleryExamples: View {
     @State private var sharing = false
     private static let categories = Onboarding.categories
@@ -279,6 +280,10 @@ private struct OnboardingGalleryExamples: View {
             }
             example("Scanning · 4 of 10 categories read", "scanning") {
                 step(.scanning(found: 2_700_000_000, finished: Set(Self.categories.prefix(4))))
+            }
+            example("Later launches · Scanning, 4 of 10 categories read", "laterLaunch") {
+                OnboardingScanStep(categories: Self.categories, phase: .scanning(found: 2_700_000_000, finished: Set(Self.categories.prefix(4))),
+                                   introduction: false, sharesSetupProgress: $sharing, onStartSmartClean: {}, onViewOverview: {}, onClose: {})
             }
             example("Ready", "ready") {
                 step(.ready(found: Self.found.reduce(0) { $0 + $1.1 },

@@ -82,6 +82,8 @@ struct OnboardingScanStep: View {
     }
     let categories: [CatalogCategory]
     let phase: Phase
+    /// False on later launches: scanning shows only the badges and the spinner, the weight of a progress sheet, not a welcome.
+    var introduction = true
     @Binding var sharesSetupProgress: Bool
     let onStartSmartClean: () -> Void
     let onViewOverview: () -> Void
@@ -92,10 +94,11 @@ struct OnboardingScanStep: View {
         case .scanning(let found, let finished):
             // No footer while scanning (Decision 108): no disabled button waits for the scan.
             OnboardingSheet(onClose: onClose) {
-                OnboardingIdentity(categories: categories, finished: finished)
+                if introduction { OnboardingIdentity(categories: categories, finished: finished) }
+                else { CategoryBadgeRow(categories: categories, finished: finished) }
                 // The bar's own spinner, so a long category never reads as frozen; the total shows once something is found.
                 HStack(spacing: CacheDropDesign.Space.sm) {
-                    ProgressView().controlSize(.small).accessibilityIdentifier("welcomeScanProgress") // VoiceOver hears it busy
+                    ProgressView().controlSize(.small).accessibilityLabel("Scanning").accessibilityIdentifier("welcomeScanProgress")
                     if found > 0 {
                         Text("Found " + SizeFormatter.text(found) + " so far").font(CacheDropDesign.TypeStyle.note).foregroundStyle(.secondary)
                             .monospacedDigit().accessibilityIdentifier("welcomeFoundSoFar")

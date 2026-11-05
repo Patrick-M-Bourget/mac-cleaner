@@ -365,6 +365,20 @@ final class LaunchSmokeUITests: XCTestCase {
         sheet.buttons["dismissFullDiskAccess"].click()
         XCTAssertFalse(sheet.staticTexts["Broader access is optional"].waitForExistence(timeout: 2))
 
+        // The same sheet reads access again when CacheDrop comes back; granted, its one button is Done (#784: onboarding no
+        // longer opens it). Access is taken away again afterwards for System access's own check below.
+        revealAndClick(app.links["fullDiskAccessLink"].firstMatch, in: app)
+        XCTAssertTrue(sheet.staticTexts["Broader access is optional"].waitForExistence(timeout: 5))
+        XCUIApplication(bundleIdentifier: "com.apple.finder").activate()
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: safari.path)
+        app.activate()
+        let done = sheet.buttons["closeFullDiskAccess"]
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == 'Done'"), object: done)], timeout: 10), .completed)
+        XCTAssertFalse(sheet.buttons["openFullDiskAccessSettings"].exists)
+        done.click()
+        XCTAssertFalse(app.staticTexts["Broader access is optional"].waitForExistence(timeout: 2))
+        try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: safari.path)
+
         // Returning from another app refreshes the same System access instance.
         app.typeKey("9", modifierFlags: .command)
         let finder = XCUIApplication(bundleIdentifier: "com.apple.finder")
@@ -794,7 +808,7 @@ final class FirstRunWelcomeUITests: XCTestCase {
         XCTAssertFalse(app.buttons["welcomeStartScan"].exists)
     }
 
-    /// Nothing that releases space found: Nothing to clean up right now, and View Overview.
+    /// Smart clean has nothing to clean: Nothing to clean up right now, and View Overview (Decision 174).
     @MainActor func testOnboardingWithNothingToCleanOffersViewOverview() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
