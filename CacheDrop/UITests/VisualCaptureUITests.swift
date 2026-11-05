@@ -2,9 +2,12 @@ import XCTest
 import AppKit
 
 /// Opt-in window captures, separate from assertions in the journey suite. Images stay in the runner's temp folder.
+/// `scripts/visual-check.py capture --scenario NAME` names the scenario (#728): the fixtures it adds and the pages it captures,
+/// each page reached from the one before it, in light then dark.
 final class VisualCaptureUITests: XCTestCase {
     @MainActor func testCaptureWindow() throws {
-        guard ProcessInfo.processInfo.environment["CACHEDROP_VISUAL_CAPTURE"] == "1" else {
+        let environment = ProcessInfo.processInfo.environment
+        guard environment["CACHEDROP_VISUAL_CAPTURE"] == "1" else {
             throw XCTSkip("Run scripts/visual-check.py capture when the Mac is free")
         }
         continueAfterFailure = false
@@ -12,6 +15,17 @@ final class VisualCaptureUITests: XCTestCase {
         let state = try configureIsolatedState(app)
         let home = try configureCatalogHome(app)
         defer { app.terminate() }
+        let pages: [String]
+        switch environment["CACHEDROP_VISUAL_SCENARIO"] ?? "overview" {
+        case "overview":
+            pages = ["overview", "plan"]
+        case "audio-software":
+            try addAudioSoftware(in: home)
+            pages = ["sounds", "drivers"]
+        case let unknown:
+            XCTFail("No capture scenario named \(unknown)")
+            return
+        }
         let output = FileManager.default.temporaryDirectory.appendingPathComponent("CacheDropVisual-" + UUID().uuidString)
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
         app.launchEnvironment["CACHEDROP_TEST_VISUAL_WINDOW"] = "1"
@@ -30,11 +44,8 @@ final class VisualCaptureUITests: XCTestCase {
             XCTAssertEqual(window.frame.width, 1000, accuracy: 2)
             XCTAssertEqual(window.frame.height, 760, accuracy: 2)
             XCTAssertTrue(CGDisplayBounds(CGMainDisplayID()).contains(window.frame), "The whole fixture window must fit on the primary display")
-            for page in ["overview", "plan"] {
-                if page == "plan" {
-                    app.typeKey("3", modifierFlags: .command)
-                    XCTAssertTrue(app.staticTexts["Ready to clean"].waitForExistence(timeout: 10))
-                }
+            for page in pages {
+                show(page, in: app)
                 // Park outside the window and allow an existing hover tooltip to disappear.
                 CGWarpMouseCursorPosition(CGPoint(x: window.frame.minX - 20, y: window.frame.minY + 100))
                 Thread.sleep(forTimeInterval: 1)
@@ -60,5 +71,27 @@ final class VisualCaptureUITests: XCTestCase {
         }
         try JSONSerialization.data(withJSONObject: manifest, options: [.prettyPrinted, .sortedKeys]).write(to: output.appendingPathComponent("manifest.json"))
         print("VISUAL_CAPTURE_DIR=\(output.path)")
+    }
+
+    /// Brings a scenario's page on screen from the one captured before it. Overview is where the scan leaves the window.
+    /// A group is scrolled to the top of the page with `reveal`, which scrolls the page's scroll view (`app.scrollViews`).
+    @MainActor private func show(_ page: String, in app: XCUIApplication) {
+        switch page {
+        case "plan":
+            app.typeKey("3", modifierFlags: .command)
+            XCTAssertTrue(app.staticTexts["Ready to clean"].waitForExistence(timeout: 10))
+        case "sounds":
+            openApplications(app, ["audio software"])
+            let sounds = app.disclosureTriangles.matching(NSPredicate(format: "label BEGINSWITH 'Show sounds · '")).firstMatch
+            openDisclosure(sounds, in: app)
+            reveal(sounds, in: app, nearTop: true)
+        case "drivers":
+            openApplicationsSections(app, ["drivers"])
+            let drivers = app.disclosureTriangles.matching(NSPredicate(format: "label BEGINSWITH 'Choose drivers · '")).firstMatch
+            XCTAssertTrue(drivers.waitForExistence(timeout: 5), "Audio software lists its drivers")
+            reveal(drivers, in: app, nearTop: true)
+        default:
+            break
+        }
     }
 }
