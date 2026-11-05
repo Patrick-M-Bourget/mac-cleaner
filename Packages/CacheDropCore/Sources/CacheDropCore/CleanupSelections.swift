@@ -47,7 +47,8 @@ public struct CleanupSelections: Sendable, Equatable {
     /// unticked, then moves each page's revision only when its own choices differ from the ones it last moved for.
     /// A `held` item (#374) is never ticked for you: one ticked for you before it was held is unticked until it is free again.
     public mutating func noteChoices(among found: [Candidate], recommended: [Candidate], held: [Candidate] = []) {
-        let held = Set(held.map(\.id))
+        // Worth a look's ticks are Smart clean's choices too (#780): files from deleted apps the plan doesn't take.
+        let held = Set(held.map(\.id)), planned = Set(recommended.map(\.id))
         ticked.subtract(seeded.intersection(held)); seeded.subtract(held)
         let recommended = Set(recommended.map(\.id)).subtracting(held)
         let tickedForYou = recommended.subtracting(unticked)
@@ -55,7 +56,7 @@ public struct CleanupSelections: Sendable, Equatable {
         let ids = ticked.intersection(found.map(\.id))
         for page in Source.allCases {
             // Smart clean's choices: its ticked recommended items, and what's ticked under Worth a look (#780).
-            let now = page == .smartClean ? recommended.intersection(ticked).union(ids.filter(WorthALook.offers(id:)))
+            let now = page == .smartClean ? recommended.intersection(ticked).union(ids.filter { WorthALook.offers(id: $0, notIn: planned) })
                 : ids.filter { Source.page(ofID: $0) == page }
             guard now != revisedFor[page, default: []] else { continue }
             revisedFor[page] = now; revisions[page, default: 0] &+= 1
@@ -84,7 +85,8 @@ public struct CleanupSelections: Sendable, Equatable {
         let shown = Set(listed.map(\.id))
         let plan = RecommendedPlan(catalog: catalog, candidates: found) { _ in nil }
         let offered = Set((plan.candidates + plan.held).map(\.id))
-        return found.filter { (offered.contains($0.id) || WorthALook.offers($0)) && isTicked($0) && (shown.contains($0.id) || check($0) == nil) }
+        let suggested = Set(WorthALook.candidates(in: found, plan: plan).map(\.id))
+        return found.filter { (offered.contains($0.id) || suggested.contains($0.id)) && isTicked($0) && (shown.contains($0.id) || check($0) == nil) }
     }
 
     /// The ticked items among `found` that `page` shows (the plan or Applications).

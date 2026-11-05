@@ -61,12 +61,11 @@ private func recommended(_ items: [Candidate], refusing refused: [String: CheckR
     #expect(recommended([item("downloads", action: .delete, name: "Setup.dmg", lastUsed: daysAgo(400))]).isEmpty, "Only to the Trash")
 }
 
-/// #780, Decision 178: pre-ticks only lose no data, and an app's settings are data, so even leftovers a bundle ID or receipt
-/// ties to their app are never recommended. Smart clean suggests them unticked under Worth a look.
-@Test func leftoversABundleIDOrReceiptTiesToTheirAppAreNotRecommended() {
+@Test func leftoversABundleIDOrReceiptTiesToTheirAppAreRecommended() {
     let byID = LeftoverTie(app: "Synth", bundleID: "com.gone.synth", vendor: "com.gone", evidence: .bundleID)
     let byReceipt = LeftoverTie(app: "Foo", bundleID: nil, vendor: "com.foocorp", evidence: .receipt("com.foocorp.foo.pkg"))
-    #expect(recommended([item(RemovedAppLeftovers.ruleID, tie: byID), item(RemovedAppLeftovers.ruleID, tie: byReceipt)]).isEmpty)
+    #expect(recommended([item(RemovedAppLeftovers.ruleID, tie: byID), item(RemovedAppLeftovers.ruleID, tie: byReceipt)])
+            == [RemovedAppLeftovers.ruleID, RemovedAppLeftovers.ruleID])
 }
 
 @Test func possiblyRelatedLeftoversAreNotRecommended() {

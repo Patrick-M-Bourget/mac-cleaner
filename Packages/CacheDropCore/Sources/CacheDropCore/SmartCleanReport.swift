@@ -92,6 +92,12 @@ public struct SmartCleanReport: Sendable {
     /// Why Smart clean takes `candidate`, from the plan's own `RecommendedPlan.Basis` so the two never disagree.
     static func reason(_ candidate: Candidate, rule: CleanupRule, now: Date) -> String {
         switch RecommendedPlan.basis(candidate, rule: rule, now: now) {
+        case .leftover(let tie):
+            switch tie.evidence {
+            case .bundleID: return "Leftover tied to \(tie.app) by bundle ID \(tie.bundleID ?? "")"
+            case .receipt(let id): return "Leftover tied to \(tie.app) by installer receipt \(id)"
+            case .nameOnly(let why): return why
+            }
         case .oldDownload:
             let days = candidate.lastUsed.map { Int(now.timeIntervalSince($0) / .secondsPerDay) } ?? 0
             return "Download not opened or changed in \(days) days"

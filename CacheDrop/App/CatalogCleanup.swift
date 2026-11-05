@@ -364,8 +364,9 @@ import SwiftUI
     var planCategories: [CatalogOverview.Row] { offeredOverview.rows.filter { CleanupSelections.Source.page(of: $0) == .plan } }
     /// Whether the plan has a row for `category` now.
     func plans(_ category: CatalogCategory) -> Bool { planCategories.contains { $0.category == category } }
-    /// Smart clean's Worth a look rows (#780, Decision 178): files from deleted apps, when found; never ticked for you.
-    var worthALookRows: [CatalogOverview.Row] { WorthALook.rows(in: offeredOverview) }
+    /// Smart clean's Worth a look (#780, Decision 178): the files from deleted apps the recommended plan doesn't take; never
+    /// ticked for you.
+    var worthALookCandidates: [Candidate] { WorthALook.candidates(in: discovered, plan: recommendedPlan) }
     /// The Applications page's Leftovers row; nil when none were found.
     var leftoversRow: CatalogOverview.Row? { offeredOverview.rows.first { $0.category == .leftovers } }
     /// The items to uninstall an Applications row with, by its id (`AppUninstall.Target.path`): an installed app's (#177), or
@@ -750,7 +751,10 @@ import SwiftUI
     }
     /// Smart clean's ticked items as the last scan sees them: the recommended ones, ticked here or on any page (#349), and
     /// those ticked under Worth a look (#780).
-    var smartCleanCandidates: [Candidate] { (recommendedCandidates + recommendedHeld + discovered.filter(WorthALook.offers)).filter(selections.isTicked) }
+    var smartCleanCandidates: [Candidate] {
+        let plan = recommendedPlan
+        return (plan.candidates + plan.held + WorthALook.candidates(in: discovered, plan: plan)).filter(selections.isTicked)
+    }
     /// Smart clean's selection checked now: the recommended plan with the full checks, minus what was unticked, plus what the
     /// page listed that the checks now refuse, for the review to explain. Nil when nothing could be checked or the scan changed meanwhile.
     /// Smart clean's items checked now, with the check that read them, so its review reuses the same snapshot of what's open

@@ -77,7 +77,9 @@ final class RemovedAppLeftoversUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["planItemReveal-removed-app-possibly-related-Gone"].exists, "Reveal in Finder is beside it")
         XCTAssertFalse(app.buttons["Select Possibly related"].exists, "The rule's row is inert")
         XCTAssertFalse(app.links["planRuleReveal-removed-app-possibly-related"].exists, "and no Finder link")
-        // Even Synth's confirmed file is never ticked for you (#780), so the one item is cleaned alone.
+        // Synth's confirmed file is recommended, so it may arrive ticked (#349); untick it, by clicking its row (#367), to clean
+        // the one item alone.
+        if group.value as? Int == 1 { revealAndClick(app.buttons["Select Synth"], in: app) }
         XCTAssertEqual(group.value as? Int, 0)
 
         revealAndClick(app.buttons["Select Gone"], in: app)

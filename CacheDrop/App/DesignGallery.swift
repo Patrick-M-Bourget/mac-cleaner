@@ -209,7 +209,7 @@ struct DesignGallery: View {
                         Text("Example cache").font(CacheDropDesign.TypeStyle.note)
                         Text("Example build files").font(CacheDropDesign.TypeStyle.note)
                     }
-                    // Smart clean's Worth a look (#780, Decision 178): a section title over the row Applications draws, never ticked for you.
+                    // Smart clean's Worth a look (#780, Decision 178): a section title over the row Applications draws, holding the files from deleted apps Smart clean doesn't tick.
                     Text(WorthALook.title).font(CacheDropDesign.TypeStyle.section).accessibilityAddTraits(.isHeader)
                     CategoryRow(category: .leftovers, state: .unchecked, title: CatalogCategory.leftovers.overviewTitle, detail: CatalogCategory.leftovers.overviewDetail,
                                 size: "84 MB", enabled: true, identifier: "galleryWorthALookRow", itemCount: 3, expanded: .constant(false), toggle: {}) {
