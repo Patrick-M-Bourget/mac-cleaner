@@ -92,7 +92,8 @@ public enum PlugInUninstall {
         /// A shared item waits for every sharer (#288): the first's target, with each other sharer's own app as a host.
         func sharedTarget(_ ids: [String]) -> AppUninstall.Target? {
             guard var target = ids.lazy.compactMap({ targets[$0] }).first else { return nil }
-            target.plugIn?.hosts += ids.compactMap { targets[$0] }.filter { $0.path != target.path }.map(\.owner)
+            let path = target.path
+            target.plugIn?.hosts += ids.compactMap { targets[$0] }.filter { $0.path != path }.map(\.owner)
             return target
         }
         for product in products where only?.contains(product.id) ?? true {
