@@ -24,6 +24,8 @@ extension CatalogCategory {
     }
     /// Smart clean's title: it takes only downloads untouched for 7 days (#342), so it says so.
     public var smartCleanTitle: String { self == .downloads ? "Old downloads" : overviewTitle }
+    /// Smart clean's line for the downloads it takes, which says which ones (#779); every other category uses the plan's line.
+    public static let oldDownloadsDetail = "Downloads you haven’t opened in \(RecommendedPlan.downloadUnusedDays) days"
 }
 
 extension CatalogOverview.Row {

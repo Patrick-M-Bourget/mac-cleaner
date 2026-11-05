@@ -43,3 +43,9 @@ private func item(_ ruleID: String, bytes: Int64 = 1_000_000_000) -> Candidate {
     #expect(SmartCleanSummary.notIncluded == "Not included: newer downloads, models, iCloud copies")
     #expect(SmartCleanSummary.adjust == "Adjust in Cleanup plan")
 }
+
+@Test func oldDownloadsSaysWhichDownloadsSmartCleanTakes() {
+    // Smart clean takes only downloads nothing opened in `downloadUnusedDays` (#342), so its row says that, not the plan's
+    // "every file in your Downloads folder" (#779).
+    #expect(CatalogCategory.oldDownloadsDetail == "Downloads you haven’t opened in 7 days")
+}

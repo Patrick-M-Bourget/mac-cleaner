@@ -90,7 +90,7 @@ struct SmartCleanView: View {
         let selection = model.categorySelection(row.rules, items: found)
         let holds = CandidateHold.grouped(found).compactMap(\.hold)
         return CategoryRow(category: row.category.storageCategory, state: selection.state, title: row.category.smartCleanTitle,
-                           detail: row.category.overviewDetail, size: row.valueText, enabled: model.canEdit, identifier: "smartCleanCategory-" + row.id,
+                           detail: row.category.smartCleanDetail, size: row.valueText, enabled: model.canEdit, identifier: "smartCleanCategory-" + row.id,
                            itemCount: nil, expanded: .constant(false),
                            // Nothing may be ticked together (#384): the plan lists the items, to tick each on its own.
                            toggle: { if model.toggle(selection) { openPlan(row.category) } }) {
