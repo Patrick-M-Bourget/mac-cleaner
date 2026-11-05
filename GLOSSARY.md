@@ -97,7 +97,7 @@ The names CacheDrop shows, what they mean, and where they live in code. Copy fol
 | Unknown | A size CacheDrop couldn't read, never shown as zero or empty | `SizeEstimate.unknown`, `SizeFormatter` |
 | Needs Full Disk Access | Something macOS keeps from CacheDrop without Full Disk Access | `GuidanceSize.notAccessible`, `CatalogOverview.Row.needsAccess` |
 | Rebuildable | Deleted, and its app or tool makes it again (an Overview row's note) | `CleanupAction.delete` |
-| Can be cleaned, Other you can clean | The storage bar's found space, and its fold of smaller categories | `StorageMeter`, `StorageBreakdown` |
+| Can be cleaned, Other you can clean | The storage bar's found space, and its fold of smaller categories; Overview's header over its categories and their total (#764) | `StorageMeter`, `StorageBreakdown` |
 | Guidance only | Shown with its size and where to manage it; CacheDrop never changes it | action `guidance` |
 | free | Disk space you can use | `CapacitySample`, `SidebarCapacityText` |
 | Reveal in Finder, Reveal in Trash | Shows the item where it is | — |

@@ -34,12 +34,10 @@ extension CatalogOverview.Row {
 }
 
 extension CatalogOverview {
-    /// Overview's "Recommended for review" figure (SPEC section 6): an estimate, and an upper bound because clones share
-    /// blocks; "Empty" when nothing is recommended, never "Up to Zero KB" (#568, Decision 131).
+    /// Overview's Can be cleaned figure (SPEC section 6, #764): an estimate, and an upper bound because clones share blocks;
+    /// "Empty" when there's nothing, never "Up to Zero KB" (#568, Decision 131); "At least X" alone, its one hedge (Decision 92 rule 4).
     public static func recommendedText(_ estimate: SizeEstimate) -> String {
         if estimate == .measured(0) { return "Empty" }
-        let size = SizeFormatter.text(estimate, upperBound: true)
-        if case .atLeast = estimate { return size + " · Some sizes unknown" }
-        return size
+        return SizeFormatter.text(estimate, upperBound: true)
     }
 }

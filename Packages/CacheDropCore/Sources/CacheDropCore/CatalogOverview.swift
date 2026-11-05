@@ -56,7 +56,7 @@ public struct CatalogOverview: Sendable {
     /// (two or more rules). Selection underneath is per item either way.
     public enum PlanLayout: Sendable, Equatable { case categoryOnly, items, ruleRows }
     public let rows: [Row]
-    /// "Recommended for review: up to X": every current candidate whose action releases space (SPEC section 6), and that
+    /// Overview's "Can be cleaned" total, "Up to X" (#764): every current candidate whose action releases space (SPEC section 6), and that
     /// nothing held at the scan (#374): only cleanable space.
     public let recommended: SizeEstimate
     /// Candidates that go to Trash. That space stays used until the Trash is emptied, so it is never in `recommended`.

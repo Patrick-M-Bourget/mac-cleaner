@@ -49,7 +49,7 @@ private func keys(_ json: String) throws -> Set<String> {
             #expect(category.status == "found")
         }
         #expect(scan.recommended.text == CatalogOverview.recommendedText(overview.recommended))
-        #expect(scan.text.contains("Recommended for review: " + scan.recommended.text))
+        #expect(scan.text.contains("Can be cleaned: " + scan.recommended.text), "Overview's header (#764)")
         #expect(scan.text.hasSuffix("Read-only · Nothing was changed"))
     }
 

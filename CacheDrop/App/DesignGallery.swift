@@ -315,13 +315,13 @@ private struct OnboardingGalleryExamples: View {
 private struct CapacityGalleryExamples: View {
     var body: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
-            example("checking", available: nil, total: nil, observation: "Checking free space…", status: "Checking capacity…", refreshing: true)
+            example("checking", available: nil, total: nil, observation: "Checking free space…", status: "Checking free space…", refreshing: true)
             example("refreshing", observation: "Updated 10:00 AM", status: "Refreshing…", refreshing: true)
             example("important", observation: "Updated 10:00 AM")
             example("fallback", observation: "Updated 10:00 AM")
             example("partial", total: nil, observation: "Updated 10:00 AM")
-            example("stale", observation: "Last updated 10:00 AM", status: "Couldn’t refresh capacity", retry: true)
-            example("unavailable", available: nil, total: nil, observation: "Free space unavailable", status: "Couldn’t refresh capacity", retry: true)
+            example("stale", observation: "Last updated 10:00 AM", status: "Couldn’t refresh free space", retry: true)
+            example("unavailable", available: nil, total: nil, observation: "Free space unknown", status: "Couldn’t refresh free space", retry: true)
         }
     }
     private func example(_ name: String, available: Int64? = 40_000_000_000, total: Int64? = 512_000_000_000, observation: String, status: String = "", refreshing: Bool = false, retry: Bool = false) -> some View {

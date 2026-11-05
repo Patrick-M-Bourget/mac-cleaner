@@ -329,6 +329,9 @@ final class CatalogCleanupUITests: XCTestCase {
         let total = app.staticTexts["overviewRecommendedTotal"]
         XCTAssertTrue((total.value as? String)?.hasPrefix("Up to ") == true, total.debugDescription)
         XCTAssertFalse(app.staticTexts["overviewEmpty"].exists)
+        // #764: the total is everything cleanable, under the storage bar's name for it.
+        XCTAssertTrue(app.staticTexts["Can be cleaned"].firstMatch.exists)
+        XCTAssertFalse(app.staticTexts["Recommended for review"].exists)
 
         XCTAssertTrue(progress.waitForNonExistence(timeout: 60))
         let downloads = app.buttons["overviewCategory-downloads"]
@@ -2220,7 +2223,7 @@ extension CatalogCleanupUITests {
         app.typeKey("1", modifierFlags: .command)
         let link = app.links["overviewSmartClean"]
         XCTAssertTrue(link.waitForExistence(timeout: 10))
-        XCTAssertEqual(link.label, "Smart clean ›")
+        XCTAssertEqual(link.label, "Smart clean", "No link carries › (#764)")
         revealAndClick(link, in: app)
 
         // All ticked; the new installer is not in it, and Yarn can be unticked.
