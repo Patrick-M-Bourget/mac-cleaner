@@ -22,6 +22,10 @@ final class VisualCaptureUITests: XCTestCase {
         case "audio-software":
             try addAudioSoftware(in: home)
             pages = ["sounds", "drivers"]
+        case "photo-video":
+            try addAdobeCaches(in: home)
+            try addFinalCutLibraries(in: home)
+            pages = ["overview", "smart-clean", "plan", "plan-final-cut"]
         case let unknown:
             XCTFail("No capture scenario named \(unknown)")
             return
@@ -90,6 +94,29 @@ final class VisualCaptureUITests: XCTestCase {
             let drivers = app.disclosureTriangles.matching(NSPredicate(format: "label BEGINSWITH 'Choose drivers · '")).firstMatch
             XCTAssertTrue(drivers.waitForExistence(timeout: 5), "Audio software lists its drivers")
             reveal(drivers, in: app, nearTop: true)
+        case "smart-clean":
+            // Smart clean with Photo and video's "Choose items" open: the disclosure right below its category row.
+            app.typeKey("2", modifierFlags: .command)
+            let category = app.checkBoxes["smartCleanCategory-photo-video"]
+            XCTAssertTrue(category.waitForExistence(timeout: 10), "Smart clean lists Photo and video")
+            reveal(category, in: app, nearTop: true)
+            let below = app.disclosureTriangles.matching(NSPredicate(format: "label BEGINSWITH 'Choose items · '")).allElementsBoundByIndex
+                .filter { $0.frame.minY > category.frame.minY }.min { $0.frame.minY < $1.frame.minY }
+            XCTAssertNotNil(below, "Photo and video has Choose items")
+            if let below { openDisclosure(below, in: app) }
+            reveal(category, in: app, nearTop: true)
+        case "plan":
+            // Overview's row opens the Cleanup plan with Photo and video open (#733).
+            app.typeKey("1", modifierFlags: .command)
+            revealAndClick(app.buttons["overviewCategory-photo-video"], in: app)
+            let category = app.checkBoxes["planCategory-photo-video"]
+            XCTAssertTrue(category.waitForExistence(timeout: 10), "The Cleanup plan lists Photo and video")
+            XCTAssertTrue(app.checkBoxes["planRule-adobe-media-cache"].waitForExistence(timeout: 5), "Photo and video is open")
+            reveal(category, in: app, nearTop: true)
+        case "plan-final-cut":
+            let render = app.checkBoxes["planRule-final-cut-render-files"]
+            XCTAssertTrue(render.waitForExistence(timeout: 5), "Photo and video lists Final Cut Pro's render files")
+            reveal(render, in: app, nearTop: true)
         default:
             break
         }

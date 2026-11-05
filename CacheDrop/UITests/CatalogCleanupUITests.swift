@@ -60,6 +60,23 @@ func addAudioSoftware(in home: URL) throws {
     return (render, original)
 }
 
+/// #730's and #400's Adobe rows in the fixture home: the media cache in its default folder, a media cache moved in Adobe's
+/// settings to a connected volume (`<home>/Volumes` here) holding Peak Files, and Premiere Pro's and After Effects' caches for 26.0.
+func addAdobeCaches(in home: URL) throws {
+    let moved = home.appendingPathComponent("Volumes/Edit/Adobe Cache")
+    for relative in ["Library/Application Support/Adobe/Common/Media Cache Files/clip.ims", "Library/Application Support/Adobe/Common/Media Cache/db.mcdb",
+                     "Volumes/Edit/Adobe Cache/Peak Files/clip 48000.pek", "Library/Caches/Adobe/Premiere Pro/26.0/cache.bin",
+                     "Library/Caches/Adobe/After Effects/26.0/Disk Cache/frame.bin"] {
+        let file = home.appendingPathComponent(relative)
+        try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data(repeating: 6, count: 40_000).write(to: file)
+    }
+    // Written as Premiere writes it once the cache is moved.
+    let settings = home.appendingPathComponent("Library/Preferences/com.Adobe.Common 26.0.plist")
+    try FileManager.default.createDirectory(at: settings.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try PropertyListSerialization.data(fromPropertyList: ["Media Cache": ["FolderPath": moved.path + "/"]], format: .binary, options: 0).write(to: settings)
+}
+
 /// Turns on the Settings dry run for this launch through the DEBUG-only test seam, for journeys that assert nothing changed.
 @MainActor func turnOnDryRun(_ app: XCUIApplication) {
     app.launchEnvironment["CACHEDROP_TEST_DRY_RUN"] = "1"
