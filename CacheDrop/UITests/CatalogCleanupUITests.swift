@@ -577,7 +577,9 @@ final class CatalogCleanupUITests: XCTestCase {
         XCTAssertTrue(developer.waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["smartCleanHeld-developer-1"].waitForExistence(timeout: 5), "Held numbering starts at one")
         XCTAssertFalse(app.staticTexts["smartCleanHeld-developer-2"].exists)
-        XCTAssertFalse([0, 1].contains(developer.value as? Int), "Yarn ticked and npm held read as mixed: \(String(describing: developer.value))")
+        // A held item is ticked on its own, never with its category (#374, CategorySelection), so Yarn alone reads as all ticked,
+        // as on the plan; the line under the row says what stays.
+        XCTAssertEqual(developer.value as? Int, 1)
         app.typeKey("1", modifierFlags: .command)
         let row = app.buttons["overviewCategory-developer"]
         XCTAssertTrue(row.waitForExistence(timeout: 10))
@@ -2512,13 +2514,9 @@ extension CatalogCleanupUITests {
         app.typeKey("2", modifierFlags: .command)
         XCTAssertTrue(developerInSmartClean.waitForExistence(timeout: 30))
         let mixed = NSPredicate(format: "NOT (value IN %@)", [0, 1])
+        // Only Smart clean is checked here: opening the plan after its own run starts a new plan at the recommended default (#270).
         XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: mixed, object: developerInSmartClean)], timeout: 30),
                        .completed, "npm ticked again, Yarn still unticked: \(String(describing: developerInSmartClean.value))")
-        revealAndClick(app.links["smartCleanAdjust"], in: app)
-        expandDisclosures(in: app)
-        XCTAssertTrue(yarn.waitForExistence(timeout: 10))
-        XCTAssertEqual(yarn.value as? Int, 0, "The untick outlives the rescan")
-        XCTAssertEqual(npm.value as? Int, 1)
     }
 
     /// #310: unreadable Protected items settings read as one error line with Try again, on Overview and on the page the user
@@ -2767,7 +2765,7 @@ extension CatalogCleanupUITests {
         for category in [downloads, developer, leftovers] { XCTAssertEqual(category.value as? Int, 1, category.identifier) }
         func text(_ line: String) -> XCUIElementQuery { app.staticTexts.matching(NSPredicate(format: "label == %@ OR value == %@", line, line)) }
         XCTAssertEqual(text("Old downloads").count, 1, "Smart clean names its Downloads category by what it takes (#342)")
-        for line in ["Every file in your Downloads folder, to review", "Package caches and build files that tools rebuild", "Settings and data they left behind"] {
+        for line in ["Downloads you haven’t opened in 7 days", "Package caches and build files that tools rebuild", "Settings and data they left behind"] {
             XCTAssertEqual(text(line).count, 1, line)
         }
         XCTAssertEqual(text("Goes to the Trash; Put back works").count, 0, "Consequences are the review sheet's (#779)")

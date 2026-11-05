@@ -917,9 +917,9 @@ extension CatalogCategory {
         case .apps: .apps
         }
     }
-    /// The one short line under a category's title on Overview and in the plan, written per category rather than built from rule names.
     /// Smart clean's what-it-is line: the plan's, except Old downloads, which says which downloads (#779).
     var smartCleanDetail: String { self == .downloads ? CatalogCategory.oldDownloadsDetail : overviewDetail }
+    /// The one short line under a category's title on Overview and in the plan, written per category rather than built from rule names.
     var overviewDetail: String {
         switch self {
         case .developer: "Package caches and build files that tools rebuild"
