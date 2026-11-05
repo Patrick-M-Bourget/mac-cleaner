@@ -9,7 +9,7 @@ struct AppManagedStorageView: View {
     var body: some View {
         let protected = model.appManaged.filter { $0.size == .notAccessible }
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
-            PageHeader(title: "App-managed storage", subtitle: "Space only its own app can clear, and where to clear it.",
+            PageHeader(title: "App-managed storage", subtitle: "Space only its own app can clear, and where to clear it",
                        back: BackButton(destination: Destination.overview.rawValue, identifier: "appManagedBack", action: back))
             if !protected.isEmpty {
                 FullDiskAccessNote(places: protected.compactMap { model.appManagedRule($0)?.title }).accessibilityIdentifier("guidanceAccess")

@@ -59,9 +59,8 @@ struct CacheDropSettingsView: View {
                 LoginSettingsView()
                 DryRunToggle(model: AppLifecycleController.shared.selection.catalog)
             } header: {
+                // Its footer is #768's `DryRunToggle.footer`, which arrives with that branch's merge.
                 Text("General")
-            } footer: {
-                footer("Nothing changes while it’s on")
             }
             // #131: low-space alerts live here, not in the sidebar; the weekly reminder beside them (#599).
             Section {

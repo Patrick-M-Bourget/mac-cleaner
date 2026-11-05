@@ -421,7 +421,7 @@ private struct WorkspaceView: View {
 
     private var overview: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
-            PageHeader(title: "Overview", subtitle: "What takes up space, and what can be cleaned.", titleIdentifier: "overviewTitle")
+            PageHeader(title: "Overview", subtitle: "What takes up space, and what can be cleaned", titleIdentifier: "overviewTitle")
             ScanHistoryRecordingNotice()
             if let context = alerts.openedAlertContext {
                 SummarySurface {
@@ -938,7 +938,7 @@ private struct WorkspaceView: View {
 
     private var locations: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
-            PageHeader(title: "Locations", subtitle: "Folders CacheDrop scans at launch and when you scan again.")
+            PageHeader(title: "Locations", subtitle: "Folders CacheDrop scans at launch and when you scan again")
             ScanHistoryRecordingNotice()
             if locationsModel.scopes.isEmpty { EmptyState(title: "No locations yet", detail: "Add a folder to scan it now and each time CacheDrop opens.", symbol: "folder.badge.plus") }
             ForEach(locationsModel.scopes) { scope in

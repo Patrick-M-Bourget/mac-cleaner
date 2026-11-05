@@ -270,7 +270,7 @@ final class LaunchSmokeUITests: XCTestCase {
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
         app.launch()
         app.typeKey("8", modifierFlags: .command)
-        XCTAssertTrue(app.staticTexts["Folders CacheDrop scans at launch and when you scan again."].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Folders CacheDrop scans at launch and when you scan again"].waitForExistence(timeout: 10))
         XCTAssertEqual(app.buttons["Locations & access"].label, "Locations", "The visible rename preserves the existing sidebar identifier")
         XCTAssertTrue(app.links["manageLocalRecords"].exists)
         XCTAssertTrue(app.links["openProtectedItems"].exists)
@@ -284,7 +284,7 @@ final class LaunchSmokeUITests: XCTestCase {
         XCTAssertEqual(scanAgain.label, "Scan again")
         XCTAssertLessThan(addFolder.frame.minX, scanAgain.frame.minX, "Scan again is last")
         app.typeKey("9", modifierFlags: .command)
-        XCTAssertTrue(app.staticTexts["Full Disk Access is optional. You can keep using CacheDrop without it."].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Optional · CacheDrop works without it"].waitForExistence(timeout: 5))
         let status = app.staticTexts["fullDiskAccessStatus"]
         XCTAssertTrue(status.waitForExistence(timeout: 5))
         XCTAssertTrue((status.value as? String ?? status.label).contains("Couldn’t check"))
@@ -329,7 +329,7 @@ final class LaunchSmokeUITests: XCTestCase {
         let help = app.links["overviewDownloadsLocations"]
         XCTAssertTrue(help.waitForExistence(timeout: 20))
         help.click()
-        XCTAssertTrue(app.staticTexts["Folders CacheDrop scans at launch and when you scan again."].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Folders CacheDrop scans at launch and when you scan again"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.sheets.firstMatch.exists)
         XCTAssertFalse(app.links["fullDiskAccessLink"].exists)
         XCTAssertTrue(app.links["Scan again"].exists)
@@ -607,7 +607,11 @@ final class ProtectedItemsUITests: XCTestCase {
         app.typeText(home.appendingPathComponent(".npm").path + "\n")
         panel.buttons["Choose"].click()
         XCTAssertTrue(app.buttons["Protect"].waitForExistence(timeout: 10))
+        let volume = NSPredicate(format: "label BEGINSWITH 'Disk ' OR value BEGINSWITH 'Disk ' OR label CONTAINS '· disk ' OR value CONTAINS '· disk '")
+        XCTAssertEqual(app.staticTexts.matching(volume).count, 0, "The preview names no volume UUID (#769)")
         app.buttons["Protect"].click()
+        XCTAssertTrue(app.staticTexts["Folder and everything in it"].waitForExistence(timeout: 10), "The row says what it is; the path says where (#769)")
+        XCTAssertEqual(app.staticTexts.matching(volume).count, 0, "No volume UUID on the row (#769)")
 
         // No Scan again: Overview's developer row empties once the rescan the change started has run.
         app.typeKey("1", modifierFlags: .command)
@@ -1155,7 +1159,7 @@ final class ScannedLocationsUITests: XCTestCase {
         let help = element(app, "overviewLocationAccess:" + folder.path)
         XCTAssertEqual(help.label, "Locations")
         help.click()
-        XCTAssertTrue(app.staticTexts["Folders CacheDrop scans at launch and when you scan again."].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Folders CacheDrop scans at launch and when you scan again"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.sheets.firstMatch.exists)
         // #548: Locations gives the same reason as Overview, not the generic "Not fully read".
         let status = app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'Scanned ' AND value ENDSWITH ' · 1 folder couldn’t be read'")).firstMatch

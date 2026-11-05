@@ -1272,7 +1272,7 @@ extension CatalogCleanupUITests {
         XCTAssertTrue(rows[0].waitForExistence(timeout: 5))
         // #544: All files' hint is one sentence and mentions no checkbox, since most files have none.
         let hint = app.staticTexts["explorerHint"]
-        XCTAssertEqual(hint.value as? String ?? hint.label, "Click a name to open or inspect it.")
+        XCTAssertEqual(hint.value as? String ?? hint.label, "Click a folder to open it, or a file to see its details")
         func order() -> [CGFloat] { rows.map(\.frame.minY) }
         let byName = app.buttons["explorerSort-name"], bySize = app.buttons["explorerSort-size"]
         XCTAssertEqual(bySize.value as? String, "Largest first")
@@ -1308,7 +1308,7 @@ extension CatalogCleanupUITests {
         // #544: a file inspected in All files that Large and old files doesn't list closes the inspector on the switch;
         // the folder on show takes its place.
         mode.click()
-        XCTAssertEqual(hint.value as? String ?? hint.label, "Click a name to open or inspect it.")
+        XCTAssertEqual(hint.value as? String ?? hint.label, "Click a folder to open it, or a file to see its details")
         app.buttons["Open folder Zeta"].firstMatch.click()
         let inner = app.buttons["Inspect inner.bin"].firstMatch
         XCTAssertTrue(inner.waitForExistence(timeout: 5))
@@ -1540,7 +1540,7 @@ extension CatalogCleanupUITests {
         presentation.radioButtons["Map"].click()
         XCTAssertTrue(app.descendants(matching: .any)["explorerMap"].waitForExistence(timeout: 5))
         let hint = app.staticTexts["explorerHint"]
-        XCTAssertEqual(hint.value as? String ?? hint.label, "Click a folder to open it, or a file to see its details and add it to the plan.")
+        XCTAssertEqual(hint.value as? String ?? hint.label, "Click a folder to open it, or a file to see its details")
 
         // Scanned folders, then the picked folder, then Media, each opened from its block; the breadcrumbs follow.
         let picked = app.buttons["explorerMapBlock-" + folder.lastPathComponent]

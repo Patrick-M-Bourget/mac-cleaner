@@ -138,16 +138,16 @@ struct StorageTrendsHistoryView: View {
                     VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) { compared(comparison, from: from, to: current.observedAt) }
                         .waitingForScan(catalog.isScanning)
                 } else {
-                    PageHeader(title: "Storage trends", subtitle: "What grew or shrank between two scans.")
+                    PageHeader(title: "Storage trends", subtitle: "What grew or shrank between two scans")
                     EmptyState(title: "No trends yet", detail: StorageTrendsPresentation.baseline(comparison.state),
                                symbol: "chart.line.uptrend.xyaxis", identifier: "growthBaselineRecorded")
                 }
             } else if model.loading || catalog.isScanning {
                 // Nothing known yet: skeleton rows, never a blank page (#308).
-                PageHeader(title: "Storage trends", subtitle: "What grew or shrank between two scans.")
+                PageHeader(title: "Storage trends", subtitle: "What grew or shrank between two scans")
                 SkeletonRows(.line, identifier: "growthSkeleton")
             } else {
-                PageHeader(title: "Storage trends", subtitle: "What grew or shrank between two scans.")
+                PageHeader(title: "Storage trends", subtitle: "What grew or shrank between two scans")
                 EmptyState(title: "No scans yet", detail: "Scan again, then check back tomorrow to see trends.",
                            symbol: "chart.line.uptrend.xyaxis", action: EmptyStateAction("Scan again", perform: scanNow), identifier: "growthEmpty")
             }
@@ -158,7 +158,7 @@ struct StorageTrendsHistoryView: View {
 
     @ViewBuilder private func compared(_ comparison: StorageTrendsComparison, from: Date, to: Date) -> some View {
         let days = max(1, Calendar.current.dateComponents([.day], from: from, to: to).day ?? 0)
-        PageHeader(title: "Storage trends", subtitle: "What grew or shrank since " + from.formatted(date: .long, time: .omitted) + ".")
+        PageHeader(title: "Storage trends", subtitle: "What grew or shrank since " + from.formatted(date: .long, time: .omitted))
         HStack(alignment: .firstTextBaseline, spacing: CacheDropDesign.Space.sm) {
             Text(StorageTrendsPresentation.signed(comparison.logicalDelta ?? 0)).font(CacheDropDesign.TypeStyle.page).monospacedDigit().accessibilityIdentifier("growthNetChange")
             Text("net growth · " + (days == 1 ? "past day" : "past \(days) days")).foregroundStyle(.secondary)
