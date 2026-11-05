@@ -206,12 +206,13 @@ func waitForOverview(_ app: XCUIApplication, file: StaticString = #filePath, lin
 }
 
 /// Reveals and clicks an element inside a scrolling page.
-/// Overview's Scan a folder link: it waits while a folder scan runs (Downloads is scanned at launch, Decision 83) and sits
+/// Overview's Add folder… link (#767): it waits while a folder scan runs (Downloads is scanned at launch, Decision 83) and sits
 /// below the categories (#345), so wait for it to be enabled and scroll to it before clicking.
 @MainActor func chooseFolderToScan(_ app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line) {
     let link = app.links["overviewScanFolder"]
     let enabled = XCTNSPredicateExpectation(predicate: NSPredicate(format: "isEnabled == true"), object: link)
-    XCTAssertEqual(XCTWaiter().wait(for: [enabled], timeout: 30), .completed, "Scan a folder stayed disabled", file: file, line: line)
+    XCTAssertEqual(XCTWaiter().wait(for: [enabled], timeout: 30), .completed, "Add folder… stayed disabled", file: file, line: line)
+    XCTAssertEqual(link.label, "Add folder…", "One name for adding a folder, as on Locations (#767)", file: file, line: line)
     revealAndClick(link, in: app)
 }
 
@@ -1168,7 +1169,7 @@ extension CatalogCleanupUITests {
         app.launch()
 
         waitForOverview(app)
-        // #125: a clear Scan a folder action on Overview picks the folder and scans it right away.
+        // #125: a clear Add folder… action on Overview picks the folder and scans it right away.
         chooseFolderToScan(app)
         let panel = app.sheets.firstMatch.exists ? app.sheets.firstMatch : app.dialogs.firstMatch
         XCTAssertTrue(panel.waitForExistence(timeout: 5))
@@ -1271,7 +1272,7 @@ extension CatalogCleanupUITests {
         XCTAssertTrue(rows[0].waitForExistence(timeout: 5))
         // #544: All files' hint is one sentence and mentions no checkbox, since most files have none.
         let hint = app.staticTexts["explorerHint"]
-        XCTAssertEqual(hint.value as? String ?? hint.label, "Click a name to open or inspect it.")
+        XCTAssertEqual(hint.value as? String ?? hint.label, "Click a folder to open it, or a file to see its details")
         func order() -> [CGFloat] { rows.map(\.frame.minY) }
         let byName = app.buttons["explorerSort-name"], bySize = app.buttons["explorerSort-size"]
         XCTAssertEqual(bySize.value as? String, "Largest first")
@@ -1307,7 +1308,7 @@ extension CatalogCleanupUITests {
         // #544: a file inspected in All files that Large and old files doesn't list closes the inspector on the switch;
         // the folder on show takes its place.
         mode.click()
-        XCTAssertEqual(hint.value as? String ?? hint.label, "Click a name to open or inspect it.")
+        XCTAssertEqual(hint.value as? String ?? hint.label, "Click a folder to open it, or a file to see its details")
         app.buttons["Open folder Zeta"].firstMatch.click()
         let inner = app.buttons["Inspect inner.bin"].firstMatch
         XCTAssertTrue(inner.waitForExistence(timeout: 5))
@@ -1539,7 +1540,7 @@ extension CatalogCleanupUITests {
         presentation.radioButtons["Map"].click()
         XCTAssertTrue(app.descendants(matching: .any)["explorerMap"].waitForExistence(timeout: 5))
         let hint = app.staticTexts["explorerHint"]
-        XCTAssertEqual(hint.value as? String ?? hint.label, "Click a folder to open it, or a file to see its details and add it to the plan.")
+        XCTAssertEqual(hint.value as? String ?? hint.label, "Click a folder to open it, or a file to see its details")
 
         // Scanned folders, then the picked folder, then Media, each opened from its block; the breadcrumbs follow.
         let picked = app.buttons["explorerMapBlock-" + folder.lastPathComponent]
@@ -1592,7 +1593,7 @@ extension CatalogCleanupUITests {
         // Downloads is always a scanned location (Decision 83), so folders are added from Locations in the sidebar.
         app.buttons["Locations"].click()
         XCTAssertTrue(app.staticTexts["Locations"].waitForExistence(timeout: 5))
-        app.buttons["Add folder…"].click()
+        actionStrip(app).buttons["locationsAddFolder"].click() // In the bottom bar (#776)
         let panel = app.sheets.firstMatch.exists ? app.sheets.firstMatch : app.dialogs.firstMatch
         XCTAssertTrue(panel.waitForExistence(timeout: 5))
         panel.typeKey("g", modifierFlags: [.command, .shift])
@@ -2405,9 +2406,9 @@ extension CatalogCleanupUITests {
             app.launch()
             waitForOverview(app)
             waitForCatalogScan(app)
-            let badge = app.buttons["Cleanup plan"]
-            XCTAssertEqual(badge.label, "Cleanup plan, 2 categories selected",
-                           "npm and Yarn count once, plus App update downloads (#531)")
+            // #777 (Decision 182): the sidebar row carries no count, whatever is ticked; the page's card counts items.
+            let sidebarRow = app.buttons["Cleanup plan"]
+            XCTAssertEqual(sidebarRow.label, "Cleanup plan", "No count badge on the sidebar (#777)")
             let title = "Developer caches and build files"
 
             app.typeKey("2", modifierFlags: .command)
@@ -2417,7 +2418,6 @@ extension CatalogCleanupUITests {
             XCTAssertTrue(smart.isEnabled)
             revealAndClick(smart, in: app)
             XCTAssertEqual(smart.value as? Int, 0, "The native checkbox unticks the category")
-            XCTAssertEqual(badge.label, "Cleanup plan, 1 category selected")
             revealAndClick(smart, in: app)
             XCTAssertEqual(smart.value as? Int, 1, "The native checkbox ticks the category again")
             revealAndClick(app.staticTexts[title].firstMatch, in: app)
@@ -2431,7 +2431,6 @@ extension CatalogCleanupUITests {
             app.typeKey("2", modifierFlags: .command)
             XCTAssertTrue(smart.waitForExistence(timeout: 5))
             XCTAssertFalse([0, 1].contains(smart.value as? Int), "One of two ticked reads as mixed: \(String(describing: smart.value))")
-            XCTAssertEqual(badge.label, "Cleanup plan, 2 categories selected", "Partial selection still counts the category once")
             revealAndClick(app.staticTexts[title].firstMatch, in: app)
             XCTAssertEqual(smart.value as? Int, 1, "All on when any are off")
 
@@ -2448,27 +2447,25 @@ extension CatalogCleanupUITests {
             XCTAssertEqual(plan.value as? Int, 0, "The same on the plan")
             revealAndClick(app.staticTexts[title].firstMatch, in: app)
             XCTAssertEqual(plan.value as? Int, 1)
-            XCTAssertEqual(badge.label, "Cleanup plan, 2 categories selected")
             let downloads = app.checkBoxes["planCategory-downloads"]
             revealAndClick(downloads, in: app)
-            XCTAssertEqual(badge.label, "Cleanup plan, 3 categories selected", "A newly selected category adds one")
+            XCTAssertEqual(downloads.value as? Int, 1, "Downloads ticked")
             let updates = app.checkBoxes["planCategory-updaters"]
             revealAndClick(updates, in: app)
-            XCTAssertEqual(badge.label, "Cleanup plan, 2 categories selected")
             app.typeKey("2", modifierFlags: .command)
             let smartUpdates = app.checkBoxes["smartCleanCategory-updaters"]
             XCTAssertTrue(smartUpdates.waitForExistence(timeout: 5))
             XCTAssertEqual(smartUpdates.value as? Int, 0, "Updater selection is shared")
             revealAndClick(smartUpdates, in: app)
-            XCTAssertEqual(badge.label, "Cleanup plan, 3 categories selected", "Restoring the updater restores the count")
+            XCTAssertEqual(smartUpdates.value as? Int, 1, "Updater ticked again, shared with the plan")
+            XCTAssertEqual(sidebarRow.label, "Cleanup plan", "No count with three categories ticked (#777)")
             app.typeKey("3", modifierFlags: .command)
             revealAndClick(app.buttons["planSort-name"], in: app)
-            XCTAssertEqual(badge.label, "Cleanup plan, 3 categories selected", "Sorting preserves selection and its count")
+            XCTAssertEqual(downloads.value as? Int, 1, "Sorting preserves selection")
             revealAndClick(plan, in: app)
             revealAndClick(downloads, in: app)
-            XCTAssertEqual(badge.label, "Cleanup plan, 1 category selected")
             revealAndClick(updates, in: app)
-            XCTAssertEqual(badge.label, "Cleanup plan", "No selected categories omits the badge's count")
+            XCTAssertEqual(sidebarRow.label, "Cleanup plan", "Still no count with nothing ticked (#777)")
         }
 
     }
@@ -2530,8 +2527,8 @@ extension CatalogCleanupUITests {
                        .completed, "npm ticked again, Yarn still unticked: \(String(describing: developerInSmartClean.value))")
     }
 
-    /// #310: unreadable Protected items settings read as one error line with Try again, on Overview and on the page the user
-    /// is on, never "Nothing to review" or "Nothing to clean"; once they can be read, Try again scans and the line goes.
+    /// #310: unreadable Protected items settings read as one error line with Scan again (#767), on Overview and on the page the user
+    /// is on, never "Nothing to review" or "Nothing to clean"; once they can be read, Scan again scans and the line goes.
     @MainActor func testUnreadableSettingsSayWhyWithTryAgainNeverNothing() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
@@ -2548,6 +2545,7 @@ extension CatalogCleanupUITests {
         XCTAssertFalse(app.descendants(matching: .any)["overviewEmpty"].exists, "Never \"nothing to clean\"")
         XCTAssertFalse(app.descendants(matching: .any)["overviewSkeleton"].exists, "Never still loading")
         XCTAssertTrue(app.links["settingsUnreadableTryAgain"].exists)
+        XCTAssertEqual(app.links["settingsUnreadableTryAgain"].label, "Scan again", "Scan again for every scan (#767)")
 
         app.typeKey("2", modifierFlags: .command)
         XCTAssertTrue(notice.waitForExistence(timeout: 5), "Smart clean says it too")
@@ -2556,7 +2554,7 @@ extension CatalogCleanupUITests {
 
         try FileManager.default.removeItem(at: rules)
         app.links["settingsUnreadableTryAgain"].click()
-        XCTAssertTrue(notice.waitForNonExistence(timeout: 30), "Try again scanned with the settings readable")
+        XCTAssertTrue(notice.waitForNonExistence(timeout: 30), "Scan again scanned with the settings readable")
         XCTAssertTrue(app.checkBoxes["smartCleanCategory-developer"].waitForExistence(timeout: 30))
     }
 

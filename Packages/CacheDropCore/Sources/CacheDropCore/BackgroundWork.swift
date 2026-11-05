@@ -4,7 +4,7 @@ public enum BackgroundJob: Hashable, Sendable {
     case catalogScan
     /// The recheck of the selected locations CacheDrop runs at launch, after a cleanup and on Scan again.
     case folderRecheck
-    /// A new folder picked with "Scan a folder…" or "Add folder…".
+    /// A new folder picked with "Add folder…" on Overview or Locations.
     case folderScan(folder: String)
 
     /// The accessibility identifier of the bar's line while this work leads it.

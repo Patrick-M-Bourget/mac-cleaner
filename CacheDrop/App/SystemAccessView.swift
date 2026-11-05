@@ -6,7 +6,7 @@ struct SystemAccessView: View {
     @State private var model = FullDiskAccessModel()
     var body: some View {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
-            PageHeader(title: "System access", subtitle: "Full Disk Access is optional. You can keep using CacheDrop without it.")
+            PageHeader(title: "System access", subtitle: "Optional · CacheDrop works without it")
             HStack(spacing: CacheDropDesign.Space.md) {
                 Label("Full Disk Access", systemImage: "lock.shield").font(CacheDropDesign.TypeStyle.section)
                 Spacer(minLength: CacheDropDesign.Space.md)
