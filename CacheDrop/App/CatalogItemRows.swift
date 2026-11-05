@@ -27,13 +27,16 @@ struct CatalogItemRows: View {
                                    symbol: item.isDirectory ? "folder" : "doc", inspected: false,
                                    inspect: rule.itemRowClick == .tick ? { if model.canChoose([item]) { model.setSelected(item, !model.isSelected(item)) } } : nil,
                                    detailLineLimit: 1, actionLabel: "Select " + item.displayName,
-                                   reveal: { Finder.reveal([item.url]) }, revealIdentifier: "planItemReveal-" + item.displayName) {
+                                   reveal: { Finder.reveal([item.url]) }, revealIdentifier: "planItemReveal-" + identifier(item)) {
                     Toggle("Select " + item.displayName, isOn: Binding(get: { model.isSelected(item) }, set: { model.setSelected(item, $0) }))
-                        .labelsHidden().disabled(!model.canChoose([item])).accessibilityIdentifier("planItem-" + item.displayName)
+                        .labelsHidden().disabled(!model.canChoose([item])).accessibilityIdentifier("planItem-" + identifier(item))
                 }.help(item.url.path)
             }
         }
     }
+    /// Rule plus name, so two same-named items of different rules (a library's optimized and proxy media of one event, #399)
+    /// each get their own identifier (#744); test-facing only, like `planProfile-<rule>-<profile>`.
+    private func identifier(_ item: Candidate) -> String { item.ruleID + "-" + item.displayName }
     private func detail(_ item: Candidate) -> String {
         // Held at the scan (#374): unticked, saying what holds it.
         if let hold = item.hold { return hold.line }

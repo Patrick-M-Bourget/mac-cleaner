@@ -308,7 +308,7 @@ final class ApplicationsUITests: XCTestCase {
         revealAndClick(row, in: app)
         XCTAssertEqual(row.value as? Int, 1)
         expandDisclosures(in: app)
-        XCTAssertEqual(app.checkBoxes["planItem-Synth"].value as? Int, 0, "A possibly related item is never ticked with its app")
+        XCTAssertEqual(app.checkBoxes["planItem-uninstall-app-possibly-related-Synth"].value as? Int, 0, "A possibly related item is never ticked with its app")
 
         app.buttons["Review cleanup"].click()
         XCTAssertTrue(reviewLine(app, "movedToTrash", "apps").waitForExistence(timeout: 5))
@@ -464,8 +464,8 @@ final class ApplicationsUITests: XCTestCase {
         XCTAssertTrue(choose(3).exists, "Pad: the app, its preferences and container")
         revealAndClick(synthRow, in: app)
         expandDisclosures(in: app)
-        XCTAssertEqual(app.checkBoxes["planItem-com.maker.synth.plist"].value as? Int, 1, "Its own preferences are ticked with it")
-        XCTAssertEqual(app.checkBoxes["planItem-com.maker.pad.plist"].value as? Int, 0, "Pad's are Pad's")
+        XCTAssertEqual(app.checkBoxes["planItem-uninstall-app-files-com.maker.synth.plist"].value as? Int, 1, "Its own preferences are ticked with it")
+        XCTAssertEqual(app.checkBoxes["planItem-uninstall-app-files-com.maker.pad.plist"].value as? Int, 0, "Pad's are Pad's")
 
         app.buttons["Review cleanup"].click()
         XCTAssertTrue(app.buttons["Clean up"].waitForExistence(timeout: 5))
@@ -481,7 +481,7 @@ final class ApplicationsUITests: XCTestCase {
         XCTAssertTrue(choose(3).waitForExistence(timeout: 5), "Pad's row is unchanged")
         XCTAssertFalse(choose(4).exists)
         expandDisclosures(in: app)
-        XCTAssertFalse(app.checkBoxes["planItem-Synth"].exists, "Synth's folder is never offered as Pad's, nor as a leftover while Pad is installed")
+        XCTAssertFalse(app.checkBoxes.matching(NSPredicate(format: "identifier BEGINSWITH 'planItem-' AND identifier ENDSWITH '-Synth'")).firstMatch.exists, "Synth's folder is never offered as Pad's, nor as a leftover while Pad is installed")
         XCTAssertFalse(app.checkBoxes["planCategory-leftovers"].exists)
     }
 
@@ -703,8 +703,8 @@ final class ApplicationsUITests: XCTestCase {
         XCTAssertTrue(app.disclosureTriangles.matching(NSPredicate(format: "label == 'Choose items · 1 · 1 stays'")).firstMatch.exists, "Counts what can be chosen")
         revealAndClick(row, in: app)
         expandDisclosures(in: app)
-        XCTAssertEqual(app.checkBoxes["planItem-Pro Synth.vst3"].value as? Int, 1, "Its removable format is ticked with it")
-        XCTAssertFalse(app.checkBoxes["planItem-Pro Synth.component"].exists, "A format that needs a password has no checkbox")
+        XCTAssertEqual(app.checkBoxes["planItem-uninstall-plugin-Pro Synth.vst3"].value as? Int, 1, "Its removable format is ticked with it")
+        XCTAssertFalse(app.checkBoxes["planItem-uninstall-plugin-Pro Synth.component"].exists, "A format that needs a password has no checkbox")
         XCTAssertEqual(element(app, "applicationsPassword-" + au.path, .staticText).value as? String, "AU: Needs your password to remove")
         XCTAssertTrue(element(app, "applicationsReveal-" + au.path, .link).exists, "Reveal in Finder, with no vendor tool installed")
         // A product that is only an AUv3 goes with its app (#288).
