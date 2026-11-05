@@ -1674,7 +1674,9 @@ final class AppManagedStorageUITests: XCTestCase {
     }
 
     /// #178: Final Cut Pro libraries, renamed and external, are listed with Final Cut's own steps; opening it reports
-    /// only that it would open, never cleanup done, and nothing in a library changes.
+    /// only that it would open, never cleanup done, and nothing in a library changes. #399: the generated media inside
+    /// each library is offered under Photo and video, render files ticked and optimized and proxy media not, never its
+    /// original media.
     @MainActor func testFinalCutLibrariesAreListedAndOpeningFinalCutCleansNothing() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
@@ -1682,7 +1684,9 @@ final class AppManagedStorageUITests: XCTestCase {
         let home = try configureCatalogHome(app)
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
         let render = home.appendingPathComponent("Movies/Untitled.fcpbundle/Event 1/Render Files/a.mov")
-        for file in [render, home.appendingPathComponent("Volumes/Shuttle/Client Cut.fcpbundle/Event 1/Transcoded Media/b.mov")] {
+        let original = home.appendingPathComponent("Movies/Untitled.fcpbundle/Event 1/Original Media/clip.mov")
+        for file in [render, original, home.appendingPathComponent("Movies/Untitled.fcpbundle/Event 1/Transcoded Media/High Quality Media/c.mov"),
+                     home.appendingPathComponent("Volumes/Shuttle/Client Cut.fcpbundle/Event 1/Transcoded Media/Proxy Media/b.mov")] {
             try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
             try Data(repeating: 4, count: 60_000).write(to: file)
         }
@@ -1706,6 +1710,25 @@ final class AppManagedStorageUITests: XCTestCase {
         XCTAssertEqual(app.staticTexts["guidanceStatus"].value as? String, "Test run: would open Final Cut Pro.")
         XCTAssertFalse(app.descendants(matching: .any)["planRule-final-cut-libraries"].exists)
         XCTAssertTrue(FileManager.default.fileExists(atPath: render.path))
+
+        app.buttons["appManagedBack"].click()
+        waitForCatalogScan(app)
+        revealAndClick(app.buttons["overviewCategory-photo-video"], in: app)
+        let renderRule = app.checkBoxes["planRule-final-cut-render-files"]
+        XCTAssertTrue(renderRule.waitForExistence(timeout: 10))
+        XCTAssertEqual(renderRule.value as? Int, 1, "Smart clean's render files start ticked")
+        reveal(renderRule, in: app, nearTop: true)
+        XCTAssertTrue(app.checkBoxes["planProfile-final-cut-render-files-Untitled"].waitForExistence(timeout: 5), "Grouped per library")
+        for (rule, item) in [("final-cut-optimized-media", "Untitled · Event 1"), ("final-cut-proxy-media", "Client Cut · Event 1")] {
+            XCTAssertEqual(app.checkBoxes["planRule-" + rule].value as? Int, 0, rule)
+            reveal(app.checkBoxes["planRule-" + rule], in: app, nearTop: true)
+            let row = app.checkBoxes["planItem-" + item]
+            if !row.waitForExistence(timeout: 2) { expandDisclosures(in: app) }
+            XCTAssertTrue(row.waitForExistence(timeout: 5), item)
+            XCTAssertEqual(row.value as? Int, 0, "\(rule) is offered, never ticked by default")
+        }
+        XCTAssertFalse(app.descendants(matching: .any)["planItem-Original Media"].exists)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: original.path))
     }
 
     /// #179: Lightroom Classic's previews and Smart Previews are separate rows, counted by catalog, each with its own
