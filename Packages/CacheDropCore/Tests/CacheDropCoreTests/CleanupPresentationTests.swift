@@ -63,7 +63,7 @@ private func fixture(_ rules: [CleanupRule]) throws -> (URL, Catalog, [Candidate
     var record = try #require(candidates.first.map { CleanupRecord(batchID: UUID(), approvedAt: Date(), candidate: $0, dryRun: true) })
     record.state = .skipped; record.message = "Dry run: would delete (10 KB). Checks passed; nothing changed."
     #expect(!record.needsAttention)
-    record.message = "Google Chrome is running. Quit it, then scan again."
+    record.message = "Google Chrome is open. Quit it, then scan again."
     #expect(record.needsAttention)
 }
 
@@ -104,4 +104,14 @@ private func fixture(_ rules: [CleanupRule]) throws -> (URL, Catalog, [Candidate
     #expect(!removed.cleansNothing)
     #expect(trashed.cleansNothing)
     #expect(ReviewGroup.groups(catalog: catalog, candidates: candidates).allSatisfy { !$0.cleansNothing })
+}
+
+/// #771: the review's "X will be skipped:" line takes the reason as a clause: no full stop, lower-case unless it starts
+/// with a name, and no "It is kept."
+@Test func aSkippedReasonReadsAsAClause() {
+    #expect(CheckRefusal.uncommittedChanges.clause == "its project has uncommitted changes")
+    #expect(CheckRefusal.notPermitted.clause == "changing it needs your password")
+    #expect(CheckRefusal.ownerRunning("Xcode").clause == "Xcode is open. Quit it, then scan again")
+    #expect(CheckRefusal.inUse("Google Chrome").clause == "Google Chrome is using it")
+    #expect(CheckRefusal.inUse("A simulator").clause == "a simulator is using it")
 }

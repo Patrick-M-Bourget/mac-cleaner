@@ -71,7 +71,7 @@ enum EmptyingScope {
     case wholeTrash([TrashItem])
 
     var title: String {
-        switch self { case .cacheDropItems: "Empty from the Trash"; case .wholeTrash: "Empty the Trash" }
+        switch self { case .cacheDropItems: "Empty from Trash"; case .wholeTrash: "Empty the Trash" }
     }
     var note: String {
         switch self {
@@ -130,7 +130,7 @@ struct EmptyFromTrashSheet: View {
     }
 
     @ViewBuilder private var review: some View {
-        if dryRun { StatusRow(text: "Dry run is on. Nothing on disk changes.", symbol: "eye", role: .neutral, identifier: "emptyPreviewNotice") }
+        if dryRun { StatusRow(text: "Dry run · Nothing changes", symbol: "eye", role: .neutral, identifier: "emptyPreviewNotice") }
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
             heading
             VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {

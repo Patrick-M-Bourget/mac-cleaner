@@ -255,7 +255,7 @@ public enum BuiltInCatalog {
                                                query: LocationQuery(["-m", "pip", "cache", "dir"], whenUnanswered: .defaultLocations, cacheMarkers: ["http-v2", "http", "wheels"],
                                                                     configuredIn: .pipConf))),
         CleanupRule(id: "cargo-cache", category: .developer, title: "Cargo cache",
-                    detail: "Rust crates and git dependencies Cargo downloaded. Installed tools are not included.",
+                    detail: "Rust crates and git dependencies Cargo downloaded",
                     consequence: "Cargo downloads crates again as needed.",
                     regen: .cache, action: .delete, locations: [".cargo/registry", ".cargo/git"],
                     owner: RuleOwner(name: "Cargo", executables: ["cargo", "cargo-*"])),
@@ -290,7 +290,7 @@ public enum BuiltInCatalog {
                         return String(name.dropLast(29))
                     }),
         CleanupRule(id: "xcode-device-support", category: .developer, title: "Old device support files",
-                    detail: "Debug symbols Xcode copied from each OS version of your devices. The 2 newest versions per platform are kept.",
+                    detail: "Debug symbols Xcode copied from your devices · the 2 newest per platform stay",
                     consequence: "Xcode copies them again if you connect a device running one of those versions.",
                     regen: .build, action: .delete,
                     locations: ["iOS", "watchOS", "tvOS", "visionOS", "macOS"].map { "Library/Developer/Xcode/\($0) DeviceSupport/*" },
@@ -317,8 +317,8 @@ public enum BuiltInCatalog {
                     contents: ContentsMatch(extensions: ["ipsw"])),
         // Field note section 3: Chrome copies itself for code-sign checks and never removes the copies.
         CleanupRule(id: "chrome-code-sign-clones", category: .browser, title: "Chrome code-sign copies",
-                    detail: "Copies of Google Chrome it made to check its signature and never removed. The copy Chrome is using and the newest copy are kept.",
-                    consequence: "Chrome doesn’t need them again, and they share disk space with it, so less may come back than shown.",
+                    detail: "Old copies Chrome made and never removed · the one in use and the newest stay",
+                    consequence: "Chrome doesn’t need them again, and they share disk space with it.",
                     regen: .leakedCopy, action: .delete, locations: ["X/com.google.Chrome.code_sign_clone"], owner: nil,
                     base: .userFolder, copies: LeakedCopies(owner: RuleOwner(name: "Google Chrome", bundleIDs: ["com.google.Chrome"], executables: ["Google Chrome", "Google Chrome Helper*"]))),
         huggingFaceModels,

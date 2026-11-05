@@ -11,12 +11,8 @@ struct FullDiskAccessSheet: View {
     var body: some View {
         let granted = model.status == .granted
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
-            HStack(spacing: CacheDropDesign.Space.md) {
-                CategoryBadge(symbol: "lock.shield", color: CacheDropDesign.blue)
-                Text(FullDiskAccessGuide.title).font(CacheDropDesign.TypeStyle.sheet).accessibilityAddTraits(.isHeader)
-                Spacer(minLength: CacheDropDesign.Space.md)
-                CloseButton(identifier: "dismissFullDiskAccess", action: close)
-            }
+            SheetHeader(title: FullDiskAccessGuide.title, badge: CategoryBadge(symbol: "lock.shield", color: CacheDropDesign.blue),
+                        close: CloseButton(identifier: "dismissFullDiskAccess", action: close))
             FullDiskAccessDetails(status: model.status)
             Divider()
             SheetFooter {

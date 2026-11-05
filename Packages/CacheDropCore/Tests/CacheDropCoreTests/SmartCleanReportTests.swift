@@ -119,7 +119,7 @@ private func snapshot(_ root: URL) -> [String: String] {
     let report = SmartCleanReport(catalog: sources.catalog, home: home, found: found, now: now) { $0.ruleID == "npm-cache" ? .ownerRunning("npm") : nil }
 
     #expect(!report.picked.contains { $0.candidate.ruleID == "npm-cache" })
-    #expect(report.text.contains("will be skipped: npm is running."))
+    #expect(report.text.contains("will be skipped: npm is open."))
 }
 
 #if DEBUG

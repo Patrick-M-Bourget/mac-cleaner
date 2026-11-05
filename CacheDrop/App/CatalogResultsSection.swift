@@ -40,7 +40,7 @@ struct CatalogResultsSection: View {
                             metric(MeasuredFreedSpace.shown(result.measuredFreedBytes).map { SizeFormatter.text($0) } ?? SizeEstimate.unknown.text, "Measured freed space", followUp: settledLine,
                                    identifier: "resultsMeasuredFreed")
                         } else {
-                            metric(estimate, upperBound ? "Estimated before cleanup · Upper bound" : "Estimated before cleanup")
+                            metric(estimate, "Estimated before cleanup")
                         }
                         if result.movedToTrashBytes > 0 { metric(SizeFormatter.text(result.movedToTrashBytes), "In the Trash · Freed when you empty it") }
                     }
@@ -55,7 +55,7 @@ struct CatalogResultsSection: View {
                 if settling {
                     HStack(spacing: CacheDropDesign.Space.sm) {
                         ProgressView().controlSize(.small).accessibilityHidden(true)
-                        Text("Docker returns space to macOS over the next minute. CacheDrop will check again.")
+                        Text("Docker returns space over the next minute · CacheDrop checks again then")
                             .font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary).accessibilityIdentifier("resultsSettling")
                     }
                 }

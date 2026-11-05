@@ -4,7 +4,7 @@ import CacheDropCore
 
 @Test func anOpenAppOffersToQuitItAndACommandLineToolOffersACheck() {
     let app = RunningOwnerNotice(name: "Xcode", appOpen: true)
-    #expect(app.text == "Xcode is running")
+    #expect(app.text == "Xcode is open")
     #expect(app.action == .quitApp("Quit Xcode"))
 
     let tool = RunningOwnerNotice(name: "npm", appOpen: false)
