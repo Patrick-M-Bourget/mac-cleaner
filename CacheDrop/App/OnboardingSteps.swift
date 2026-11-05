@@ -77,8 +77,14 @@ struct OnboardingScanStep: View {
             // No footer while scanning (Decision 108): no disabled button waits for the scan.
             OnboardingSheet(onClose: onClose) {
                 OnboardingIdentity(categories: categories, finished: finished)
-                Text("Found " + SizeFormatter.text(found) + " so far").font(CacheDropDesign.TypeStyle.note).foregroundStyle(.secondary)
-                    .monospacedDigit().accessibilityIdentifier("welcomeFoundSoFar")
+                // The bar's own spinner, so a long category never reads as frozen; the total shows once something is found.
+                HStack(spacing: CacheDropDesign.Space.sm) {
+                    ProgressView().controlSize(.small).accessibilityHidden(true)
+                    if found > 0 {
+                        Text("Found " + SizeFormatter.text(found) + " so far").font(CacheDropDesign.TypeStyle.note).foregroundStyle(.secondary)
+                            .monospacedDigit().accessibilityIdentifier("welcomeFoundSoFar")
+                    }
+                }
             } footer: { EmptyView() }
         case .ready(let found, let breakdown, let top):
             OnboardingSheet(onClose: onClose) {
@@ -112,7 +118,7 @@ struct OnboardingScanStep: View {
         case .nothingFound:
             OnboardingSheet(onClose: onClose) {
                 OnboardingIdentity(categories: categories, finished: nil)
-                NothingToCleanUp(identifier: "welcomeNothingFound")
+                NothingToCleanUp(identifier: "welcomeNothingFound", compact: true).fixedSize() // Centred, as the rest of the sheet
             } footer: {
                 Button("View Overview", action: onViewOverview).buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
                     .accessibilityIdentifier("welcomeViewOverview")
