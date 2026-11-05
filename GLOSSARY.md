@@ -60,6 +60,9 @@ The names CacheDrop shows, what they mean, and where they live in code. Copy fol
 | license key | The one copy-pasteable string a license comes as, starting `CD1-` | `LicenseKey`, `LicenseVerifier` |
 | trial | Clean up and uninstall, free until they have freed 2 GB on this Mac; Settings reads **X of free cleanup left**, then **Free trial used** (Decisions 135, 137) | `Trial`, `TrialController`, `CleanupAllowance` |
 | setup progress | The setup events CacheDrop sends only when the user opts in (Decision 127) | `SetupProgressReporter`, `SetupProgressEvent` |
+| What CacheDrop cleans | Onboarding's row of the cleanable categories' badges; while scanning, each lights up as its category finishes (#783) | `CategoryBadgeRow`, `OnboardingWelcomeStep` |
+| Never touches | Onboarding's muted line naming what CacheDrop never cleans: **Never touches: Photos · Mail · Messages · passwords** (#783) | `OnboardingWelcomeStep` |
+| Found X so far, Found X you can clean | Onboarding's running total while scanning, then what the scan found (#783) | `OnboardingScanStep` |
 
 ## Actions and outcomes
 
@@ -81,6 +84,9 @@ The names CacheDrop shows, what they mean, and where they live in code. Copy fol
 | Scan with current access | Begin preparation without the explicit basic-access setup request | `WelcomeModel.begin` |
 | View results | Open Overview after initial preparation is ready | `WelcomeModel` |
 | Close (onboarding) | Dismiss the guide while preparation continues | `WelcomeModel.finish` |
+| Start scan | Onboarding's one button on Welcome: begins the first scan (#783) | `OnboardingWelcomeStep` |
+| Start Smart clean | Onboarding's one button once the first scan is ready: opens Smart clean (#783) | `OnboardingScanStep` |
+| View Overview | Onboarding's one button when the first scan found nothing to clean (#783) | `OnboardingScanStep` |
 | Scan again | Any action that scans | `CatalogCleanupModel`, `ExploreStorage` |
 | Dry run | Runs the whole flow; nothing changes | `dryRun` |
 | Measured freed space, Freed | Free space measured around each item, not the estimate; History rows note it **Freed** | `MeasuredFreedSpace`, `CleanupHistoryRun.headline` |
