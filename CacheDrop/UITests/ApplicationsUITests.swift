@@ -471,6 +471,8 @@ final class ApplicationsUITests: XCTestCase {
         revealAndClick(synthRow, in: app)
         expandDisclosures(in: app)
         XCTAssertEqual(app.checkBoxes["planItem-uninstall-app-files-com.maker.synth.plist"].value as? Int, 1, "Its own preferences are ticked with it")
+        // Pad's files sit below the fold with both apps open, and rows off-screen aren't drawn: scroll Pad's list up first.
+        reveal(app.checkBoxes["planItem-uninstall-app-Pad.app"], in: app, nearTop: true)
         XCTAssertEqual(app.checkBoxes["planItem-uninstall-app-files-com.maker.pad.plist"].value as? Int, 0, "Pad's are Pad's")
 
         app.buttons["Review cleanup"].click()
@@ -753,7 +755,8 @@ final class ApplicationsUITests: XCTestCase {
             let row = element(app, "applicationsSection-" + section)
             XCTAssertTrue(row.staticTexts["Empty"].waitForExistence(timeout: 120), "\(section) reads Empty")
         }
-        XCTAssertEqual(app.staticTexts.matching(NSPredicate(format: "label == 'Empty'")).count, 3, "One Empty per section")
+        // A row's text carries its words in `value`, not `label`.
+        XCTAssertEqual(app.staticTexts.matching(NSPredicate(format: "label == 'Empty' OR value == 'Empty'")).count, 3, "One Empty per section")
         XCTAssertFalse(app.staticTexts["No files from deleted apps"].exists, "No second row saying so")
         XCTAssertFalse(app.descendants(matching: .any)["applicationsLoading-apps"].exists)
         // #575: nothing on the page can be ticked, so no card reading "—" and "0 items selected".
