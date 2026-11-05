@@ -230,7 +230,7 @@ final class LaunchSmokeUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["CacheDrop never scans or cleans in the background"].exists)
         XCTAssertEqual(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@ OR value CONTAINS %@", "never scans or cleans", "never scans or cleans")).count, 1,
                        "Said once, on the Notifications group")
-        XCTAssertTrue(app.staticTexts["CacheDrop checks once a week"].exists)
+        XCTAssertTrue(app.staticTexts["Once a week · nothing is downloaded or installed until you choose"].exists)
         XCTAssertEqual(app.descendants(matching: .any)["startAtLoginToggle"].label, "Start CacheDrop at login", "Sentence case, as the other toggles (#769)")
         // #689 (Decision 156): Settings opens with no field focused; the License key field takes focus when clicked,
         // and opening Settings again clears it.

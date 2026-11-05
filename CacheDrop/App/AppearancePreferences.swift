@@ -81,7 +81,7 @@ struct CacheDropSettingsView: View {
             } header: {
                 Text("Updates")
             } footer: {
-                footer("CacheDrop checks once a week")
+                footer("Once a week · nothing is downloaded or installed until you choose")
             }
             // The one setting that sends anything, so never under General (#778).
             Section {
