@@ -62,7 +62,7 @@ private func git(_ repo: URL, _ arguments: String...) throws {
     process.arguments = ["-c", "core.hooksPath=/dev/null", "-c", "commit.gpgsign=false", "-c", "user.name=Fixture", "-c", "user.email=fixture@example.com",
                          "-C", repo.path] + arguments
     process.standardOutput = FileHandle.nullDevice; process.standardError = FileHandle.nullDevice
-    try process.run(); process.waitUntilExit()
+    try process.runToEnd()
     #expect(process.terminationStatus == 0)
 }
 /// A fixture git project, all committed and last changed 30 days ago, with a `node_modules` git ignores.
