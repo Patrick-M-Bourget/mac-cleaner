@@ -376,8 +376,9 @@ private struct OnboardingGalleryExamples: View {
 }
 /// The review sheet with synthetic items (#794): all four consequence groups, a holder's line with its Quit link and a row
 /// skipped for its own reason; then Empty from Trash's and Empty Trash's sheets. The paths are made up and nothing is read.
-/// The Trash sheets take no clicks, so their Empty never runs.
+/// The Trash sheets draw from a model of their own, never the shared one, with dry run off and an Empty that does nothing.
 private struct ReviewSheetGalleryExamples: View {
+    @State private var sampleTrash = TrashModel()
     private static let catalog = Catalog(rules: BuiltInCatalog.rules)
     private static let chrome = "chrome-cache", changed = "Old installer.dmg"
     private static let items: [Candidate] = [
@@ -417,10 +418,10 @@ private struct ReviewSheetGalleryExamples: View {
                 }
             }
             gallerySheet("Empty from Trash · CacheDrop’s own items", identifier: "galleryEmptyFromTrash") {
-                EmptyFromTrashSheet(scope: .cacheDropItems(Self.records), close: {}).allowsHitTesting(false)
+                EmptyFromTrashSheet(scope: .cacheDropItems(Self.records), trash: sampleTrash, dryRun: false, empty: {}, close: {})
             }
             gallerySheet("Empty the Trash · Everything in it", identifier: "galleryEmptyTrash") {
-                EmptyFromTrashSheet(scope: .wholeTrash(Self.trash), close: {}).allowsHitTesting(false)
+                EmptyFromTrashSheet(scope: .wholeTrash(Self.trash), trash: sampleTrash, dryRun: false, empty: {}, close: {})
             }
         }
     }
