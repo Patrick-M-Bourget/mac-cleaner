@@ -323,6 +323,8 @@ private struct WorkspaceView: View {
 
     var body: some View {
         workspace
+        // Overview's, the Cleanup plan's and App-managed storage's notes open this sheet, which outlives them (#802).
+        .fullDiskAccessSheetPresenter()
         // Moving to Applications comes first; onboarding and the launch scan wait until it's answered (#559).
         .sheet(isPresented: $moveOffer.isShowing) { MoveToApplicationsView(model: moveOffer) }
         .onChange(of: moveOffer.holdsOnboarding) { _, held in if !held { welcome.launch(catalog: selection.catalog) } }

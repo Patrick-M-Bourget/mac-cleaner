@@ -381,16 +381,21 @@ final class LaunchSmokeUITests: XCTestCase {
         sheet.buttons["dismissFullDiskAccess"].click()
         XCTAssertFalse(sheet.staticTexts["Broader access is optional"].waitForExistence(timeout: 2))
 
-        // Granted while the sheet is open: coming back rescans (#124), Overview's note goes with what it named, and the sheet
-        // it opened closes with it (#784: onboarding no longer opens the sheet, so it never shows its granted Done here).
-        // Access is taken away again afterwards for System access's own check below.
+        // Granted while the sheet is open: coming back rescans (#124) and Overview's note goes with what it named, but the
+        // sheet, presented by the window rather than the note (#802), stays and reads access again; granted, its one button
+        // is Done, and closing is the user's click. Access is taken away again afterwards for System access's own check below.
         revealAndClick(app.links["fullDiskAccessLink"].firstMatch, in: app)
         XCTAssertTrue(sheet.staticTexts["Broader access is optional"].waitForExistence(timeout: 5))
         XCUIApplication(bundleIdentifier: "com.apple.finder").activate()
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: safari.path)
         app.activate()
         XCTAssertTrue(app.descendants(matching: .any)["overviewNotAccessible"].waitForNonExistence(timeout: 20), "The rescan clears the note")
-        XCTAssertFalse(app.staticTexts["Broader access is optional"].waitForExistence(timeout: 2), "Its sheet closes with it")
+        let done = sheet.buttons["closeFullDiskAccess"]
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == 'Done'"), object: done)], timeout: 10), .completed,
+                       "The sheet outlives its note and shows it worked")
+        XCTAssertFalse(sheet.buttons["openFullDiskAccessSettings"].exists)
+        done.click()
+        XCTAssertFalse(app.staticTexts["Broader access is optional"].waitForExistence(timeout: 2))
         try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: safari.path)
 
         // Returning from another app refreshes the same System access instance.
