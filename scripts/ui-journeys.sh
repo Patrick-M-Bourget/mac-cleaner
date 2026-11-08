@@ -14,6 +14,8 @@
 # When no journey reports at all, nothing is rerun, the exit is non-zero and a line names the cause from the log: macOS
 # waiting on its automation permission prompt (the owner must answer it), "Executed 0 tests" (the named tests aren't in
 # the test plan), or otherwise a build or runner failure to read in the log.
+# A --all run with no failure and no journey left without a result, started with CacheDrop/ and Packages/ committed,
+# records the UI suite stamp for HEAD that scripts/ship-release.sh requires (scripts/ui-suite-stamp.sh, #807).
 # The run drives the screen: use it only when nobody is using this Mac.
 set -uo pipefail
 TMPDIR="${TMPDIR:-/tmp}"
@@ -52,6 +54,14 @@ for test in ${tests[@]+"${tests[@]}"}; do
   requested+=("$resolved")
 done
 [ "${#requested[@]}" -gt 0 ] || while read -r test; do requested+=("$test"); done < <(all_tests)
+
+# A full-suite run on committed app code can record the UI suite stamp that releases need (#807).
+suite_commit=""
+if [ "$all" -eq 1 ] && [ "${#tests[@]}" -eq 0 ]; then suite_commit=$(scripts/ui-suite-stamp.sh current) || suite_commit=""; fi
+stamp_suite() {
+  [ -n "$suite_commit" ] || return 0
+  scripts/ui-suite-stamp.sh write "$suite_commit" && echo "Full UI suite passed: stamp recorded for ${suite_commit:0:12}"
+}
 
 # The requested tests a log has no passed, failed or skipped line for.
 unreported() {
@@ -121,6 +131,7 @@ status=$?
 missing=()
 while read -r test; do missing+=("$test"); done < <(unreported "$log" "${requested[@]}")
 if [ "${#missing[@]}" -eq 0 ]; then
+  [ "$status" -ne 0 ] || stamp_suite
   echo "xcodebuild exit $status; full log: $log"
   exit $status
 fi
@@ -147,5 +158,6 @@ result=0
 if [ "$rerun_status" -ne 0 ]; then result=$rerun_status
 elif [ -n "$still" ] || grep -qE "Test Case '.*' failed" "$log"; then result=1
 fi
+[ "$result" -ne 0 ] || stamp_suite
 echo "xcodebuild exit $status, rerun exit $rerun_status${still:+, still no result: $still}; full logs: $log $rerun_log"
 exit $result

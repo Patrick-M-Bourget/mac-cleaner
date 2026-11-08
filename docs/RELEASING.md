@@ -4,12 +4,12 @@
 
 | Step | Who | How |
 |---|---|---|
-| 1. Version, build number and notes | Claude, for the version the owner names (a patch bump unless told otherwise) | `scripts/release.sh --bump x.y.z`, `docs/releases/x.y.z.html` (Decision 122), full UI suite, release PR |
+| 1. Version, build number and notes | Claude, for the version the owner names (a patch bump unless told otherwise) | `scripts/release.sh --bump x.y.z`, `docs/releases/x.y.z.html` (Decision 122), full UI suite (`scripts/ui-journeys.sh --all`; its pass stamp is checked by `ship-release.sh`, which refuses unless it covers the release's `CacheDrop/` and `Packages/`), release PR |
 | 2. Merge the release PR | Owner says "merge" | `scripts/merge-pr.py PR --expect-none` |
 | 3. Signed, notarized, verified build | Claude | `scripts/ship-release.sh x.y.z` |
 | 4. Publish to the update feed and website | Owner says "publish" | cachedrop-website `scripts/publish-release.sh <artifacts>` (website Decision 55) |
 
-`ship-release.sh` checks that origin/main is that version with its notes, makes a clean checkout at `../mac-cleaner-release-x.y.z` (kept: it holds the artifacts), builds the notes, runs `release.sh` with the production updates folder, then repeats the independent checks below and prints the publish command. It uploads nothing. Apple's ticket server sometimes drops a connection, so every stapler call gets three tries. Building never implies publishing.
+`ship-release.sh` checks that origin/main is that version with its notes and that the full UI suite passed on its app code, makes a clean checkout at `../mac-cleaner-release-x.y.z` (kept: it holds the artifacts), builds the notes, runs `release.sh` with the production updates folder, then repeats the independent checks below and prints the publish command. It uploads nothing. Apple's ticket server sometimes drops a connection, so every stapler call gets three tries. Building never implies publishing.
 
 The sections below are what those commands run.
 
