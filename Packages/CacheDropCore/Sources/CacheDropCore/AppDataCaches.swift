@@ -78,7 +78,7 @@ public enum AppDataCaches {
     }
     static func jetBrains(apps: any AppLookup) -> CleanupRule {
         CleanupRule(id: "jetbrains-caches", category: .developer, title: "Old JetBrains IDE caches",
-                    detail: "Caches and indexes of older IDE versions. The versions you have installed, and the newest of each IDE, are kept.",
+                    detail: "Caches and indexes of older IDE versions · installed versions and each IDE’s newest stay",
                     consequence: "That version’s local history goes too; newer versions keep their own.",
                     regen: .cache, action: .delete, locations: ["Library/Caches/JetBrains/*"], owner: nil,
                     itemOwner: { jetBrainsOwner($0, apps: apps) }, protectedDepth: AppCaches.liveWorkDepth, itemByItem: true)

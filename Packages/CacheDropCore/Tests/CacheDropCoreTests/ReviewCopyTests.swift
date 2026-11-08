@@ -24,3 +24,16 @@ private func sentences(_ text: String) -> Int { text.split(whereSeparator: { ".!
         }
     }
 }
+
+/// #790, Decision 92 rules 3 and 7: a row draws its rule's detail on one line, so these six are one fragment each,
+/// joined by "·" and without a full stop (the owner's wording).
+@Test func multiSentenceRuleDetailsAreOneFragment() {
+    let rules = BuiltInCatalog.rules(apps: EveryApp()) + AppUninstall.rules + RemovedAppLeftovers.rules
+    func detail(_ id: String) -> String? { rules.first { $0.id == id }?.detail }
+    #expect(detail("agent-workspaces") == "Checkouts and build files AI coding agents keep in their own folders · unpushed work may be lost")
+    #expect(detail("jetbrains-caches") == "Caches and indexes of older IDE versions · installed versions and each IDE’s newest stay")
+    #expect(detail(AppUninstall.possiblyRelatedRuleID) == "Folders named like the app or its maker · nothing ties them to it for sure")
+    #expect(detail(RemovedAppLeftovers.possiblyRelatedRuleID) == "Folders named like a removed app or its maker · nothing ties them to it for sure")
+    #expect(detail("icloud-local-copies") == "Files in iCloud Drive also stored on this Mac · Keep Downloaded, not-yet-uploaded and conflicted ones stay")
+    #expect(detail("app-vm-images") == "Disk images an app unpacked from a compressed copy it keeps beside them")
+}
