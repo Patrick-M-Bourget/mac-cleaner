@@ -13,7 +13,7 @@ public enum RemovedAppLeftovers {
         consequence: consequence, regen: .userFile, action: .trash, locations: [], owner: nil, protectedDepth: AppCaches.liveWorkDepth,
         family: .removedAppLeftovers)
     static let possiblyRelatedRule = CleanupRule(id: possiblyRelatedRuleID, category: .leftovers, title: "Possibly related",
-        detail: "Folders named like a removed app or its maker. Nothing ties them to it for sure, so check each one.",
+        detail: "Folders named like a removed app or its maker · nothing ties them to it for sure",
         consequence: consequence, regen: .userFile, action: .trash, locations: [], owner: nil, protectedDepth: AppCaches.liveWorkDepth,
         itemByItem: true, family: .removedAppLeftovers)
     public static let rules: [CleanupRule] = [leftoversRule, possiblyRelatedRule]

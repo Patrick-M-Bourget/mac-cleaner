@@ -231,7 +231,9 @@ final class LaunchSmokeUITests: XCTestCase {
         XCTAssertEqual(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@ OR value CONTAINS %@", "never scans or cleans", "never scans or cleans")).count, 1,
                        "Said once, on the Notifications group")
         XCTAssertTrue(app.staticTexts["Once a week · nothing is downloaded or installed until you choose"].exists)
-        XCTAssertEqual(app.descendants(matching: .any)["startAtLoginToggle"].label, "Start CacheDrop at login", "Sentence case, as the other toggles (#769)")
+        // A grouped Form draws a toggle's title as the row's own text beside an unlabelled switch.
+        XCTAssertTrue(app.switches["startAtLoginToggle"].exists)
+        XCTAssertTrue(app.staticTexts["Start CacheDrop at login"].exists, "Sentence case, as the other toggles (#769)")
         // #689 (Decision 156): Settings opens with no field focused; the License key field takes focus when clicked,
         // and opening Settings again clears it.
         let licenseKey = app.textFields["licenseKeyField"]
@@ -366,7 +368,8 @@ final class LaunchSmokeUITests: XCTestCase {
         let sheet = app.sheets.firstMatch
         XCTAssertTrue(sheet.staticTexts["Broader access is optional"].waitForExistence(timeout: 5))
         let summary = sheet.staticTexts["fullDiskAccessSummary"]
-        XCTAssertTrue((summary.value as? String ?? summary.label).contains("macOS grants more than reading; CacheDrop’s scans only read."))
+        XCTAssertTrue((summary.value as? String ?? summary.label).contains("Full Disk Access lets CacheDrop see protected places like Mail and Safari data"),
+                      "The explanation keeps one sentence (Decision 184)")
         XCTAssertTrue(sheet.staticTexts["Your folders and app caches"].exists)
         let protected = sheet.staticTexts["fullDiskAccessSheetStatus"]
         XCTAssertEqual(protected.value as? String ?? protected.label, "Not included")
@@ -378,18 +381,16 @@ final class LaunchSmokeUITests: XCTestCase {
         sheet.buttons["dismissFullDiskAccess"].click()
         XCTAssertFalse(sheet.staticTexts["Broader access is optional"].waitForExistence(timeout: 2))
 
-        // The same sheet reads access again when CacheDrop comes back; granted, its one button is Done (#784: onboarding no
-        // longer opens it). Access is taken away again afterwards for System access's own check below.
+        // Granted while the sheet is open: coming back rescans (#124), Overview's note goes with what it named, and the sheet
+        // it opened closes with it (#784: onboarding no longer opens the sheet, so it never shows its granted Done here).
+        // Access is taken away again afterwards for System access's own check below.
         revealAndClick(app.links["fullDiskAccessLink"].firstMatch, in: app)
         XCTAssertTrue(sheet.staticTexts["Broader access is optional"].waitForExistence(timeout: 5))
         XCUIApplication(bundleIdentifier: "com.apple.finder").activate()
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: safari.path)
         app.activate()
-        let done = sheet.buttons["closeFullDiskAccess"]
-        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == 'Done'"), object: done)], timeout: 10), .completed)
-        XCTAssertFalse(sheet.buttons["openFullDiskAccessSettings"].exists)
-        done.click()
-        XCTAssertFalse(app.staticTexts["Broader access is optional"].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.descendants(matching: .any)["overviewNotAccessible"].waitForNonExistence(timeout: 20), "The rescan clears the note")
+        XCTAssertFalse(app.staticTexts["Broader access is optional"].waitForExistence(timeout: 2), "Its sheet closes with it")
         try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: safari.path)
 
         // Returning from another app refreshes the same System access instance.
@@ -799,7 +800,7 @@ final class FirstRunWelcomeUITests: XCTestCase {
         XCTAssertFalse(app.checkBoxes["welcomeShareSetupProgress"].exists, "Share setup progress waits for Ready")
         XCTAssertFalse(app.staticTexts["catalogScanProgress"].exists, "Welcome precedes the launch scan")
         app.typeKey(.return, modifierFlags: [])
-        XCTAssertTrue(app.progressIndicators["welcomeScanProgress"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.activityIndicators["welcomeScanProgress"].waitForExistence(timeout: 10))
         XCTAssertFalse(start.exists)
         XCTAssertTrue(app.staticTexts["welcomeFoundSoFar"].waitForExistence(timeout: 60), "The running total shows once something is found")
         let smartClean = app.buttons["welcomeStartSmartClean"]
@@ -808,13 +809,13 @@ final class FirstRunWelcomeUITests: XCTestCase {
         XCTAssertEqual(smartClean.label, "Start Smart clean")
         XCTAssertTrue(app.staticTexts["welcomeFound"].exists)
         XCTAssertTrue(app.descendants(matching: .any)["welcomeTopCategories"].exists)
-        XCTAssertFalse(app.progressIndicators["welcomeScanProgress"].exists, "Ready no longer shows the scan")
+        XCTAssertFalse(app.activityIndicators["welcomeScanProgress"].exists, "Ready no longer shows the scan")
         smartClean.click()
         XCTAssertTrue(app.descendants(matching: .any)["smartCleanHeader"].waitForExistence(timeout: 10), "Start Smart clean opens Smart clean")
         openApplications(app)
         XCTAssertFalse(app.descendants(matching: .any)["applicationsLoading-apps"].exists, "Applications was prepared before unlocking")
         app.terminate(); app.launch()
-        XCTAssertTrue(app.progressIndicators["welcomeScanProgress"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.activityIndicators["welcomeScanProgress"].waitForExistence(timeout: 10))
         XCTAssertFalse(app.buttons["welcomeStartScan"].exists, "Returning launches show only the scanning step")
         XCTAssertTrue(app.buttons["welcomeCancel"].waitForNonExistence(timeout: 120), "Returning launches unlock automatically")
         XCTAssertTrue(app.staticTexts["overviewTitle"].waitForExistence(timeout: 5), "Later launches open Overview")
@@ -859,7 +860,7 @@ final class FirstRunWelcomeUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["overviewTitle"].waitForExistence(timeout: 5))
         waitForCatalogScan(app)
         app.terminate(); app.launch()
-        XCTAssertTrue(app.progressIndicators["welcomeScanProgress"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.activityIndicators["welcomeScanProgress"].waitForExistence(timeout: 10))
         XCTAssertFalse(app.buttons["welcomeStartScan"].exists, "Cancel marked the introduction seen")
         app.buttons["welcomeCancel"].click()
         XCTAssertTrue(app.staticTexts["catalogScanProgress"].waitForExistence(timeout: 5), "Cancel onboarding does not stop the scan")
@@ -1255,10 +1256,12 @@ final class RecoveryReviewUITests: XCTestCase {
         }
         XCTAssertTrue(app.links["Reveal Trashed.dmg in Finder"].exists,
                       "Recovery uses the glossary's Reveal in Finder action for the item found in Trash")
-        // #436: the page says once that nothing restarts, in its subtitle; its bottom bar has no note.
+        // Decision 184 cut the subtitle to its first sentence, so "Nothing restarts by itself" (#436) is no longer said,
+        // and the bottom bar still has no note.
+        let subtitle = "CacheDrop checked where each unfinished item is now"
+        XCTAssertEqual(app.staticTexts.matching(NSPredicate(format: "label == %@ OR value == %@", subtitle, subtitle)).count, 1)
         let restarts = NSPredicate(format: "label CONTAINS 'Nothing restarts by itself' OR value CONTAINS 'Nothing restarts by itself'")
-        XCTAssertEqual(app.staticTexts.matching(restarts).count, 1)
-        XCTAssertEqual(actionStrip(app).staticTexts.matching(restarts).count, 0)
+        XCTAssertEqual(app.staticTexts.matching(restarts).count, 0)
         app.buttons["recoveryMarkReviewed"].click()
         XCTAssertTrue(app.staticTexts["recoveryMessage"].waitForExistence(timeout: 10))
 
