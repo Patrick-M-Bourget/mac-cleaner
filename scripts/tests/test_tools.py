@@ -349,16 +349,49 @@ sys.exit(code)
         self.assertEqual(runs[1].count('-only-testing'), 1)
         self.assertIn('-only-testing:CacheDropUITests/AUITests/testFour', runs[1])
 
-    def test_no_journey_reporting_means_the_runner_never_started_and_nothing_is_rerun(self):
-        (self.runs / '1').write_text('Timed out while enabling automation mode.\nEXIT 65\n')
-        result, runs = self.journeys('testOne', 'testThree')
-        self.assertEqual(result.returncode, 65, result.stdout)
+    def fixture_run(self, name, exit_code):
+        """Replays a trimmed real xcodebuild log from scripts/tests/fixtures/ui-journeys as the first test run."""
+        text = (ROOT / 'scripts/tests/fixtures/ui-journeys' / f'{name}.log').read_text()
+        (self.runs / '1').write_text(text + f'EXIT {exit_code}\n')
+
+    def assert_no_report(self, result, runs, exit_code, cause):
+        self.assertEqual(result.returncode, exit_code, result.stdout)
         self.assertEqual(len(runs), 1, 'no rerun when nothing reported')
-        self.assertIn('runner likely didn', result.stdout.splitlines()[-1])
         self.assertNotIn('No result:', result.stdout)
+        lines = result.stdout.splitlines()
+        self.assertEqual(lines[-2], cause, result.stdout)
+        self.assertTrue(lines[-1].startswith(f'xcodebuild exit {exit_code}; no journey reported; full log: '), lines[-1])
+
+    def test_no_journey_reporting_names_the_automation_permission_prompt(self):
+        prompt = 'macOS is asking for automation permission: the owner must answer the prompt at this Mac, then rerun'
+        for log in ('automation-timeout', 'authentication-cancelled'):
+            with self.subTest(log):
+                if self.calls.exists():
+                    self.calls.unlink()
+                self.fixture_run(log, 65)
+                result, runs = self.journeys('testOne', 'testThree')
+                self.assert_no_report(result, runs, 65, prompt)
+
+    def test_no_journey_reporting_names_tests_missing_from_the_plan(self):
+        self.fixture_run('zero-tests', 0)
+        result, runs = self.journeys('testOne', 'testThree')
+        self.assert_no_report(result, runs, 1, "Executed 0 tests: AUITests/testOne BUITests/testThree aren't in the "
+                              'test plan; use a VisualCaptureUITests scenario or add the class to the plan')
+
+    def test_no_journey_reporting_otherwise_points_at_the_log(self):
+        self.fixture_run('runner-failure', 65)
+        result, runs = self.journeys('--all')
+        self.assert_no_report(result, runs, 65,
+                              'A build or runner failure stopped the run before any journey reported: read the log')
 
     def test_no_journey_reporting_with_a_zero_exit_still_fails(self):
         (self.runs / '1').write_text('EXIT 0\n')
         result, runs = self.journeys('--all')
         self.assertEqual(result.returncode, 1, result.stdout)
         self.assertEqual(len(runs), 1)
+
+    def test_help_prints_the_whole_header(self):
+        result = self.run_command(['/bin/bash', str(self.repo / 'scripts/ui-journeys.sh'), '--help'])
+        self.assertEqual(result.returncode, 0)
+        self.assertTrue(result.stdout.startswith("Runs CacheDrop's UI journeys"), result.stdout)
+        self.assertTrue(result.stdout.rstrip().endswith('use it only when nobody is using this Mac.'), result.stdout)

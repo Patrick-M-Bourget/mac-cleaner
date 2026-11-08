@@ -1,0 +1,6 @@
+2026-11-05 18:59:44.467645-0500 CacheDropUITests-Runner[81872:82374505] [Default] Running tests...
+2026-11-05 19:00:44.605434-0500 CacheDropUITests-Runner[81872:82374505] [Default] Failed to initialize for UI testing: Error Domain=com.apple.dt.XCTest.XCTFuture Code=1000 "Timed out while enabling automation mode." UserInfo={NSLocalizedDescription=Timed out while enabling automation mode.}
+Testing failed:
+	CacheDropUITests-Runner (81872) encountered an error (The test runner failed to initialize for UI testing. (Underlying Error: Timed out while enabling automation mode.))
+
+** TEST EXECUTE FAILED **

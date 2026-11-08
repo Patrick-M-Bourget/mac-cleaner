@@ -1,0 +1,6 @@
+2026-11-08 11:20:01.120000-0500 CacheDropUITests-Runner[81872:82374505] [Default] Running tests...
+2026-11-08 11:20:09.415000-0500 CacheDropUITests-Runner[81872:82374505] [Default] Failed to initialize for UI testing: Error Domain=com.apple.dt.XCTest.XCTFuture Code=1000 "Authentication cancelled" UserInfo={NSLocalizedDescription=Authentication cancelled}
+Testing failed:
+	CacheDropUITests-Runner (81872) encountered an error (The test runner failed to initialize for UI testing. (Underlying Error: Authentication cancelled))
+
+** TEST EXECUTE FAILED **
