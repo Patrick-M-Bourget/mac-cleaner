@@ -2883,11 +2883,11 @@ extension CatalogCleanupUITests {
         let countBefore = read(count), totalBefore = read(total)
         // Its checkbox never ticks every app at once: it opens them, to tick one by one.
         revealAndClick(group, in: app)
-        let row = app.checkBoxes["smartCleanSuggestedApp-" + old.path]
+        let row = element(app, "smartCleanSuggestedApp-" + old.path, .checkBox)
         XCTAssertTrue(row.waitForExistence(timeout: 5))
         XCTAssertEqual(row.value as? Int, 0)
-        XCTAssertFalse(app.checkBoxes["smartCleanSuggestedApp-" + fresh.path].exists, "Opened lately")
-        XCTAssertFalse(app.checkBoxes["smartCleanSuggestedApp-" + unknown.path].exists, "Unknown is never taken as old")
+        XCTAssertFalse(element(app, "smartCleanSuggestedApp-" + fresh.path, .checkBox).exists, "Opened lately")
+        XCTAssertFalse(element(app, "smartCleanSuggestedApp-" + unknown.path, .checkBox).exists, "Unknown is never taken as old")
         let line = "Last opened " + month.string(from: opened)
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label == %@ OR value == %@", line, line)).firstMatch.exists, line)
 

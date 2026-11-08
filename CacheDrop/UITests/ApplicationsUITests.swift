@@ -333,8 +333,8 @@ final class ApplicationsUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts.matching(ruleNamed).firstMatch.exists, "Results never name the rule")
 
         app.buttons["View history"].click()
-        // A History row is one combined button whose label starts with its title.
-        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Uninstalled Synth · 3 items")).firstMatch.waitForExistence(timeout: 10))
+        // A History row is the one disclosure (#772): a disclosure triangle whose label starts with its title.
+        XCTAssertTrue(app.disclosureTriangles.matching(NSPredicate(format: "label CONTAINS %@", "Uninstalled Synth · 3 items")).firstMatch.waitForExistence(timeout: 10))
     }
 
     /// Synth, a fixture app the journey starts itself (a copy of `sleep` in the fixture home's bundle), open while its uninstall
@@ -471,6 +471,8 @@ final class ApplicationsUITests: XCTestCase {
         revealAndClick(synthRow, in: app)
         expandDisclosures(in: app)
         XCTAssertEqual(app.checkBoxes["planItem-uninstall-app-files-com.maker.synth.plist"].value as? Int, 1, "Its own preferences are ticked with it")
+        // Pad's files sit below the fold with both apps open, and rows off-screen aren't drawn: scroll Pad's list up first.
+        reveal(app.checkBoxes["planItem-uninstall-app-Pad.app"], in: app, nearTop: true)
         XCTAssertEqual(app.checkBoxes["planItem-uninstall-app-files-com.maker.pad.plist"].value as? Int, 0, "Pad's are Pad's")
 
         app.buttons["Review cleanup"].click()
@@ -662,7 +664,7 @@ final class ApplicationsUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["catalogScanProgress"].waitForNonExistence(timeout: 120), "The rescan after the run finished")
 
         app.buttons["View history"].click()
-        let run = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Uninstalled Synth")).firstMatch
+        let run = app.disclosureTriangles.matching(NSPredicate(format: "label CONTAINS %@", "Uninstalled Synth")).firstMatch
         XCTAssertTrue(run.waitForExistence(timeout: 10))
         revealAndClick(run, in: app)
         let putBack = app.descendants(matching: .any)["putBack-Synth.app"]
@@ -731,7 +733,7 @@ final class ApplicationsUITests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: au.path), "What needs a password is never acted on")
 
         app.buttons["View history"].click()
-        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Uninstalled Pro Synth · 1 item")).firstMatch.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.disclosureTriangles.matching(NSPredicate(format: "label CONTAINS %@", "Uninstalled Pro Synth · 1 item")).firstMatch.waitForExistence(timeout: 10))
     }
 
     /// #270, #308: while the scan runs each section shows skeleton rows. Decision 176: a section that finds nothing is one row
@@ -753,7 +755,8 @@ final class ApplicationsUITests: XCTestCase {
             let row = element(app, "applicationsSection-" + section)
             XCTAssertTrue(row.staticTexts["Empty"].waitForExistence(timeout: 120), "\(section) reads Empty")
         }
-        XCTAssertEqual(app.staticTexts.matching(NSPredicate(format: "label == 'Empty'")).count, 3, "One Empty per section")
+        // A row's text carries its words in `value`, not `label`.
+        XCTAssertEqual(app.staticTexts.matching(NSPredicate(format: "label == 'Empty' OR value == 'Empty'")).count, 3, "One Empty per section")
         XCTAssertFalse(app.staticTexts["No files from deleted apps"].exists, "No second row saying so")
         XCTAssertFalse(app.descendants(matching: .any)["applicationsLoading-apps"].exists)
         // #575: nothing on the page can be ticked, so no card reading "—" and "0 items selected".
