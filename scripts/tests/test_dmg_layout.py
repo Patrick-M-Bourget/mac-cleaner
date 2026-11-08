@@ -1,7 +1,9 @@
 import copy
 import importlib.util
+import os
 from pathlib import Path
 import shutil
+import subprocess
 import tempfile
 import unittest
 
@@ -62,6 +64,40 @@ class DiskImageLayoutTests(unittest.TestCase):
         self.assertLess(make, release.index('step "Signing the DMG"'))
         self.assertLess(release.index('step "Signing the DMG"'), release.index('step "Notarizing the DMG"'))
         self.assertLess(release.index('notarize "$dmg"'), release.index('stapler staple "$dmg"'))
+
+
+class MakeDiskImageTests(unittest.TestCase):
+    """make-dmg.sh refuses while another CacheDrop volume is mounted: Finder names disks by volume name, so it would
+    lay out that one instead of ours (#760)."""
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.volumes = self.root / 'Volumes'
+        self.volumes.mkdir()
+        (self.root / 'CacheDrop.app/Contents').mkdir(parents=True)
+
+    def make(self):
+        return subprocess.run(['bash', str(ROOT / 'scripts/make-dmg.sh'), str(self.root / 'CacheDrop.app'),
+                               str(self.root / 'out.dmg')], env=dict(os.environ, CACHEDROP_DMG_VOLUMES=str(self.volumes)),
+                              text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=60)
+
+    def test_a_mounted_cachedrop_volume_is_refused_up_front_by_its_mount_point(self):
+        for name in ('CacheDrop', 'CacheDrop 1'):
+            with self.subTest(name=name):
+                volume = self.volumes / name
+                volume.mkdir()
+                result = self.make()
+                volume.rmdir()
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(f'{volume} is already mounted', result.stdout)
+                self.assertIn(f'hdiutil detach "{volume}"', result.stdout)
+                self.assertFalse((self.root / 'out.dmg').exists())
+
+    def test_the_layout_step_names_the_mount_point_it_checked(self):
+        script = (ROOT / 'scripts/make-dmg.sh').read_text()
+        self.assertIn('Finder wrote no window layout to $mount', script)
 
 
 if __name__ == '__main__':

@@ -6,6 +6,8 @@
 #
 # Finder writes the window's .DS_Store while the writable image is mounted, so this needs a logged-in session and
 # may ask once to let the terminal control Finder. The image is always detached, even on failure.
+# Finder names disks by volume name, so it refuses while another CacheDrop volume is mounted (#760): Finder would lay
+# out that one instead of ours. CACHEDROP_DMG_VOLUMES points the check at another folder for the tooling tests.
 set -euo pipefail
 
 die() { echo "make-dmg.sh: $*" >&2; exit 1; }
@@ -16,6 +18,10 @@ dmg="$2"
 scripts="$(cd "$(dirname "$0")" && pwd)"
 art="$scripts/dmg"
 python3 "$scripts/dmg-layout.py" check
+volumes="${CACHEDROP_DMG_VOLUMES:-/Volumes}"
+for other in "$volumes/CacheDrop" "$volumes/CacheDrop "[0-9]*; do
+  [[ -e "$other" ]] && die "$other is already mounted and Finder would lay it out instead of ours; eject it with: hdiutil detach \"$other\""
+done
 
 work="$(mktemp -d "${TMPDIR:-/tmp}/cachedrop-dmg.XXXXXX")"
 mount=""
@@ -38,10 +44,12 @@ tiffutil -cathidpicheck "$art/background.png" "$art/background@2x.png" -out "$wo
 hdiutil create -quiet -volname CacheDrop -srcfolder "$work/root" -fs HFS+ -format UDRW -size "$(( $(du -sm "$work/root" | cut -f1) + 20 ))m" "$work/rw.dmg"
 mount="$(hdiutil attach -readwrite -noverify -noautoopen "$work/rw.dmg" | awk -F '\t' '/\/Volumes\// { print $NF; exit }')"
 [[ -n "$mount" && -d "$mount/CacheDrop.app" ]] || die "could not mount the writable image"
+[[ "$mount" == "$volumes/CacheDrop" ]] || die "the writable image mounted at $mount, not $volumes/CacheDrop; eject the other CacheDrop volume"
 
 python3 "$scripts/dmg-layout.py" applescript "$mount" | osascript >/dev/null ||
   die "Finder could not lay out the disk image window (allow the terminal to control Finder in System Settings > Privacy & Security > Automation)"
-[[ -f "$mount/.DS_Store" ]] || die "Finder wrote no window layout"
+for _ in {1..20}; do [[ -f "$mount/.DS_Store" ]] && break; sleep 0.25; done
+[[ -f "$mount/.DS_Store" ]] || die "Finder wrote no window layout to $mount"
 # The volume shows the app's icon. It goes in after Finder's layout, which removes an earlier .VolumeIcon.icns and
 # its flag (and hdiutil create leaves one in -srcfolder out).
 icon="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIconFile' "$app/Contents/Info.plist")"
