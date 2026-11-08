@@ -19,7 +19,8 @@ private struct FullDiskAccessSheetPresenter: ViewModifier {
     @State private var model = FullDiskAccessModel()
     func body(content: Content) -> some View {
         content
-            .environment(\.showFullDiskAccess) { showing = true }
+            // A fresh model each time, so the sheet starts from Checking…, never from an earlier opening's status.
+            .environment(\.showFullDiskAccess) { model = FullDiskAccessModel(); showing = true }
             .sheet(isPresented: $showing) { FullDiskAccessSheet(model: model) { showing = false } }
     }
 }
