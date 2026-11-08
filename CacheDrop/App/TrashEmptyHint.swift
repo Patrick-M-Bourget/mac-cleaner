@@ -106,8 +106,14 @@ extension View {
 struct EmptyFromTrashSheet: View {
     let scope: EmptyingScope
     let close: () -> Void
-    @Bindable private var trash = TrashModel.shared
-    private var dryRun: Bool { AppLifecycleController.shared.selection.catalog.dryRun }
+    @Bindable private var trash: TrashModel
+    /// The Settings dry run when nil; the Design gallery fixes it, as it does its model and Empty (#794).
+    private let dryRunShown: Bool?
+    private let emptyAction: (() async -> Void)?
+    private var dryRun: Bool { dryRunShown ?? AppLifecycleController.shared.selection.catalog.dryRun }
+    init(scope: EmptyingScope, trash: TrashModel = .shared, dryRun: Bool? = nil, empty: (() async -> Void)? = nil, close: @escaping () -> Void) {
+        self.scope = scope; self.trash = trash; dryRunShown = dryRun; emptyAction = empty; self.close = close
+    }
     var body: some View {
         ReviewSheetFrame(title: scope.title) {
             if let result = trash.emptyingResult { outcome(result) } else { review }
@@ -124,7 +130,7 @@ struct EmptyFromTrashSheet: View {
         } else {
             Button("Cancel", action: close).keyboardShortcut(.cancelAction).disabled(trash.isEmptying)
             BusyAction(busy: trash.isEmptying) {
-                Button("Empty") { Task { await scope.empty() } }.buttonStyle(.borderedProminent).disabled(AppLifecycleController.shared.updateInstallation.blocksNewWork).accessibilityIdentifier("emptyFromTrashConfirm")
+                Button("Empty") { Task { await (emptyAction ?? scope.empty)() } }.buttonStyle(.borderedProminent).disabled(AppLifecycleController.shared.updateInstallation.blocksNewWork).accessibilityIdentifier("emptyFromTrashConfirm")
             }
         }
     }

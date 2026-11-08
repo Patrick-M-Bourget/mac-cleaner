@@ -218,6 +218,9 @@ struct DesignGallery: View {
                     // Decision 126: the review sheet opens at the click and shows its checks running (#565).
                     Text("Review sheet · Checks running").font(CacheDropDesign.TypeStyle.section)
                     ReviewChecksRunning(cancel: {}, identifier: "galleryReview")
+                    // #794: the review sheet's consequence groups with a holder's line and a skipped line, then the Trash sheets.
+                    Text("Review sheet · Consequence groups · Trash sheets").font(CacheDropDesign.TypeStyle.section)
+                    ReviewSheetGalleryExamples()
                     CapacityMeter(available: nil, total: nil)
                     CapacityMeter(available: 40_000_000_000, total: 512_000_000_000, compact: true)
                     SettingsRow(title: "Shared navigation and brand", detail: "Reference accents identify destinations; labels and selected traits carry meaning.") {
@@ -358,14 +361,69 @@ private struct OnboardingGalleryExamples: View {
     private func step(_ phase: OnboardingScanStep.Phase) -> some View {
         OnboardingScanStep(categories: Self.categories, phase: phase, sharesSetupProgress: $sharing, onStartSmartClean: {}, onViewOverview: {}, onClose: {})
     }
-    /// A sheet on the gallery's page, outlined so its real size reads true in a window shot.
     private func example(_ title: String, _ name: String, @ViewBuilder sheet: () -> some View) -> some View {
-        VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
-            Text(title).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
-            sheet().clipShape(RoundedRectangle(cornerRadius: CacheDropDesign.Radius.surface)).overlay {
-                RoundedRectangle(cornerRadius: CacheDropDesign.Radius.surface).strokeBorder(CacheDropDesign.separator, lineWidth: CacheDropDesign.Stroke.fine)
+        gallerySheet(title, identifier: "onboardingGallery-" + name, sheet: sheet)
+    }
+}
+/// A sheet on the gallery's page, outlined so its real size reads true in a window shot.
+@MainActor private func gallerySheet(_ title: String, identifier: String, @ViewBuilder sheet: () -> some View) -> some View {
+    VStack(alignment: .leading, spacing: CacheDropDesign.Space.sm) {
+        Text(title).font(CacheDropDesign.TypeStyle.caption).foregroundStyle(.secondary)
+        sheet().clipShape(RoundedRectangle(cornerRadius: CacheDropDesign.Radius.surface)).overlay {
+            RoundedRectangle(cornerRadius: CacheDropDesign.Radius.surface).strokeBorder(CacheDropDesign.separator, lineWidth: CacheDropDesign.Stroke.fine)
+        }
+    }.accessibilityElement(children: .contain).accessibilityIdentifier(identifier)
+}
+/// The review sheet with synthetic items (#794): all four consequence groups, a holder's line with its Quit link and a row
+/// skipped for its own reason; then Empty from Trash's and Empty Trash's sheets. The paths are made up and nothing is read.
+/// The Trash sheets draw from a model of their own, never the shared one, with dry run off and an Empty that does nothing.
+private struct ReviewSheetGalleryExamples: View {
+    @State private var sampleTrash = TrashModel()
+    private static let catalog = Catalog(rules: BuiltInCatalog.rules)
+    private static let chrome = "chrome-cache", changed = "Old installer.dmg"
+    private static let items: [Candidate] = [
+        item(chrome, "Library/Caches/Google/Chrome/Default/Cache", 640_000_000),
+        item("xcode-derived-data", "Library/Developer/Xcode/DerivedData/Example-abcdefghijklmnopqrstuvwxyzab", 2_100_000_000, name: "Example"),
+        item(CleanupRule.downloadsID, "Downloads/Camera guide.pdf", 8_000_000),
+        item(CleanupRule.downloadsID, "Downloads/" + changed, 450_000_000),
+        item("icloud-local-copies", BuiltInCatalog.iCloudDrivePath + "/Footage.mov", 1_300_000_000),
+        item("homebrew", "Library/Caches/Homebrew", 900_000_000),
+        item("ollama-models", ".ollama/models/manifests/registry.ollama.ai/library/llama3/latest", 4_700_000_000, name: "llama3:latest"),
+    ].compactMap { $0 }
+    /// Google Chrome holds its caches; the installer changed since the scan.
+    private static let refusals: [String: CheckRefusal] = {
+        var refusals: [String: CheckRefusal] = [:]
+        for item in items where item.ruleID == chrome { refusals[item.id] = .ownerRunning("Google Chrome") }
+        for item in items where item.url.lastPathComponent == changed { refusals[item.id] = .changed }
+        return refusals
+    }()
+    private static let records = items.filter { $0.ruleID == CleanupRule.downloadsID }
+        .map { CleanupRecord(batchID: UUID(), approvedAt: Date(timeIntervalSince1970: 0), candidate: $0, dryRun: false) }
+    private static let trash = [("Old project.zip", Int64(1_200_000_000)), ("Screenshot.png", 3_000_000)]
+        .map { TrashItem.gallerySample(url: CatalogCleanupModel.checkHome.appendingPathComponent(".Trash/" + $0.0), bytes: $0.1) }
+    private static func item(_ ruleID: String, _ path: String, _ bytes: Int64, name: String? = nil) -> Candidate? {
+        catalog.rule(ruleID).map { Candidate.gallerySample(rule: $0, url: CatalogCleanupModel.checkHome.appendingPathComponent(path), bytes: bytes, itemName: name) }
+    }
+    var body: some View {
+        VStack(alignment: .leading, spacing: CacheDropDesign.Space.xl) {
+            gallerySheet("Review your cleanup · Every group, a holder’s line and a skipped line", identifier: "galleryReviewSheet") {
+                ReviewSheetFrame(title: WorkspaceCleanupConfirmationView.title, subtitle: WorkspaceCleanupConfirmationView.subtitle) {
+                    CatalogConfirmationSection(review: CatalogReview(approval: CatalogApproval(candidates: Self.items, dryRun: false), refusals: Self.refusals),
+                                               catalog: Self.catalog,
+                                               held: ReviewHeldItems(candidates: Self.items, refusals: Self.refusals, catalog: Self.catalog, isOpen: { _ in true }),
+                                               quit: { line in line.quitTitle.map { StatusAction(title: $0, identifier: "galleryReviewQuit-" + line.id) {} } })
+                } actions: {
+                    Button("Cancel") {}
+                    Button("Clean up") {}.buttonStyle(.borderedProminent)
+                }
             }
-        }.accessibilityElement(children: .contain).accessibilityIdentifier("onboardingGallery-" + name)
+            gallerySheet("Empty from Trash · CacheDrop’s own items", identifier: "galleryEmptyFromTrash") {
+                EmptyFromTrashSheet(scope: .cacheDropItems(Self.records), trash: sampleTrash, dryRun: false, empty: {}, close: {})
+            }
+            gallerySheet("Empty the Trash · Everything in it", identifier: "galleryEmptyTrash") {
+                EmptyFromTrashSheet(scope: .wholeTrash(Self.trash), trash: sampleTrash, dryRun: false, empty: {}, close: {})
+            }
+        }
     }
 }
 /// Inert presentation examples reuse the live capacity components; no reads or timers.
