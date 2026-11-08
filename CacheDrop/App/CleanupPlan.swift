@@ -292,7 +292,7 @@ struct LiveCleanupPlanView: View {
             CleanupRunSection(selection: selection, reveal: proxy.revealRow)
         } else {
         VStack(alignment: .leading, spacing: CacheDropDesign.Space.lg) {
-            PageHeader(title: "Cleanup plan", subtitle: "Choose categories, adjust items if needed, then review the changes.",
+            PageHeader(title: "Cleanup plan", subtitle: "Choose categories, adjust items if needed, then review the changes",
                        back: backToExplorer.map { BackButton(destination: backToExplorerDestination, action: $0) })
                 .padding(.bottom, CacheDropDesign.Space.sm)
             ScanHistoryRecordingNotice()
