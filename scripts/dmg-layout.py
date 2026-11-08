@@ -56,8 +56,8 @@ def quoted(text: str) -> str:
 
 
 def applescript(layout: dict, mount_point: str) -> str:
-    """The Finder script for the image mounted at mount_point, addressed by path so a second "CacheDrop" volume
-    already mounted can't receive the layout."""
+    """The Finder script for the image mounted at mount_point. Finder still resolves the disk by volume name, so a
+    second "CacheDrop" volume would receive the layout; make-dmg.sh refuses while one is mounted (#760)."""
     left, top = WINDOW_ORIGIN
     right, bottom = left + layout['window']['width'], top + layout['window']['height'] + TITLE_BAR
     app, applications = layout['app'], layout['applications']
