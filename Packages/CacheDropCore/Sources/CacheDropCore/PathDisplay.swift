@@ -5,7 +5,12 @@ public enum PathDisplay {
     /// The folder that contains `path`, with the home folder as `~` and anything deeper than two
     /// folders shortened to its last two: `~/Workspace`, `…/Clients/Acme`, `/Volumes/Backup`.
     public static func shortLocation(of path: String, home: String = NSHomeDirectory()) -> String {
-        let parent = URL(fileURLWithPath: path).standardizedFileURL.deletingLastPathComponent().path
+        shortFolder(URL(fileURLWithPath: path).standardizedFileURL.deletingLastPathComponent().path, home: home)
+    }
+
+    /// `folder` itself, shortened as `shortLocation(of:home:)` shortens the folder something is in.
+    public static func shortFolder(_ folder: String, home: String = NSHomeDirectory()) -> String {
+        let parent = URL(fileURLWithPath: folder).standardizedFileURL.path
         let homePath = URL(fileURLWithPath: home).standardizedFileURL.path
         var root = "/"
         var components: [String]

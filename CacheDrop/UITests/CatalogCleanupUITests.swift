@@ -1,5 +1,6 @@
 import XCTest
 import AppKit
+import CacheDropCore
 
 /// A fixture home with an npm cache and a Downloads installer, inside the runner's temp folder. The app reads it only through
 /// the DEBUG-only CACHEDROP_TEST_CATALOG_HOME seam, so the journey never touches real user paths.
@@ -713,6 +714,10 @@ final class CatalogCleanupUITests: XCTestCase {
         defer { app.terminate(); try? FileManager.default.removeItem(at: state); try? FileManager.default.removeItem(at: home) }
         // A second installer, so the plan lists the items to choose from.
         try Data(repeating: 5, count: 90_000).write(to: home.appendingPathComponent("Downloads/Other.pkg"))
+        // #749: another Setup.dmg in a folder of Downloads, so two items of the rule share a name.
+        let older = home.appendingPathComponent("Downloads/Old/Setup.dmg")
+        try FileManager.default.createDirectory(at: older.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data(repeating: 4, count: 80_000).write(to: older)
         app.launch()
 
         waitForOverview(app)
@@ -733,10 +738,14 @@ final class CatalogCleanupUITests: XCTestCase {
         let category = app.checkBoxes["planCategory-downloads"]
         XCTAssertTrue(category.waitForExistence(timeout: 5))
         XCTAssertEqual(category.value as? Int, 0)
-        let item = app.checkBoxes["planItem-downloads-Setup.dmg"]
+        // #749: same-named items of one rule each end in their path's tag.
+        let identifier = { (url: URL) in "planItem-downloads-Setup.dmg-" + PlanItemIdentifier.pathTag(url.path) }
+        let item = app.checkBoxes[identifier(home.appendingPathComponent("Downloads/Setup.dmg"))], olderItem = app.checkBoxes[identifier(older)]
         if !item.waitForExistence(timeout: 2) { expandDisclosures(in: app) }
         XCTAssertTrue(item.waitForExistence(timeout: 5))
         XCTAssertEqual(item.value as? Int, 0)
+        XCTAssertTrue(olderItem.exists, "The other Setup.dmg has its own identifier")
+        XCTAssertFalse(app.checkBoxes["planItem-downloads-Setup.dmg"].exists, "Neither keeps the bare name")
         // #350: the installer goes to the Trash, so the total doesn't count it, and nothing on the page moves.
         let total = app.staticTexts["liveSelectionSummaryValue"], before = total.value as? String
         // #481: nothing is selected on Applications, so the count stands alone.
@@ -747,6 +756,7 @@ final class CatalogCleanupUITests: XCTestCase {
         let below = app.checkBoxes["planCategory-developer"], top = below.frame.minY
         revealAndClick(item, in: app)
         XCTAssertEqual(item.value as? Int, 1)
+        XCTAssertEqual(olderItem.value as? Int, 0, "Its own identifier, so its own tick")
         XCTAssertEqual(app.checkBoxes["planItem-downloads-Other.pkg"].value as? Int, 0)
         // The installer goes to Trash, so the summary says how much of the total does.
         XCTAssertEqual(total.value as? String, before, "The Trash-bound installer releases nothing until the Trash is emptied")
@@ -1800,6 +1810,11 @@ final class AppManagedStorageUITests: XCTestCase {
         revealAndClick(optimized, in: app)
         XCTAssertEqual(optimized.value as? Int, 1)
         XCTAssertEqual(proxy.value as? Int, 0, "Its own identifier, so its own tick")
+        // #756: each row's path line ends at its own folder, so the two read apart.
+        let pathLine = { (line: String) in app.descendants(matching: .any).matching(NSPredicate(format: "value BEGINSWITH %@", line + ", ")).firstMatch }
+        XCTAssertTrue(pathLine("…/Transcoded Media/High Quality Media").exists, "Optimized media shows its own folder")
+        XCTAssertTrue(pathLine("…/Transcoded Media/Proxy Media").exists, "Proxy media shows its own folder")
+        XCTAssertFalse(pathLine("…/Event 1/Transcoded Media").exists, "Neither shows only the folder above it")
         XCTAssertFalse(app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH 'planItem-' AND identifier ENDSWITH '-Original Media'")).firstMatch.exists)
         XCTAssertTrue(FileManager.default.fileExists(atPath: original.path))
     }

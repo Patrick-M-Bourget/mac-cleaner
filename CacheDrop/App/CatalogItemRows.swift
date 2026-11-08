@@ -18,10 +18,13 @@ struct CatalogItemRows: View {
     /// Only these items, by id: Smart clean's Worth a look lists what the recommended plan doesn't take (#780).
     var only: Set<String>? = nil
     var body: some View {
-        let found = model.candidates(for: rule).filter { (app.map($0.isUninstalled(with:)) ?? true) && (!onlyHeld || $0.hold != nil) && (only?.contains($0.id) ?? true) }
+        let all = model.candidates(for: rule)
+        let found = all.filter { (app.map($0.isUninstalled(with:)) ?? true) && (!onlyHeld || $0.hold != nil) && (only?.contains($0.id) ?? true) }
         let items = listing.map { $0.sort.ordered(found.filter($0.matches), name: \.displayName, bytes: \.estimatedBytes) }
             ?? sort.map { $0.ordered(found.sorted { $0.url.path < $1.url.path }, name: \.displayName, bytes: { SizeEstimate($0).sortBytes }) }
             ?? found.sorted { $0.displayName.localizedStandardCompare($1.displayName) == .orderedAscending }
+        // Over every item of the rule, so a row's identifier is the same whichever page lists it (#749).
+        let repeated = PlanItemIdentifier.repeatedNames(all.map(\.displayName))
         LazyVStack(alignment: .leading, spacing: 0) {
             ForEach(items) { item in
                 // Clicking the row ticks the item, as its checkbox does; Finder is its own Reveal link (#356, #367, Decision 72).
@@ -29,16 +32,17 @@ struct CatalogItemRows: View {
                                    symbol: item.isDirectory ? "folder" : "doc", inspected: false,
                                    inspect: rule.itemRowClick == .tick ? { if model.canChoose([item]) { model.setSelected(item, !model.isSelected(item)) } } : nil,
                                    detailLineLimit: 1, actionLabel: "Select " + item.displayName,
-                                   reveal: { Finder.reveal([item.url]) }, revealIdentifier: "planItemReveal-" + identifier(item)) {
+                                   reveal: { Finder.reveal([item.url]) }, revealIdentifier: "planItemReveal-" + identifier(item, repeated)) {
                     Toggle("Select " + item.displayName, isOn: Binding(get: { model.isSelected(item) }, set: { model.setSelected(item, $0) }))
-                        .labelsHidden().disabled(!model.canChoose([item])).accessibilityIdentifier("planItem-" + identifier(item))
+                        .labelsHidden().disabled(!model.canChoose([item])).accessibilityIdentifier("planItem-" + identifier(item, repeated))
                 }.help(item.url.path)
             }
         }
     }
-    /// Rule plus name, so two same-named items of different rules (a library's optimized and proxy media of one event, #399)
-    /// each get their own identifier (#744); test-facing only, like `planProfile-<rule>-<profile>`.
-    private func identifier(_ item: Candidate) -> String { item.ruleID + "-" + item.displayName }
+    /// Rule plus name (#744), and a path tag when the rule has another item of that name (#749); test-facing only.
+    private func identifier(_ item: Candidate, _ repeated: Set<String>) -> String {
+        PlanItemIdentifier.make(ruleID: item.ruleID, name: item.displayName, path: item.url.path, repeated: repeated)
+    }
     private func detail(_ item: Candidate) -> String {
         // Held at the scan (#374): unticked, saying what holds it.
         if let hold = item.hold { return hold.line }
@@ -46,7 +50,7 @@ struct CatalogItemRows: View {
         if let reason = item.leftover?.reason { return reason }
         // A plug-in item other products use too (#176, Decision 52).
         if let shared = item.sharedLabel { return shared }
-        let folder = PathDisplay.shortLocation(of: item.url, home: CatalogCleanupModel.checkHome)
+        let folder = PathDisplay.itemLocation(of: item, home: CatalogCleanupModel.checkHome)
         return item.lastUsed.map { folder + " · Last used " + $0.formatted(date: .abbreviated, time: .omitted) } ?? folder
     }
 }
