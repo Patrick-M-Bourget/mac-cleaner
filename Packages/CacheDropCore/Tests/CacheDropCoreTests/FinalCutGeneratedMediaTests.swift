@@ -191,3 +191,25 @@ private struct FinalCutInstalled: AppLookup {
     #expect(CandidateCheck(catalog: catalog, running: Running(), home: home).check(item) == nil)
     #expect(!candidates.contains { $0.url.lastPathComponent.contains("app-caches") })
 }
+
+// #756, Decision 190: an item's path line shows where it is. A Final Cut item's name says its library and event, not which
+// folder it is, so its line ends at its own folder, and one event's optimized and proxy media no longer read alike.
+@Test func aFinalCutItemsPathLineEndsAtItsOwnFolder() throws {
+    let home = try libraryHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    try makeLibraries(home)
+    let remnant = untitled + "Event 1/Transcoded Media/" + Catalog.deletionRemnantName(for: FinalCutGeneratedMedia.proxyMediaID)
+    try write(home, remnant + "/proxy.mov")
+    let candidates = Catalog(rules: fixtureRules).discovery(fixture: home, access: .granted).candidates
+    let event = candidates.filter { $0.itemName == "Untitled · Event 1" && !$0.isDeletionRemnant }
+    #expect(Dictionary(event.map { ($0.ruleID, PathDisplay.itemLocation(of: $0, home: home)) }, uniquingKeysWith: { first, _ in first })
+            == [FinalCutGeneratedMedia.renderFilesID: "…/Event 1/Render Files",
+                FinalCutGeneratedMedia.optimizedMediaID: "…/Transcoded Media/High Quality Media",
+                FinalCutGeneratedMedia.proxyMediaID: "…/Transcoded Media/Proxy Media"])
+    // An interrupted delete's leftover keeps the folder it is in, as every other rule's item does.
+    let leftover = try #require(candidates.first { $0.url.path.hasSuffix(remnant) })
+    #expect(PathDisplay.itemLocation(of: leftover, home: home) == "…/Event 1/Transcoded Media")
+    for other in candidates where !ruleIDs.contains(other.ruleID) {
+        #expect(PathDisplay.itemLocation(of: other, home: home) == PathDisplay.shortLocation(of: other.url, home: home))
+    }
+}

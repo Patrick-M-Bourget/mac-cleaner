@@ -55,4 +55,12 @@ extension PathDisplay {
         if parent.hasPrefix(drive + "/") { return "iCloud Drive › " + URL(fileURLWithPath: parent).lastPathComponent }
         return shortLocation(of: url.path, home: home.path)
     }
+
+    /// A plan item's path line (#756, Decision 190): where it is, `shortLocation(of:home:)`. A Final Cut Pro item is named
+    /// "<library> · <event>", which says where it is but not which folder it is, so its line ends at its own folder
+    /// ("…/Transcoded Media/Proxy Media"); an interrupted delete's leftover keeps the folder it is in.
+    public static func itemLocation(of item: Candidate, home: URL) -> String {
+        guard FinalCutGeneratedMedia.ruleIDs.contains(item.ruleID), !item.isDeletionRemnant else { return shortLocation(of: item.url, home: home) }
+        return shortFolder(item.url.standardizedFileURL.path, home: home.path)
+    }
 }

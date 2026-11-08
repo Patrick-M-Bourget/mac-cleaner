@@ -1810,6 +1810,11 @@ final class AppManagedStorageUITests: XCTestCase {
         revealAndClick(optimized, in: app)
         XCTAssertEqual(optimized.value as? Int, 1)
         XCTAssertEqual(proxy.value as? Int, 0, "Its own identifier, so its own tick")
+        // #756: each row's path line ends at its own folder, so the two read apart.
+        let pathLine = { (line: String) in app.descendants(matching: .any).matching(NSPredicate(format: "value BEGINSWITH %@", line + ", ")).firstMatch }
+        XCTAssertTrue(pathLine("…/Transcoded Media/High Quality Media").exists, "Optimized media shows its own folder")
+        XCTAssertTrue(pathLine("…/Transcoded Media/Proxy Media").exists, "Proxy media shows its own folder")
+        XCTAssertFalse(pathLine("…/Event 1/Transcoded Media").exists, "Neither shows only the folder above it")
         XCTAssertFalse(app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH 'planItem-' AND identifier ENDSWITH '-Original Media'")).firstMatch.exists)
         XCTAssertTrue(FileManager.default.fileExists(atPath: original.path))
     }

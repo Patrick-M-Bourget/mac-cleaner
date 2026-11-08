@@ -50,7 +50,7 @@ struct CatalogItemRows: View {
         if let reason = item.leftover?.reason { return reason }
         // A plug-in item other products use too (#176, Decision 52).
         if let shared = item.sharedLabel { return shared }
-        let folder = PathDisplay.shortLocation(of: item.url, home: CatalogCleanupModel.checkHome)
+        let folder = PathDisplay.itemLocation(of: item, home: CatalogCleanupModel.checkHome)
         return item.lastUsed.map { folder + " · Last used " + $0.formatted(date: .abbreviated, time: .omitted) } ?? folder
     }
 }

@@ -108,7 +108,7 @@ struct CatalogConfirmationSection: View {
                 if let tool = rule.tool { Text(tool.commandLine(for: item.toolArgument)).font(CacheDropDesign.TypeStyle.code).textSelection(.enabled) }
                 // A command that takes an identifier (a simulator's UDID) also names the item.
                 if rule.tool?.deletesLocationAfter ?? true || item.toolItem != nil {
-                    Text(item.displayName + " · " + PathDisplay.shortLocation(of: item.url, home: CatalogCleanupModel.checkHome))
+                    Text(item.displayName + " · " + PathDisplay.itemLocation(of: item, home: CatalogCleanupModel.checkHome))
                         .font(CacheDropDesign.TypeStyle.caption).help(item.url.path)
                 }
             }
