@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Builds a release that is ready to publish, in one command, from origin/main after its version PR merged:
-# a clean checkout at ../mac-cleaner-release-VERSION, the notes to sign, scripts/release.sh (signed, notarized,
+# the full UI suite stamp for its app code (scripts/ui-suite-stamp.sh), a clean checkout at ../mac-cleaner-release-VERSION, the notes to sign, scripts/release.sh (signed, notarized,
 # stapled, appcast), then the independent checks of docs/RELEASING.md. It uploads nothing. Publishing is
 # cachedrop-website's scripts/publish-release.sh, run only when the owner says "publish" (website Decision 55).
 set -euo pipefail
@@ -26,6 +26,10 @@ grep -q "MARKETING_VERSION = $version;" <<<"$pbxproj" \
 git -C "$main_repo" cat-file -e "origin/main:docs/releases/$version.html" 2>/dev/null \
   || die "origin/main has no docs/releases/$version.html"
 echo "origin/main ${commit:0:12} is $version"
+
+step "Full UI suite"
+# docs/RELEASING.md step 1: a full ui-journeys.sh --all pass on this app code (#807). Merges stay ungated.
+"$(dirname "$0")/ui-suite-stamp.sh" matches "$commit" || exit 1
 
 step "Clean checkout"
 if [[ -d "$checkout" ]]; then

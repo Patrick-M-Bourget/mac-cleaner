@@ -11,7 +11,11 @@
 # A journey asked for (each named test, or every test in the UI sources for --all) that reports no passed, failed or
 # skipped line, as when the runner restarts mid-run, is named ("No result: Class/test") and rerun once on the same
 # build. The last line and exit status then cover both runs: a failure, or a journey still without a result, is non-zero.
-# When no journey reports at all, the runner likely didn't start: that is said, nothing is rerun, and the exit is non-zero.
+# When no journey reports at all, nothing is rerun, the exit is non-zero and a line names the cause from the log: macOS
+# waiting on its automation permission prompt (the owner must answer it), "Executed 0 tests" (the named tests aren't in
+# the test plan), or otherwise a build or runner failure to read in the log.
+# A --all run with no failure and no journey left without a result, started with CacheDrop/ and Packages/ committed,
+# records the UI suite stamp for HEAD that scripts/ship-release.sh requires (scripts/ui-suite-stamp.sh, #807).
 # The run drives the screen: use it only when nobody is using this Mac.
 set -uo pipefail
 TMPDIR="${TMPDIR:-/tmp}"
@@ -23,7 +27,7 @@ for arg in "$@"; do
   case "$arg" in
     --no-build) build=0 ;;
     --all) all=1 ;;
-    -h|--help) sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,/^[^#]/p' "$0" | sed '$d' | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) tests+=("$arg") ;;
   esac
 done
@@ -51,6 +55,14 @@ for test in ${tests[@]+"${tests[@]}"}; do
 done
 [ "${#requested[@]}" -gt 0 ] || while read -r test; do requested+=("$test"); done < <(all_tests)
 
+# A full-suite run on committed app code can record the UI suite stamp that releases need (#807).
+suite_commit=""
+if [ "$all" -eq 1 ] && [ "${#tests[@]}" -eq 0 ]; then suite_commit=$(scripts/ui-suite-stamp.sh current) || suite_commit=""; fi
+stamp_suite() {
+  [ -n "$suite_commit" ] || return 0
+  scripts/ui-suite-stamp.sh write "$suite_commit" && echo "Full UI suite passed: stamp recorded for ${suite_commit:0:12}"
+}
+
 # The requested tests a log has no passed, failed or skipped line for.
 unreported() {
   local log="$1" test; shift
@@ -63,6 +75,24 @@ unreported() {
 report() {
   grep -E "Test Case '.*' (passed|failed|skipped)|\.swift:[0-9]+: error|Restarting after unexpected exit" "$1" \
     | sed -E "s#^.*/UITests/##; s/^Test Case '-\[CacheDropUITests\.([A-Za-z0-9_]+) ([A-Za-z0-9_]+)\]' /\1\/\2 /"
+}
+
+# Why a log has no journey result at all, one line per cause found (#808).
+no_report_causes() {
+  local log="$1" found=0; shift
+  if grep -qE 'Timed out while enabling automation mode|Authentication cancelled' "$log"; then
+    echo "macOS is asking for automation permission: the owner must answer the prompt at this Mac, then rerun"
+    found=1
+  fi
+  if grep -q 'Executed 0 tests' "$log" && grep -q 'TEST EXECUTE SUCCEEDED' "$log"; then
+    if [ "$all" -eq 1 ] && [ "${#tests[@]}" -eq 0 ]; then
+      echo "Executed 0 tests: the test plan runs none of the UI suite"
+    else
+      echo "Executed 0 tests: $(printf '%s\n' "$@" | paste -sd ' ' -) aren't in the test plan; use a VisualCaptureUITests scenario or add the class to the plan"
+    fi
+    found=1
+  fi
+  [ "$found" -eq 1 ] || echo "A build or runner failure stopped the run before any journey reported: read the log"
 }
 
 checkout="$(pwd)"
@@ -101,15 +131,16 @@ status=$?
 missing=()
 while read -r test; do missing+=("$test"); done < <(unreported "$log" "${requested[@]}")
 if [ "${#missing[@]}" -eq 0 ]; then
+  [ "$status" -ne 0 ] || stamp_suite
   echo "xcodebuild exit $status; full log: $log"
   exit $status
 fi
 
-# No journey reported at all: the runner most likely never started (as with "Timed out while enabling automation mode").
-# A rerun would only repeat that.
+# No journey reported at all, so a rerun would only repeat it: name the cause from the log, one line each (#808).
 if [ "${#missing[@]}" -eq "${#requested[@]}" ]; then
   [ "$status" -ne 0 ] || status=1
-  echo "xcodebuild exit $status; no journey reported, so the runner likely didn't start; full log: $log"
+  no_report_causes "$log" "${requested[@]}"
+  echo "xcodebuild exit $status; no journey reported; full log: $log"
   exit $status
 fi
 
@@ -127,5 +158,6 @@ result=0
 if [ "$rerun_status" -ne 0 ]; then result=$rerun_status
 elif [ -n "$still" ] || grep -qE "Test Case '.*' failed" "$log"; then result=1
 fi
+[ "$result" -ne 0 ] || stamp_suite
 echo "xcodebuild exit $status, rerun exit $rerun_status${still:+, still no result: $still}; full logs: $log $rerun_log"
 exit $result
